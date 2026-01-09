@@ -8,18 +8,13 @@
   </a>
 </div>
 
-**Lost League Manager** is a streamlined, lightweight utility designed to enhance your League of Legends experience. It replaces the standard launcher with a powerful multi-account manager that automates your login process and provides essential client tools.
+**Lost League Manager** is a lightweight utility designed to enhance your League of Legends experience.
 
 ## Key Features
 
 - **Instant Auto-Login**: Securely store multiple accounts and log in with a single click. The app handles process termination and credential entry automatically.
 - **Secure Input**: Features reliable input handling (mouse/keyboard locking) during login to ensure credentials are typed correctly every time.
 - **Auto Queue & Accept**: Automatically start queuing for your preferred game mode and accept matches instantly.
-- **Client Tools**:
-    - **Fix Client**: Instantly kill all stuck League processes with one click.
-    - **Customize Profile**: Set your profile background to any Champion or Skin.
-    - **Lobby Tools**: Quick access to Dodge and OP.GG multi-search.
-- **Multi-Language**: Fully localized interface supporting English usage for all regions.
 
 ## Installation
 
@@ -68,9 +63,5 @@ To build the application locally:
     npm run build
     ```
 
-## Disclaimer
-
 This software is an unofficial fan-made utility and is not endorsed by or affiliated with Riot Games. Use at your own risk.
 
----
-*Developed by Lostgames*
