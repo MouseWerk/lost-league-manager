@@ -1,0 +1,483 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background-color: #1E1E1E; /* COLOR_DARK_BG */
+    color: #FFFFFF; /* COLOR_TEXT_WHITE */
+    user-select: none;
+    overflow: hidden;
+}
+
+.window-drag-area {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 30px;
+    z-index: 100;
+    -webkit-app-region: drag; 
+}
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    margin-top: 10px; 
+}
+
+.logo-area {
+    display: flex;
+    align-items: center;
+}
+
+.logo {
+    width: 32px;
+    height: 32px;
+    margin-right: 10px;
+}
+
+h1 {
+    font-size: 22px;
+    margin: 0;
+}
+
+.actions-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.icon-btn {
+    background: #2D2D30;
+    border: none;
+    color: #FFF;
+    width: 36px;
+    height: 36px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.icon-btn:hover {
+    background: #3E3E42;
+}
+
+.add-btn {
+    background: #D13639; 
+    font-size: 24px;
+}
+
+.add-btn:hover {
+    background: #B02A2D;
+}
+
+.close-btn {
+    background: transparent;
+    color: #AAA;
+}
+.close-btn:hover {
+    color: #FFF;
+    background: #cc0000;
+}
+
+.auto-accept-switch {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+    gap: 5px;
+    cursor: pointer;
+}
+
+.view {
+    display: none;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.view.active {
+    display: block;
+}
+
+.accounts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.account-card {
+    background: #2D2D30;
+    border-radius: 8px;
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.2s;
+}
+
+.account-card:hover {
+    background: #3E3E42;
+}
+
+.account-info {
+    cursor: pointer;
+    flex: 1;
+}
+
+.info-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.summoner-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #3E3E42;
+    background: #111;
+    display: none; /* Hidden until loaded */
+}
+
+.text-content {
+    flex: 1;
+}
+
+.level-badge {
+    font-size: 10px;
+    background: #3E3E42;
+    padding: 2px 6px;
+    border-radius: 10px;
+    color: #AAA;
+    margin-left: 5px;
+    vertical-align: middle;
+}
+
+.account-info h3 {
+    margin: 0;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+}
+
+.account-info .username {
+    color: #AAAAAA;
+    font-size: 12px;
+    margin: 2px 0;
+}
+
+.account-info .rank {
+    color: #0AC8B9;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+.account-info .notes-preview {
+    color: #666;
+    font-size: 10px;
+    font-style: italic;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.card-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.play-btn {
+    background: #0AC8B9;
+    color: #FFF;
+    border: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 5px;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.play-btn:hover {
+    background: #09B4A7;
+}
+
+.edit-btn {
+    background: transparent;
+    color: #AAA;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.edit-btn:hover {
+    color: #FFF;
+}
+
+.delete-btn {
+    background: transparent;
+    color: #D13639;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.header-sub {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.setting-card {
+    background: #2D2D30;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+.path-display {
+    color: #AAA;
+    font-size: 12px;
+    word-break: break-all;
+    background: #1E1E1E;
+    padding: 10px;
+    border-radius: 4px;
+}
+
+.action-btn {
+    background: #3E3E42;
+    color: #FFF;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    width: 100%;
+}
+
+.action-btn:hover {
+    background: #555;
+}
+
+.version-info {
+    text-align: center;
+    color: #555;
+    margin-top: 20px;
+    font-size: 12px;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    justify-content: center;
+    align-items: center;
+    z-index: 200;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background: #2D2D30;
+    padding: 20px;
+    border-radius: 10px;
+    width: 340px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.form-scroll-area {
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-row {
+    display: flex;
+    gap: 10px;
+}
+
+.form-group.half {
+    flex: 1;
+}
+
+.form-group label {
+    display: block;
+    font-size: 12px;
+    margin-bottom: 5px;
+    color: #AAA;
+}
+
+.form-group input, .form-group select, .form-group textarea {
+    width: 100%;
+    background: #1E1E1E;
+    border: 1px solid #3E3E42;
+    color: #FFF;
+    padding: 8px;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.form-group textarea {
+    resize: vertical;
+}
+
+/* Checkbox specific */
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    cursor: pointer;
+}
+
+.checkbox-group input {
+    width: auto;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 10px;
+    border-top: 1px solid #3E3E42;
+}
+
+.primary-btn {
+    background: #D13639;
+    color: #FFF;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.secondary-btn {
+    background: transparent;
+    color: #AAA;
+    border: 1px solid #AAA;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #3E3E42;
+    border-radius: 4px;
+}
+
+/* Launch Overlay */
+.launch-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(20, 20, 23, 0.9);
+    backdrop-filter: blur(8px);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.launch-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.launch-content {
+    width: 80%;
+    max-width: 300px;
+    text-align: center;
+}
+
+.launch-spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top: 3px solid #0AC8B9;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px auto;
+}
+
+.launch-status {
+    font-size: 16px;
+    color: #FFF;
+    margin-bottom: 15px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+}
+
+.launch-progress-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 30px;
+}
+
+.launch-progress-bar {
+    height: 100%;
+    background: #0AC8B9;
+    width: 0%;
+    transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    box-shadow: 0 0 10px rgba(10, 200, 185, 0.5);
+}
+
+.cancel-launch-btn {
+    background: transparent;
+    border: 1px solid #D13639;
+    color: #D13639;
+    padding: 8px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.cancel-launch-btn:hover {
+    background: #D13639;
+    color: #FFF;
+}
