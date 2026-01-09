@@ -7,8 +7,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupEventListeners();
 
     // Version
-    const version = "v1.0.0";
-    if (document.getElementById('version')) document.getElementById('version').innerText = version;
+    const version = await window.electronAPI.getVersion();
+    const versionEl = document.getElementById('appVersion');
+    if (versionEl) versionEl.innerText = `v${version}`;
 
     try {
         // Load config
@@ -102,13 +103,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const btn = e.target;
         btn.innerText = "Checking...";
         btn.disabled = true;
-        const update = await window.electronAPI.checkForUpdates();
-        btn.innerText = "Check for Updates";
-        btn.disabled = false;
-        if (update && update.updateAvailable) {
-            showUpdateBanner(update.url);
-        } else {
-            showToast("Application is up to date!", "success");
+        try {
+            const update = await window.electronAPI.checkForUpdates();
+            if (update && update.updateAvailable) {
+                showUpdateBanner(update.url);
+                showToast(`New version available: v${update.latestVersion}`, "info");
+            } else if (update && update.error) {
+                showToast("Update check failed: " + update.error, "error");
+            } else {
+                showToast("Application is up to date!", "success");
+            }
+        } catch (err) {
+            showToast("Failed to check for updates.", "error");
+        } finally {
+            btn.innerText = "Check for Updates";
+            btn.disabled = false;
         }
     });
 });
