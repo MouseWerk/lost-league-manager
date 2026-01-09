@@ -3,8 +3,8 @@
 <div align="center">
   <img src="docs/screenshot.jpg" alt="Lost League Manager Screenshot" width="450" />
   <br><br>
-  <a href="https://github.com/mauricekleindienst/lost-league-manager/releases/latest">
-    <img src="https://img.shields.io/github/v/release/mauricekleindienst/lost-league-manager?label=Download&style=for-the-badge&color=blue" alt="Download Latest Version">
+  <a href="https://github.com/lostsarius/lost-league-manager/releases/latest">
+    <img src="https://img.shields.io/github/v/release/lostsarius/lost-league-manager?label=Download&style=for-the-badge&color=blue" alt="Download Latest Version">
   </a>
 </div>
 
@@ -47,7 +47,7 @@ To build the application locally:
 
 1.  **Clone the repository**
     ```bash
-    git clone https://github.com/mauricekleindienst/lost-league-manager.git
+    git clone https://github.com/lostsarius/lost-league-manager.git
     cd leaguelogin
     ```
 2.  **Install Dependencies**
