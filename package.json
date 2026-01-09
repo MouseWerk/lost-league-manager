@@ -11,7 +11,7 @@
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mauricekleindienst/lost-league-manager.git"
+    "url": "https://github.com/lostsarius/lost-league-manager.git"
   },
   "dependencies": {
     "axios": "^1.13.2",
@@ -45,7 +45,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "mauricekleindienst",
+        "owner": "lostsarius",
         "repo": "lost-league-manager"
       }
     ]
