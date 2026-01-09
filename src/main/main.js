@@ -753,7 +753,7 @@ ipcMain.handle('set-status-message', async (event, message) => {
  */
 async function checkForUpdates() {
     try {
-        const repo = "mauricekleindienst/lost-league-manager";
+        const repo = "lostsarius/lost-league-manager";
         const url = `https://api.github.com/repos/${repo}/releases/latest`;
         const response = await axios.get(url, {
             headers: { "User-Agent": "Lost-League-Manager-Updater" }
@@ -780,4 +780,8 @@ async function checkForUpdates() {
 
 ipcMain.handle('check-for-updates', async () => {
     return await checkForUpdates();
+});
+
+ipcMain.handle('get-version', () => {
+    return app.getVersion();
 });

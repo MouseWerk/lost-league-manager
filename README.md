@@ -1,7 +1,7 @@
 # Lost League Manager
 
 <div align="center">
-  <img src="docs/screenshot.png" alt="Lost League Manager Screenshot" width="450" />
+  <img src="docs/screenshot.jpg" alt="Lost League Manager Screenshot" width="450" />
   <br><br>
   <a href="https://github.com/mauricekleindienst/lost-league-manager/releases/latest">
     <img src="https://img.shields.io/github/v/release/mauricekleindienst/lost-league-manager?label=Download&style=for-the-badge&color=blue" alt="Download Latest Version">
