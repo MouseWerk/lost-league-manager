@@ -31,13 +31,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Load accounts
         await loadAccounts();
 
-        // Check for updates on startup
-        setTimeout(async () => {
-            const update = await window.electronAPI.checkForUpdates();
-            if (update && update.updateAvailable) {
-                showUpdateBanner(update.url);
-            }
+        // Check for updates on startup (auto-download is enabled)
+        setTimeout(() => {
+            window.electronAPI.checkForUpdates();
         }, 2000);
+
+        // Auto-update event listeners
+        window.electronAPI.onUpdateAvailable((data) => {
+            showUpdateBanner(data.version, 'downloading');
+        });
+
+        window.electronAPI.onUpdateProgress((data) => {
+            updateDownloadProgress(data.percent);
+        });
+
+        window.electronAPI.onUpdateDownloaded((data) => {
+            showUpdateBanner(data.version, 'ready');
+        });
 
     } catch (err) {
         console.error("Initialization error:", err);
@@ -102,8 +112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const update = await window.electronAPI.checkForUpdates();
             if (update && update.updateAvailable) {
-                showUpdateBanner(update.url);
-                showToast(`New version available: v${update.latestVersion}`, "info");
+                showToast(`Downloading v${update.latestVersion}...`, "info");
             } else if (update && update.error) {
                 showToast("Update check failed: " + update.error, "error");
             } else {
@@ -282,15 +291,35 @@ function createAccountCard(account) {
 
 
 
-function showUpdateBanner(url) {
+function showUpdateBanner(version, state = 'ready') {
     const banner = document.getElementById('updateBanner');
+    const downloadBtn = document.getElementById('downloadUpdateBtn');
+    const bannerText = banner.querySelector('span');
+
     banner.classList.add('active');
-    document.getElementById('downloadUpdateBtn').onclick = () => {
-        window.open(url, '_blank');
-    };
+
+    if (state === 'downloading') {
+        bannerText.innerHTML = `Downloading v${version}... <span id="updatePercent">0%</span>`;
+        downloadBtn.style.display = 'none';
+    } else if (state === 'ready') {
+        bannerText.textContent = `v${version} is ready to install!`;
+        downloadBtn.textContent = 'Install & Restart';
+        downloadBtn.style.display = 'inline-block';
+        downloadBtn.onclick = () => {
+            window.electronAPI.installUpdate();
+        };
+    }
+
     document.getElementById('closeUpdateBanner').onclick = () => {
         banner.classList.remove('active');
     };
+}
+
+function updateDownloadProgress(percent) {
+    const percentEl = document.getElementById('updatePercent');
+    if (percentEl) {
+        percentEl.textContent = `${percent}%`;
+    }
 }
 
 // Modal Functions

@@ -7,6 +7,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const lcu = require('./lcu');
 const yaml = require('js-yaml');
+const { autoUpdater } = require('electron-updater');
 
 // Set Application ID for Windows Jump Lists
 app.setAppUserModelId('com.lostgames.leaguelogin');
@@ -851,38 +852,67 @@ ipcMain.handle('set-status-message', async (event, message) => {
     }
 });
 
-/**
- * Checks GitHub for the latest release.
- */
-async function checkForUpdates() {
-    try {
-        const repo = "lostsarius/lost-league-manager";
-        const url = `https://api.github.com/repos/${repo}/releases/latest`;
-        const response = await axios.get(url, {
-            headers: { "User-Agent": "Lost-League-Manager-Updater" }
+// --- Auto Updater ---
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for update...');
+});
+
+autoUpdater.on('update-available', (info) => {
+    console.log('Update available:', info.version);
+    if (mainWindow) {
+        mainWindow.webContents.send('update-available', {
+            version: info.version,
+            releaseNotes: info.releaseNotes
         });
-
-        const latestVersion = response.data.tag_name.replace('v', '');
-        const currentVersion = app.getVersion();
-
-        if (latestVersion !== currentVersion) {
-            return {
-                updateAvailable: true,
-                latestVersion,
-                currentVersion,
-                url: response.data.html_url,
-                body: response.data.body
-            };
-        }
-        return { updateAvailable: false };
-    } catch (e) {
-        console.error("Update check failed:", e.message);
-        return { updateAvailable: false, error: e.message };
     }
-}
+});
+
+autoUpdater.on('update-not-available', () => {
+    console.log('Update not available.');
+});
+
+autoUpdater.on('download-progress', (progress) => {
+    if (mainWindow) {
+        mainWindow.webContents.send('update-progress', {
+            percent: Math.round(progress.percent),
+            transferred: progress.transferred,
+            total: progress.total
+        });
+    }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+    console.log('Update downloaded:', info.version);
+    if (mainWindow) {
+        mainWindow.webContents.send('update-downloaded', {
+            version: info.version
+        });
+    }
+});
+
+autoUpdater.on('error', (err) => {
+    console.error('AutoUpdater error:', err.message);
+});
 
 ipcMain.handle('check-for-updates', async () => {
-    return await checkForUpdates();
+    try {
+        const result = await autoUpdater.checkForUpdates();
+        return {
+            updateAvailable: result?.updateInfo?.version !== app.getVersion(),
+            latestVersion: result?.updateInfo?.version,
+            currentVersion: app.getVersion()
+        };
+    } catch (e) {
+        console.error('Update check failed:', e.message);
+        return { updateAvailable: false, error: e.message };
+    }
+});
+
+ipcMain.handle('install-update', () => {
+    autoUpdater.quitAndInstall(false, true);
 });
 
 ipcMain.handle('get-version', () => {
