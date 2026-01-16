@@ -30,6 +30,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onChampSelectEnd: (callback) => ipcRenderer.on('champ-select-end', () => callback()),
     onLoginStatus: (callback) => ipcRenderer.on('login-status', (event, data) => callback(data)),
     onAccountsUpdated: (callback) => ipcRenderer.on('accounts-updated', () => callback()),
+
+    // Updates
     checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
-    getVersion: () => ipcRenderer.invoke('get-version')
+    installUpdate: () => ipcRenderer.invoke('install-update'),
+    getVersion: () => ipcRenderer.invoke('get-version'),
+    onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (event, data) => callback(data)),
+    onUpdateProgress: (callback) => ipcRenderer.on('update-progress', (event, data) => callback(data)),
+    onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', (event, data) => callback(data))
 });
