@@ -8,6 +8,9 @@ const cheerio = require('cheerio');
 const lcu = require('./lcu');
 const yaml = require('js-yaml');
 
+// Set Application ID for Windows Jump Lists
+app.setAppUserModelId('com.lostgames.leaguelogin');
+
 // --- Configuration ---
 const APP_DATA_PATH = app.getPath('userData');
 const ACCOUNTS_FILE = path.join(APP_DATA_PATH, 'accounts.json');
@@ -37,12 +40,35 @@ let currentAccount = null;
 let championMap = {};
 let latestDDragonVersion = '14.1.1'; // Default fallback
 let skinsMap = {}; // ChampID -> [Skins]
+let idToImageMap = {};
 let lcuQueueCheckInterval = null;
 
 let config = {
     lolPath: "C:\\Riot Games\\League of Legends\\LeagueClient.exe",
     autoAccept: false
 };
+
+// --- Single Instance Lock ---
+const gotLock = app.requestSingleInstanceLock();
+
+if (!gotLock) {
+    app.quit();
+} else {
+    app.on('second-instance', (event, commandLine, workingDirectory) => {
+        // Someone tried to run a second instance, we should focus our window.
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.focus();
+        }
+
+        // Check for launch argument
+        const launchArg = commandLine.find(arg => arg.startsWith('--launch='));
+        if (launchArg) {
+            const username = launchArg.split('=')[1];
+            executeAccountLaunch(username);
+        }
+    });
+}
 
 // --- Helpers ---
 /**
@@ -110,7 +136,9 @@ async function fetchChampionData() {
         const res = await axios.get(`https://ddragon.leagueoflegends.com/cdn/${latest}/data/en_US/champion.json`);
         const data = res.data.data;
         for (const key in data) {
-            championMap[data[key].name.toLowerCase()] = parseInt(data[key].key);
+            const champ = data[key];
+            championMap[champ.name.toLowerCase()] = parseInt(champ.key);
+            idToImageMap[champ.key] = `https://ddragon.leagueoflegends.com/cdn/${latest}/img/champion/${champ.id}.png`;
         }
     } catch (e) {
         console.error("Failed to fetch champion data");
@@ -261,8 +289,8 @@ lcu.onEvent(async (event) => {
 
 function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 450,
-        height: 700,
+        width: 1100,
+        height: 620,
         frame: false,
         transparent: true,
         resizable: false,
@@ -282,6 +310,14 @@ app.whenReady().then(async () => {
     await fetchChampionData();
     lcu.start();
     createWindow();
+    updateJumpList();
+
+    // Check if launched via arg
+    const launchArg = process.argv.find(arg => arg.startsWith('--launch='));
+    if (launchArg) {
+        const username = launchArg.split('=')[1];
+        executeAccountLaunch(username);
+    }
 
     app.on('activate', function () {
         if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -290,6 +326,35 @@ app.whenReady().then(async () => {
     setInterval(() => lcu.connect(config.lolPath), 5000);
     setInterval(checkGameFlowAndQueue, 3000);
 });
+
+function updateJumpList() {
+    if (process.platform !== 'win32') return;
+
+    const accounts = loadAccounts();
+    const tasks = accounts.slice(0, 5).map(acc => {
+        // In development, we need to pass the app path ('.') as the first argument
+        let args = `--launch=${acc.username}`;
+        if (!app.isPackaged) {
+            args = `. --launch=${acc.username}`;
+        }
+
+        return {
+            program: process.execPath,
+            arguments: args,
+            iconPath: process.execPath,
+            iconIndex: 0,
+            title: `Launch ${acc.label || acc.username}`,
+            description: `Login to ${acc.label || acc.username}`
+        };
+    });
+
+    try {
+        const res = app.setUserTasks(tasks);
+        console.log("Jump List updated:", res);
+    } catch (e) {
+        console.error("Failed to set Jump List tasks:", e);
+    }
+}
 
 app.on('window-all-closed', function () {
     lcu.stop();
@@ -344,6 +409,7 @@ ipcMain.handle('add-account', (event, data) => {
 
     saveAccounts(accounts);
     broadcastAccountsUpdate();
+    updateJumpList();
     return { success: true };
 });
 
@@ -376,6 +442,7 @@ ipcMain.handle('update-account', (event, data) => {
 
     saveAccounts(accounts);
     broadcastAccountsUpdate();
+    updateJumpList();
     return { success: true };
 });
 
@@ -385,6 +452,7 @@ ipcMain.handle('delete-account', (event, username) => {
     accounts = accounts.filter(a => a.username !== username);
     saveAccounts(accounts);
     broadcastAccountsUpdate();
+    updateJumpList();
     return { success: true };
 });
 
@@ -397,6 +465,10 @@ ipcMain.handle('set-config', (event, newConfig) => {
 });
 
 ipcMain.handle('launch-account', async (event, username) => {
+    return await executeAccountLaunch(username);
+});
+
+async function executeAccountLaunch(username) {
     console.log(`Launching account: ${username}`);
     const accounts = loadAccounts();
     const account = accounts.find(a => a.username === username);
@@ -482,7 +554,7 @@ ipcMain.handle('launch-account', async (event, username) => {
     });
 
     return { success: true };
-});
+}
 
 ipcMain.handle('cancel-launch', () => {
     if (currentAccount && currentAccount.loginChild) {
@@ -528,6 +600,8 @@ ipcMain.handle('get-stats', async (event, { region, riotId }) => {
         let ratio = "";
         let iconSrc = "";
         let level = "";
+        let matchHistory = [];
+        let topChampions = [];
 
         // --- JSON Strategy (Preferred) ---
         const nextData = $('#__NEXT_DATA__').html();
@@ -538,9 +612,9 @@ ipcMain.handle('get-stats', async (event, { region, riotId }) => {
 
                 if (data) {
                     // 1. Rank (Solo Duo)
-                    if (data.league_stats && Array.isArray(data.league_stats)) {
+                    const stats = data.league_stats || data.summoner?.league_stats || [];
+                    if (Array.isArray(stats)) {
                         // Look for Solo/Duo queue (ID 420 or keyword match)
-                        const stats = data.league_stats || data.summoner?.league_stats || [];
                         const solo = stats.find(s =>
                             s.queue_info?.queue_translate?.toLowerCase().includes('solo') ||
                             s.queue_info?.id === 420 ||
@@ -571,8 +645,34 @@ ipcMain.handle('get-stats', async (event, { region, riotId }) => {
                     // 3. Level
                     let lvl = data.level || data.summoner?.level || data.league_stats?.[0]?.summoner?.level;
                     if (lvl) level = lvl.toString();
+
+                    // 4. Match History
+                    if (data.games && Array.isArray(data.games)) {
+                        matchHistory = data.games.slice(0, 10).map(g => {
+                            const stats = g.myData?.stats || {};
+                            return {
+                                championId: g.myData?.champion_id,
+                                championImage: g.myData?.champion_info?.image_url || idToImageMap[g.myData?.champion_id],
+                                result: stats.result || "UNKNOWN",
+                                kda: `${stats.kill || 0}/${stats.death || 0}/${stats.assist || 0}`,
+                                date: g.created_at
+                            };
+                        });
+                    }
+
+                    // 5. Top Champions
+                    if (data.champion_stats && Array.isArray(data.champion_stats)) {
+                        topChampions = data.champion_stats.slice(0, 3).map(c => ({
+                            name: c.champion_info?.name || "Champ",
+                            image: c.champion_info?.image_url || idToImageMap[c.id],
+                            winRate: Math.round((c.win / (c.win + c.lose || 1)) * 100),
+                            games: c.win + c.lose
+                        }));
+                    }
                 }
-            } catch (e) { }
+            } catch (e) {
+                console.error("JSON Parse Error in Stats:", e.message);
+            }
         }
 
         // --- Meta Description Strategy (Robust for Level) ---
@@ -626,12 +726,15 @@ ipcMain.handle('get-stats', async (event, { region, riotId }) => {
         }
 
         return {
+            success: true,
             tier,
             lp,
             winLose,
             ratio,
             iconSrc,
-            level
+            level,
+            matchHistory,
+            topChampions
         };
     } catch (e) {
         console.error("OP.GG Fetch Error:", e.message);

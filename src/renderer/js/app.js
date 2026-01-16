@@ -3,8 +3,8 @@ let isEditing = false;
 let isLaunching = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Setup listeners FIRST
-    setupEventListeners();
+    // Load system info
+
 
     // Version
     const version = await window.electronAPI.getVersion();
@@ -87,15 +87,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Tools
     document.getElementById('fixClientBtn').addEventListener('click', async () => {
-        const res = await window.electronAPI.fixClient();
-        if (res.success) showToast("Client processes killed!", "success");
-    });
-
-    document.getElementById('setStatusBtn').addEventListener('click', async () => {
-        const msg = document.getElementById('statusMsgInput').value;
-        const res = await window.electronAPI.setStatusMessage(msg);
-        if (res.success) showToast("Status set!", "success");
-        else showToast("Error: " + res.message, "error");
+        const confirm = await showConfirm("Emergency Fix", "This will close all League of Legends and Riot Games processes. Continue?", "danger");
+        if (confirm) {
+            const res = await window.electronAPI.fixClient();
+            if (res.success) showToast("Client processes killed!", "success");
+        }
     });
 
     // Manual update check
@@ -120,7 +116,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             btn.disabled = false;
         }
     });
+
+    // Sidebar Nav
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            showView(btn.dataset.view);
+        });
+    });
+
+    // Window Controls
+    document.getElementById('minimizeAppBtn').addEventListener('click', () => window.electronAPI.minimizeWindow());
+    document.getElementById('closeAppBtn').addEventListener('click', () => window.electronAPI.closeWindow());
+
+    // Add Account
+    document.getElementById('addAccountBtn').addEventListener('click', openModal);
+
+    // Modal Controls
+    document.getElementById('cancelAddBtn').addEventListener('click', closeModal);
+    document.getElementById('saveAccountBtn').addEventListener('click', saveAccount);
 });
+
+function showView(viewId) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(viewId).classList.add('active');
+}
 
 /**
  * Shows a premium toast notification
@@ -130,9 +151,9 @@ function showToast(message, type = 'info') {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
 
-    let icon = "ℹ️";
-    if (type === 'success') icon = "✅";
-    if (type === 'error') icon = "❌";
+    let icon = '<i class="fas fa-info-circle"></i>';
+    if (type === 'success') icon = '<i class="fas fa-check-circle"></i>';
+    if (type === 'error') icon = '<i class="fas fa-exclamation-circle"></i>';
 
     toast.innerHTML = `
         <span class="toast-icon">${icon}</span>
@@ -188,9 +209,9 @@ async function loadAccounts() {
         const emptyState = document.createElement('div');
         emptyState.className = 'empty-state';
         emptyState.innerHTML = `
-            <div class="empty-icon">📂</div>
+            <div class="empty-icon"><i class="fas fa-folder-open"></i></div>
             <p>No accounts added yet.</p>
-            <button class="action-btn" onclick="document.getElementById('addAccountBtn').click()">Add Account</button>
+            <button class="primary-btn" style="margin-top: 20px" onclick="document.getElementById('addAccountBtn').click()">Add Your First Account</button>
         `;
         list.appendChild(emptyState);
         return;
@@ -206,7 +227,14 @@ async function loadAccounts() {
                 if (stats && stats.tier !== 'Err') {
                     const rankEl = el.querySelector('.rank');
                     if (rankEl) {
-                        rankEl.innerHTML = `<span>${stats.tier}</span> • <span>${stats.lp}</span>`;
+                        // Extract tier name for CSS class (e.g., "Gold 4" -> "gold")
+                        const tierName = stats.tier.split(' ')[0].toLowerCase();
+                        const tierClass = ['iron', 'bronze', 'silver', 'gold', 'platinum', 'emerald',
+                            'diamond', 'master', 'grandmaster', 'challenger', 'unranked']
+                            .includes(tierName) ? `rank-${tierName}` : 'rank-unranked';
+
+                        rankEl.className = `rank ${tierClass}`;
+                        rankEl.innerHTML = `<span>${stats.tier}</span>${stats.lp ? ` • <span>${stats.lp}</span>` : ''}`;
                     }
                     const iconEl = el.querySelector('.summoner-icon');
                     if (iconEl && stats.iconSrc) {
@@ -243,13 +271,16 @@ function createAccountCard(account) {
             </div>
         </div>
         <div class="card-actions">
-            <button class="play-btn" onclick="launchAccount('${account.username}')" title="Launch">▶</button>
-            <button class="edit-btn" onclick="editAccount('${account.username}')" title="Edit">✎</button>
-            <button class="delete-btn" onclick="deleteAccount('${account.username}')" title="Delete">🗑</button>
+            <button class="icon-btn play-btn" onclick="launchAccount('${account.username}')" title="Launch"><i class="fas fa-play"></i></button>
+            <button class="icon-btn edit-btn" onclick="editAccount('${account.username}')" title="Edit"><i class="fas fa-pen"></i></button>
+            <button class="icon-btn delete-btn" onclick="deleteAccount('${account.username}')" title="Delete"><i class="fas fa-trash"></i></button>
         </div>
     `;
     return card;
 }
+
+
+
 
 function showUpdateBanner(url) {
     const banner = document.getElementById('updateBanner');
@@ -260,46 +291,6 @@ function showUpdateBanner(url) {
     document.getElementById('closeUpdateBanner').onclick = () => {
         banner.classList.remove('active');
     };
-}
-
-function setupEventListeners() {
-    const closeBtn = document.getElementById('closeAppBtn');
-    if (closeBtn) closeBtn.addEventListener('click', () => window.electronAPI.closeWindow());
-
-    const minBtn = document.getElementById('minBtn');
-    if (minBtn) minBtn.addEventListener('click', () => window.electronAPI.minimizeWindow());
-
-    // View Navigation
-    const views = {
-        accounts: document.getElementById('accountsView'),
-        tools: document.getElementById('toolsView'),
-        settings: document.getElementById('settingsView')
-    };
-
-    function showView(name) {
-        Object.values(views).forEach(v => v.classList.remove('active'));
-        if (views[name]) views[name].classList.add('active');
-    }
-
-    if (document.getElementById('settingsBtn')) {
-        document.getElementById('settingsBtn').addEventListener('click', () => showView('settings'));
-    }
-    if (document.getElementById('toolsBtn')) {
-        document.getElementById('toolsBtn').addEventListener('click', () => showView('tools'));
-    }
-    if (document.getElementById('backBtn')) {
-        document.getElementById('backBtn').addEventListener('click', () => showView('accounts'));
-    }
-    if (document.getElementById('backToolsBtn')) {
-        document.getElementById('backToolsBtn').addEventListener('click', () => showView('accounts'));
-    }
-
-    // Add Account
-    document.getElementById('addAccountBtn').addEventListener('click', openModal);
-
-    // Modal Controls
-    document.getElementById('cancelAddBtn').addEventListener('click', closeModal);
-    document.getElementById('saveAccountBtn').addEventListener('click', saveAccount);
 }
 
 // Modal Functions
@@ -314,7 +305,7 @@ function openModal(account = null) {
         document.getElementById('newPassword').value = "";
         document.getElementById('newPassword').placeholder = "Unchanged";
         document.getElementById('newLabel').value = account.label || "";
-        document.getElementById('newNotes').value = account.note || "";
+        document.getElementById('newNotes').value = account.notes || "";
         document.getElementById('newRiotId').value = account.riotId || "";
         document.getElementById('newRegion').value = account.region || "euw";
 
@@ -322,6 +313,13 @@ function openModal(account = null) {
         document.getElementById('autoSkinToggle').checked = account.autoSkinRandom || false;
         document.getElementById('autoSpellsToggle').checked = account.autoSpells || false;
         document.getElementById('autoQueueToggle').checked = account.autoQueue || false;
+
+        // Per-account auto pick/ban and queue settings
+        document.getElementById('newAutoPick').value = account.autoPickChamp || "";
+        document.getElementById('newAutoBan').value = account.autoBanChamp || "";
+        document.getElementById('queueType').value = account.queueType || 'RANKED_SOLO';
+        document.getElementById('primaryRole').value = account.primaryRole || '';
+        document.getElementById('secondaryRole').value = account.secondaryRole || '';
 
         document.getElementById('newUsername').disabled = true;
     } else {
@@ -339,6 +337,13 @@ function openModal(account = null) {
         document.getElementById('autoSkinToggle').checked = false;
         document.getElementById('autoSpellsToggle').checked = false;
         document.getElementById('autoQueueToggle').checked = false;
+
+        // Reset per-account auto pick/ban and queue settings
+        document.getElementById('newAutoPick').value = "";
+        document.getElementById('newAutoBan').value = "";
+        document.getElementById('queueType').value = 'RANKED_SOLO';
+        document.getElementById('primaryRole').value = '';
+        document.getElementById('secondaryRole').value = '';
 
         document.getElementById('newUsername').disabled = false;
     }
@@ -361,6 +366,13 @@ async function saveAccount() {
     const autoSpells = document.getElementById('autoSpellsToggle').checked;
     const autoQueue = document.getElementById('autoQueueToggle').checked;
 
+    // Per-account auto pick/ban and queue settings
+    const autoPickChamp = document.getElementById('newAutoPick').value;
+    const autoBanChamp = document.getElementById('newAutoBan').value;
+    const queueType = document.getElementById('queueType').value;
+    const primaryRole = document.getElementById('primaryRole').value;
+    const secondaryRole = document.getElementById('secondaryRole').value;
+
     if (!username) {
         showToast("Username required!", "error");
         shakeModal();
@@ -371,13 +383,18 @@ async function saveAccount() {
         username,
         password,
         label,
-        note,
+        notes: note,
         riotId,
         region,
         appearOffline,
         autoSkinRandom: autoSkin,
         autoSpells,
-        autoQueue
+        autoQueue,
+        autoPickChamp,
+        autoBanChamp,
+        queueType,
+        primaryRole,
+        secondaryRole
     };
 
     let res;
