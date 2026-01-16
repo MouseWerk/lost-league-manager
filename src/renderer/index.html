@@ -6,116 +6,116 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>League Manager</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 
 <body>
     <div class="bg-glow"></div>
     <div class="bg-glow-bottom"></div>
-    <div class="window-drag-area"></div>
-    <div class="app-container">
-        <!-- Header -->
-        <div class="header">
+    <div class="app-container dashboard-layout">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
             <div class="logo-area">
                 <img src="assets/logo.png" alt="Logo" class="logo">
                 <div class="title-group">
-                    <h1>Lost League Manager</h1>
-                    <span class="view-subtitle">Accounts</span>
+                    <h1>Lost League</h1>
                 </div>
             </div>
-            <div class="actions-area">
-                <div id="champSelectActions" style="display: none; gap: 5px;">
-                    <button id="dodgeBtn" class="action-btn"
-                        style="background: #D13639; padding: 5px 10px; font-size: 11px;">DODGE</button>
-                    <button id="multiSearchBtn" class="action-btn"
-                        style="background: #0AC8B9; padding: 5px 10px; font-size: 11px;">OP.GG</button>
+
+            <div class="nav-links">
+                <button class="nav-btn active" data-view="accountsView">
+                    <span class="nav-icon"><i class="fas fa-th-large"></i></span> Dashboard
+                </button>
+                <button class="nav-btn" data-view="toolsView">
+                    <span class="nav-icon"><i class="fas fa-tools"></i></span> Tools
+                </button>
+                <button class="nav-btn" data-view="settingsView">
+                    <span class="nav-icon"><i class="fas fa-cog"></i></span> Settings
+                </button>
+            </div>
+
+            <div class="sidebar-bottom">
+                <button id="addAccountBtn" class="add-account-sidebar-btn">
+                    <i class="fas fa-plus"></i> Add
+                </button>
+                <div id="appVersion" class="version-info">v1.0.2</div>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Window Drag Area (Within Content) -->
+            <div class="window-control-bar">
+                <div class="drag-handle"></div>
+                <div class="window-controls">
+                    <button id="minimizeAppBtn" class="icon-btn"><i class="fas fa-minus"></i></button>
+                    <button id="closeAppBtn" class="icon-btn close-btn"><i class="fas fa-times"></i></button>
                 </div>
-                <button id="toolsBtn" class="icon-btn" title="Tools">🛠</button>
-                <button id="settingsBtn" class="icon-btn" title="Settings">⚙</button>
-                <button id="addAccountBtn" class="icon-btn add-btn">+</button>
-                <button id="closeAppBtn" class="icon-btn close-btn">×</button>
             </div>
-        </div>
 
-        <div style="margin-bottom: 10px; display: flex; justify-content: flex-end; align-items: center; gap: 10px;">
-            <label class="auto-accept-switch">
-                <input type="checkbox" id="autoAcceptToggle">
-                <span class="slider"></span>
-                <span class="label-text">Auto-Accept</span>
-            </label>
-        </div>
-
-        <!-- Accounts List -->
-        <div id="accountsView" class="view active">
-            <div id="accountsList" class="accounts-list">
-                <!-- Accounts will be injected here -->
-            </div>
-        </div>
-
-        <!-- Tools View -->
-        <div id="toolsView" class="view">
-            <div class="header-sub">
-                <button id="backToolsBtn" class="icon-btn">←</button>
-                <h2>Tools</h2>
-            </div>
-            <div class="settings-content">
-                <div class="setting-card">
-                    <h3>Fix Client (Force Kill)</h3>
-                    <p class="desc">Instantly kills all League processes. Helps with freezes.</p>
-                    <button id="fixClientBtn" class="action-btn" style="background: #D13639;">Fix Client</button>
+            <!-- Dashboard Views -->
+            <div id="accountsView" class="view active">
+                <div class="view-header">
+                    <h2>Accounts</h2>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <label class="auto-accept-switch">
+                            <input type="checkbox" id="autoAcceptToggle">
+                            <span class="slider"></span>
+                            <span class="label-text">Auto-Accept</span>
+                        </label>
+                    </div>
                 </div>
-
-
-            </div>
-        </div>
-
-        <!-- Settings View -->
-        <div id="settingsView" class="view">
-            <div class="header-sub">
-                <button id="backBtn" class="icon-btn">←</button>
-                <h2>Settings</h2>
-            </div>
-            <div class="settings-content">
-                <div class="setting-card">
-                    <h3>League Client Path</h3>
-                    <p id="lolPathDisplay" class="path-display">Loading...</p>
-                    <button id="changePathBtn" class="action-btn">Change</button>
+                <div id="accountsList" class="accounts-grid">
+                    <!-- Accounts injected here -->
                 </div>
-
-                <div class="setting-card">
-                    <h3>Language (Locale)</h3>
-                    <p class="desc">Changes game language. Restart required.</p>
-                    <select id="localeSelect" class="form-control"
-                        style="width: 100%; margin-bottom: 10px; background: #1E1E1E; color: #EEE; border: 1px solid #3E3E42; padding: 5px;">
-                        <option value="en_US">English (US)</option>
-                        <option value="en_GB">English (GB)</option>
-                        <option value="de_DE">Deutsch</option>
-                        <option value="es_ES">Español</option>
-                        <option value="fr_FR">Français</option>
-                        <option value="it_IT">Italiano</option>
-                        <option value="pl_IT">Polski</option>
-                        <option value="el_PL">Ελληνικά</option>
-                        <option value="ro_RO">Română</option>
-                        <option value="hu_HU">Magyar</option>
-                        <option value="cs_HU">Čeština</option>
-                        <option value="tr_TR">Türkçe</option>
-                        <option value="ru_RU">Русский</option>
-                        <option value="pt_BR">Português</option>
-                        <option value="ja_JP">日本語 (Japanese)</option>
-                        <option value="ko_KR">한국어 (Korean)</option>
-                        <option value="zh_CN">Chinese</option>
-                    </select>
-                    <button id="changeLocaleBtn" class="action-btn">Set Language</button>
-                </div>
-
-                <div class="setting-card">
-                    <h3>App Updates</h3>
-                    <p class="desc">Check if you are running the latest version.</p>
-                    <button id="manualUpdateBtn" class="action-btn">Check for Updates</button>
-                </div>
-
-                <div id="appVersion" class="version-info">v1.0.0</div>
             </div>
-        </div>
+
+
+            <!-- Tools View -->
+            <div id="toolsView" class="view">
+                <div class="view-header">
+                    <h2>Tools</h2>
+                </div>
+                <div class="settings-content">
+                    <div class="setting-card">
+                        <div class="setting-icon"><i class="fas fa-heartbeat"></i></div>
+                        <div class="setting-info">
+                            <h3>Fix Client</h3>
+                            <p class="desc">Emergency kill for all Riot/League processes.</p>
+                            <button id="fixClientBtn" class="action-btn danger-btn">Kill Processes</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settingsView" class="view">
+                <div class="view-header">
+                    <h2>Settings</h2>
+                </div>
+                <div class="settings-content">
+                    <div class="setting-card">
+                        <h3>League Client Path</h3>
+                        <p id="lolPathDisplay" class="path-display">Loading...</p>
+                        <button id="changePathBtn" class="action-btn">Change</button>
+                    </div>
+                    <div class="setting-card">
+                        <h3>Updates</h3>
+                        <p class="desc">Check for the latest version of Lost League.</p>
+                        <button id="manualUpdateBtn" class="action-btn">Check for Updates</button>
+                    </div>
+                    <div class="setting-card">
+                        <h3>Language</h3>
+                        <select id="localeSelect" class="form-control"
+                            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 10px; border-radius: 10px; width: 100%; margin-bottom: 15px;">
+                            <option value="en_US">English (US)</option>
+                            <option value="de_DE">Deutsch</option>
+                        </select>
+                        <button id="changeLocaleBtn" class="action-btn">Set Language</button>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
 
     <!-- Update Banner -->
@@ -257,7 +257,7 @@
     <!-- Custom Confirmation Modal -->
     <div id="confirmModal" class="modal">
         <div class="modal-content confirm-content">
-            <div id="confirmIcon" class="confirm-icon">⚠️</div>
+            <div id="confirmIcon" class="confirm-icon"><i class="fas fa-exclamation-triangle"></i></div>
             <h2 id="confirmTitle">Confirm Action</h2>
             <p id="confirmMessage">Are you sure you want to proceed?</p>
             <div class="modal-actions">
