@@ -47,6 +47,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         window.electronAPI.onUpdateDownloaded((data) => {
             showUpdateBanner(data.version, 'ready');
+            showToast(`v${data.version} downloaded! Restart to install.`, "success");
+        });
+
+        window.electronAPI.onUpdateError((message) => {
+            showToast("Update failed: " + message, "error");
+            document.getElementById('updateBanner').classList.remove('active');
         });
 
     } catch (err) {

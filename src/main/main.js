@@ -895,6 +895,9 @@ autoUpdater.on('update-downloaded', (info) => {
 
 autoUpdater.on('error', (err) => {
     console.error('AutoUpdater error:', err.message);
+    if (mainWindow) {
+        mainWindow.webContents.send('update-error', err.message);
+    }
 });
 
 ipcMain.handle('check-for-updates', async () => {
