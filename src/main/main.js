@@ -444,6 +444,13 @@ ipcMain.handle('update-account', (event, data) => {
     saveAccounts(accounts);
     broadcastAccountsUpdate();
     updateJumpList();
+
+    // LIVE UPDATE: If this is the active account, update currentAccount in memory immediately
+    if (currentAccount && currentAccount.username === data.username) {
+        currentAccount = { ...currentAccount, ...accounts[index], password: currentAccount.password };
+        console.log("Live updated current account settings:", currentAccount.username);
+    }
+
     return { success: true };
 });
 
