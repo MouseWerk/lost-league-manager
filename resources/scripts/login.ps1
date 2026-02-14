@@ -3,6 +3,16 @@ param (
     [string]$Password
 )
 
+$ErrorActionPreference = "Stop"
+
+# Logging for debugging
+$logPath = Join-Path $env:TEMP "leaguelogin_debug.txt"
+Start-Transcript -Path $logPath -Append
+
+Write-Host "Script Started at $(Get-Date)"
+Write-Host "Username: $Username"
+
+
 Add-Type -AssemblyName System.Windows.Forms
 
 # Add BlockInput to prevent user interference
@@ -17,6 +27,21 @@ catch {
     # Ignore if already added
 }
 
+# Helper to escape special characters for SendKeys
+function Escape-SendKeys ($text) {
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($char in $text.ToCharArray()) {
+        if ("+^%~(){}[]".IndexOf($char) -ge 0) {
+            [void]$sb.Append("{$char}")
+        }
+        else {
+            [void]$sb.Append($char)
+        }
+    }
+    return $sb.ToString()
+}
+
+
 # Helper to focus window
 function Ensure-Focus {
     param ($procId)
@@ -29,12 +54,13 @@ function Ensure-Focus {
 # Wait for Riot Client Window
 $proc = $null
 for ($i = 0; $i -lt 120; $i++) { 
-    $proc = Get-Process | Where-Object { $_.MainWindowTitle -match "Riot Client" } | Select-Object -First 1
+    $proc = Get-Process | Where-Object { $_.MainWindowTitle -match "Riot Client" -and $_.MainWindowHandle -ne 0 } | Select-Object -First 1
     if ($proc) {
         break
     }
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 300
 }
+
 
 if (-not $proc) {
     Write-Host "Timeout waiting for client"
@@ -50,39 +76,40 @@ try {
     # Lock Input - Only if type is available
     $canBlock = ("Win32.InputBlocker" -as [type])
     if ($canBlock) {
-        [Win32.InputBlocker]::BlockInput($true)
+        try {
+            [Win32.InputBlocker]::BlockInput($true)
+        }
+        catch {
+            Write-Host "Warning: Could not block input (Admin required?)"
+        }
     }
 
+    Write-Host "Found window, waiting 5s for UI load..."
+    Start-Sleep -Seconds 5
+    
     # Type Username
+
     Ensure-Focus -procId $proc.Id
-    [System.Windows.Forms.SendKeys]::SendWait($Username)
-    Start-Sleep -Milliseconds 100
+    $escapedUsername = Escape-SendKeys -text $Username
+    [System.Windows.Forms.SendKeys]::SendWait($escapedUsername)
+    Start-Sleep -Milliseconds 300
+
 
     # Tab to password field
     Ensure-Focus -procId $proc.Id
     [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
-    Start-Sleep -Milliseconds 100
+    Start-Sleep -Milliseconds 300
 
-    # Escape special characters
-    function Escape-SendKeys ($text) {
-        $sb = New-Object System.Text.StringBuilder
-        foreach ($char in $text.ToCharArray()) {
-            if ("+^%~(){}[]".IndexOf($char) -ge 0) {
-                [void]$sb.Append("{$char}")
-            }
-            else {
-                [void]$sb.Append($char)
-            }
-        }
-        return $sb.ToString()
-    }
+
+    # Escape-SendKeys is now globally defined at the top
 
     $escapedPwd = Escape-SendKeys -text $Password
 
     # Type Password
     Ensure-Focus -procId $proc.Id
     [System.Windows.Forms.SendKeys]::SendWait($escapedPwd)
-    Start-Sleep -Milliseconds 100
+    Start-Sleep -Milliseconds 300
+
 
     # Press Enter
     Ensure-Focus -procId $proc.Id
@@ -94,6 +121,13 @@ try {
 finally {
     # ALWAYS Unlock Input if we blocked it
     if ($canBlock) {
-        [Win32.InputBlocker]::BlockInput($false)
+        try {
+            [Win32.InputBlocker]::BlockInput($false)
+        }
+        catch { 
+            # Ignore unlock errors
+        }
     }
 }
+Stop-Transcript
+

@@ -546,15 +546,26 @@ async function executeAccountLaunch(username) {
     currentAccount.loginChild = child;
 
     child.stdout.on('data', (data) => {
+        console.log(`[Login Script stdout]: ${data}`);
         if (mainWindow) mainWindow.webContents.send('login-status', { message: 'Logging in...', progress: 80 });
     });
+
+    child.stderr.on('data', (data) => {
+        console.error(`[Login Script stderr]: ${data}`);
+    });
+
 
     child.on('close', (code) => {
         currentAccount.loginChild = null;
         if (code !== 0 && code !== null) { // If killed, code might be null or specific signal
             // Handle cancellation if needed, but usually we just stop sending status
         } else {
-            if (mainWindow) mainWindow.webContents.send('login-status', { message: 'Done! (Logs might take a moment)', progress: 100 });
+            if (mainWindow) mainWindow.webContents.send('login-status', { message: 'Done! Launching Game...', progress: 100 });
+
+            // Re-trigger launch to ensure the game actually starts
+            console.log("Login script finished. Re-triggering game launch...");
+            spawn('powershell.exe', ['-Command', launchCmd]);
+
             setTimeout(() => {
                 if (mainWindow) mainWindow.webContents.send('login-status', null);
             }, 3000);
