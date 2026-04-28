@@ -196,34 +196,157 @@
                     <h2>Settings</h2>
                 </div>
                 <div class="settings-content">
+
+                    <!-- Overlay -->
+                    <div class="setting-card">
+                        <div class="setting-icon"><i class="fas fa-layer-group"></i></div>
+                        <div class="setting-info">
+                            <h3>Game Overlay</h3>
+                            <p class="desc">Configure the in-game overlay window shown while playing.</p>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h4>Enable overlay</h4>
+                                    <p>Show the overlay window while a game is running</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="overlayEnabledToggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h4>Player ranks panel</h4>
+                                    <p>Show the ≡ button to view all 10 players' ranked stats</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="overlayShowRankedToggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h4>Item builds panel</h4>
+                                    <p>Show the ⊞ button for recommended item builds</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="overlayShowBuildsToggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row" style="border-bottom:none;padding-bottom:0">
+                                <div class="setting-row-info">
+                                    <h4>Reset overlay position</h4>
+                                    <p>Move the overlay back to the top-right corner</p>
+                                </div>
+                                <button id="resetOverlayPosBtn" class="action-btn">Reset</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Automation -->
+                    <div class="setting-card">
+                        <div class="setting-icon"><i class="fas fa-robot"></i></div>
+                        <div class="setting-info">
+                            <h3>Automation</h3>
+                            <p class="desc">Automatic actions performed in the League client.</p>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h4>Auto-accept matches</h4>
+                                    <p>Automatically click Accept when a match is found</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="autoAcceptSettingsToggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row" style="border-bottom:none;padding-bottom:0">
+                                <div class="setting-row-info">
+                                    <h4>Minimize when game starts</h4>
+                                    <p>Hide the app to the tray when a match begins</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="minimizeOnGameStartToggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- App Behavior -->
+                    <div class="setting-card">
+                        <div class="setting-icon"><i class="fas fa-desktop"></i></div>
+                        <div class="setting-info">
+                            <h3>App Behavior</h3>
+                            <p class="desc">Control how Lost League Manager starts and runs.</p>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h4>Start minimized</h4>
+                                    <p>Launch the app silently in the system tray on startup</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="startMinimizedToggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row" style="border-bottom:none;padding-bottom:0">
+                                <div class="setting-row-info">
+                                    <h4>Check for updates on startup</h4>
+                                    <p>Automatically look for new versions when the app opens</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="checkUpdatesOnStartupToggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- League Client -->
                     <div class="setting-card">
                         <div class="setting-icon"><i class="fas fa-folder-open"></i></div>
                         <div class="setting-info">
-                            <h3>League Client Path</h3>
+                            <h3>League Client</h3>
+                            <p class="desc">Path and display language for the League of Legends client.</p>
                             <p id="lolPathDisplay" class="path-display">Loading...</p>
-                            <button id="changePathBtn" class="action-btn">Change</button>
+                            <button id="changePathBtn" class="action-btn">Change Path</button>
+                            <div style="margin-top:18px">
+                                <div class="setting-row" style="border-bottom:none;padding-bottom:0;padding-top:0">
+                                    <div class="setting-row-info">
+                                        <h4>Client language</h4>
+                                        <p>Set the display language of the League client</p>
+                                    </div>
+                                    <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+                                        <select id="localeSelect" class="form-control" style="width:150px">
+                                            <option value="en_US">English (US)</option>
+                                            <option value="de_DE">Deutsch</option>
+                                            <option value="es_ES">Español</option>
+                                            <option value="fr_FR">Français</option>
+                                            <option value="it_IT">Italiano</option>
+                                            <option value="pl_PL">Polski</option>
+                                            <option value="pt_BR">Português (BR)</option>
+                                            <option value="ru_RU">Русский</option>
+                                            <option value="tr_TR">Türkçe</option>
+                                            <option value="zh_CN">中文 (简体)</option>
+                                            <option value="ko_KR">한국어</option>
+                                            <option value="ja_JP">日本語</option>
+                                        </select>
+                                        <button id="changeLocaleBtn" class="action-btn">Apply</button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- Updates -->
                     <div class="setting-card">
                         <div class="setting-icon"><i class="fas fa-sync-alt"></i></div>
                         <div class="setting-info">
                             <h3>Updates</h3>
-                            <p class="desc">Check for the latest version of Lost League.</p>
+                            <p class="desc">Lost League Manager updates automatically in the background.</p>
                             <button id="manualUpdateBtn" class="action-btn">Check for Updates</button>
                         </div>
                     </div>
-                    <div class="setting-card">
-                        <div class="setting-icon"><i class="fas fa-language"></i></div>
-                        <div class="setting-info">
-                            <h3>Language</h3>
-                            <p class="desc">Set the League client display language.</p>
-                            <select id="localeSelect" class="form-control">
-                                <option value="en_US">English (US)</option>
-                                <option value="de_DE">Deutsch</option>
-                            </select>
-                            <button id="changeLocaleBtn" class="action-btn">Set Language</button>
-                        </div>
-                    </div>
+
                 </div>
             </div>
         </main>

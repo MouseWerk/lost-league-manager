@@ -481,6 +481,8 @@ window.overlayAPI.onGepInfoUpdate((data) => {
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.overlayAPI.onInit((initData) => {
     if (initData?.ddragonVersion) ddragonVersion = initData.ddragonVersion;
+    if (initData?.showRanked === false) ovToggle.style.display = 'none';
+    if (initData?.showBuilds === false) ovBuildToggle.style.display = 'none';
 });
 
 updateBar();
