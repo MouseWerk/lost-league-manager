@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Overlay</title>
+    <link rel="stylesheet" href="css/overlay.css">
+</head>
+<body>
+    <div class="ov-root" id="ovRoot">
+
+        <!-- Compact bar (always visible) -->
+        <div class="ov-bar" id="ovBar">
+            <div class="ov-drag" id="ovDrag" title="Drag to move">⠿</div>
+
+            <!-- Alive state -->
+            <div class="ov-live" id="ovLive">
+                <div class="ov-champ-wrap">
+                    <img class="ov-champ-icon" id="ovChampIcon" src="assets/logo.png"
+                         onerror="this.src='assets/logo.png'">
+                    <span class="ov-level-badge" id="ovLevel">1</span>
+                </div>
+                <div class="ov-stats-row">
+                    <span class="ov-kda" id="ovKda">0/0/0</span>
+                    <span class="ov-sep">·</span>
+                    <span id="ovCs">0 CS</span><span class="ov-csm" id="ovCsm"></span>
+                    <span class="ov-sep">·</span>
+                    <span class="ov-gold" id="ovGold">0g</span>
+                    <span class="ov-sep">·</span>
+                    <span id="ovTimer">00:00</span>
+                </div>
+            </div>
+
+            <!-- Dead state -->
+            <div class="ov-dead-bar" id="ovDeadBar" style="display:none">
+                <span class="ov-skull">💀</span>
+                <div class="ov-respawn-wrap">
+                    <span class="ov-respawn-label">RESPAWN IN</span>
+                    <span class="ov-respawn-count" id="ovRespawnCount">0</span>
+                    <span class="ov-respawn-label">s</span>
+                </div>
+                <span class="ov-dead-tip" id="ovDeadTip">Buy items!</span>
+            </div>
+
+            <button class="ov-toggle" id="ovToggle" title="Toggle player ranks">≡</button>
+            <button class="ov-toggle" id="ovBuildToggle" title="Toggle item builds">⊞</button>
+        </div>
+
+        <!-- Ranked panel -->
+        <div class="ov-ranked" id="ovRanked" style="display:none">
+            <div id="ovRankedContent">
+                <div class="ov-rp-msg">Waiting for game data…</div>
+            </div>
+        </div>
+
+        <!-- Build panel -->
+        <div class="ov-builds" id="ovBuilds" style="display:none">
+            <div id="ovBuildsContent">
+                <div class="ov-rp-msg">Waiting for champion data…</div>
+            </div>
+        </div>
+
+    </div>
+    <script src="js/overlay.js"></script>
+</body>
+</html>

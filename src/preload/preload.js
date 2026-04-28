@@ -23,6 +23,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getLobbyMembers: () => ipcRenderer.invoke('get-lobby-members'),
 
     fixClient: () => ipcRenderer.invoke('fix-client'),
+    openFileDialog: (options) => ipcRenderer.invoke('open-file-dialog', options),
+    getCurrentAccount: () => ipcRenderer.invoke('get-current-account'),
+    getLcuOverview: () => ipcRenderer.invoke('get-lcu-overview'),
+    onLcuConnected:    (cb) => ipcRenderer.on('lcu-connected',    () => cb()),
+    onLcuDisconnected: (cb) => ipcRenderer.on('lcu-disconnected', () => cb()),
+    onLcuGameflow:     (cb) => ipcRenderer.on('lcu-gameflow',  (_, phase) => cb(phase)),
     setProfileBackground: (championName, skinId) => ipcRenderer.invoke('set-profile-background', { championName, skinId }),
     setStatusMessage: (message) => ipcRenderer.invoke('set-status-message', message),
 
@@ -30,6 +36,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onChampSelectEnd: (callback) => ipcRenderer.on('champ-select-end', () => callback()),
     onLoginStatus: (callback) => ipcRenderer.on('login-status', (event, data) => callback(data)),
     onAccountsUpdated: (callback) => ipcRenderer.on('accounts-updated', () => callback()),
+    onLaunchAccountInfo: (callback) => ipcRenderer.on('launch-account-info', (event, data) => callback(data)),
 
     // Updates
     checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
@@ -38,5 +45,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (event, data) => callback(data)),
     onUpdateProgress: (callback) => ipcRenderer.on('update-progress', (event, data) => callback(data)),
     onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', (event, data) => callback(data)),
-    onUpdateError: (callback) => ipcRenderer.on('update-error', (event, message) => callback(message))
+    onUpdateError: (callback) => ipcRenderer.on('update-error', (event, message) => callback(message)),
+
+    // Overwolf GEP (Game Events Provider)
+    onGepGameEvent: (callback) => ipcRenderer.on('gep-game-event', (event, data) => callback(data)),
+    onGepInfoUpdate: (callback) => ipcRenderer.on('gep-info-update', (event, data) => callback(data))
 });
