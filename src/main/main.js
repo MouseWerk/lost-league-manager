@@ -102,7 +102,13 @@ let lcuQueueCheckInterval = null;
 
 let config = {
     lolPath: "C:\\Riot Games\\League of Legends\\LeagueClient.exe",
-    autoAccept: false
+    autoAccept: false,
+    overlayEnabled: true,
+    overlayShowRanked: true,
+    overlayShowBuilds: true,
+    startMinimized: false,
+    minimizeOnGameStart: false,
+    checkUpdatesOnStartup: true,
 };
 
 // --- Single Instance Lock ---
@@ -263,7 +269,7 @@ lcu.onConnect(async () => {
             if (mainWindow && !mainWindow.isDestroyed())
                 mainWindow.webContents.send('lcu-gameflow', phase);
             // Show overlay if already in a game when we connect
-            if (phase === 'InProgress' && overlayWindow && !overlayWindow.isDestroyed())
+            if (phase === 'InProgress' && config.overlayEnabled && overlayWindow && !overlayWindow.isDestroyed())
                 overlayWindow.show();
         }
     } catch (e) {}
@@ -282,9 +288,13 @@ lcu.onEvent(async (event) => {
             mainWindow.webContents.send('lcu-gameflow', phase);
         // LCU fires for ALL game modes: ranked, normal, custom, Practice Tool, ARAM, etc.
         if (overlayWindow && !overlayWindow.isDestroyed()) {
-            if (phase === 'InProgress') overlayWindow.show();
-            else if (['None', 'Lobby', 'EndOfGame', 'WaitingForStats', 'PreEndOfGame'].includes(phase))
+            if (phase === 'InProgress') {
+                if (config.overlayEnabled) overlayWindow.show();
+                if (config.minimizeOnGameStart && mainWindow && !mainWindow.isDestroyed())
+                    mainWindow.hide();
+            } else if (['None', 'Lobby', 'EndOfGame', 'WaitingForStats', 'PreEndOfGame'].includes(phase)) {
                 overlayWindow.hide();
+            }
         }
     }
 
@@ -389,6 +399,7 @@ function createWindow() {
         frame: false,
         transparent: true,
         resizable: false,
+        show: false,
         icon: path.join(__dirname, '../renderer/assets/logo.ico'),
         webPreferences: {
             preload: path.join(__dirname, '../preload/preload.js'),
@@ -398,6 +409,10 @@ function createWindow() {
     });
 
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+
+    mainWindow.once('ready-to-show', () => {
+        if (!config.startMinimized) mainWindow.show();
+    });
 
     // Minimize to tray instead of closing
     mainWindow.on('close', (e) => {
@@ -453,7 +468,11 @@ function createOverlayWindow(owOverlay) {
         overlayWindow.loadFile(path.join(__dirname, '../renderer/overlay.html'));
         overlayWindow.webContents.on('did-finish-load', () => {
             if (!overlayWindow || overlayWindow.isDestroyed()) return;
-            overlayWindow.webContents.send('overlay-init', { ddragonVersion: latestDDragonVersion });
+            overlayWindow.webContents.send('overlay-init', {
+                ddragonVersion: latestDDragonVersion,
+                showRanked: config.overlayShowRanked !== false,
+                showBuilds: config.overlayShowBuilds !== false,
+            });
         });
     };
 
@@ -508,7 +527,7 @@ function handleOverlayVisibility(data) {
     // data = gep.InfoUpdate: { gameId, feature, key, value, category }
     if (data?.feature !== 'matchState' || data?.key !== 'matchState') return;
     const state = data.value;
-    if (state === 'InProgress') overlayWindow.show();
+    if (state === 'InProgress') { if (config.overlayEnabled) overlayWindow.show(); }
     else if (state === 'EndOfGame' || state === 'PreGame') overlayWindow.hide();
 }
 
@@ -535,7 +554,7 @@ app.whenReady().then(async () => {
     setInterval(checkGameFlowAndQueue, 3000);
 
     // Check for updates 10 s after launch so the window is fully ready
-    if (app.isPackaged) {
+    if (app.isPackaged && config.checkUpdatesOnStartup !== false) {
         setTimeout(() => {
             autoUpdater.checkForUpdates().catch(e =>
                 console.error('[Updater] startup check failed:', e.message)
@@ -584,7 +603,7 @@ app.whenReady().then(async () => {
                         }
                     }
 
-                    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.show();
+                    if (config.overlayEnabled && overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.show();
                 });
 
                 gep.on('game-exit', (ev, gameId) => {
@@ -645,12 +664,12 @@ app.whenReady().then(async () => {
                         console.error('[Overlay] inject() threw:', err.message);
                     }
 
-                    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.show();
+                    if (config.overlayEnabled && overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.show();
                 });
 
                 owOverlay.on('game-injected', (gameInfo) => {
                     console.log('[Overlay] game-injected into game:', gameInfo?.id ?? gameInfo);
-                    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.show();
+                    if (config.overlayEnabled && overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.show();
                 });
 
                 owOverlay.on('game-injection-error', (err, gameInfo) => {
@@ -1363,6 +1382,12 @@ ipcMain.handle('overlay-get-position', () => {
 ipcMain.on('overlay-resize', (_, w, h) => {
     if (overlayWindow && !overlayWindow.isDestroyed())
         overlayWindow.setSize(Math.round(w), Math.round(h));
+});
+ipcMain.handle('overlay-reset-position', () => {
+    if (!overlayWindow || overlayWindow.isDestroyed()) return;
+    const { width: sw } = screen.getPrimaryDisplay().workAreaSize;
+    overlayWindow.setSize(480, 52);
+    overlayWindow.setPosition(sw - 480 - 16, 16);
 });
 
 ipcMain.handle('get-lcu-overview', async () => {
