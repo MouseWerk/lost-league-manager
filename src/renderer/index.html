@@ -26,6 +26,10 @@
                 <button class="nav-btn active" data-view="accountsView">
                     <span class="nav-icon"><i class="fas fa-th-large"></i></span> Dashboard
                 </button>
+                <button class="nav-btn" data-view="liveView" id="liveNavBtn">
+                    <span class="nav-icon"><i class="fas fa-circle-dot"></i></span> Live
+                    <span class="lcu-nav-dot" id="lcuNavDot"></span>
+                </button>
                 <button class="nav-btn" data-view="toolsView">
                     <span class="nav-icon"><i class="fas fa-tools"></i></span> Tools
                 </button>
@@ -56,8 +60,11 @@
             <!-- Dashboard Views -->
             <div id="accountsView" class="view active">
                 <div class="view-header">
-                    <h2>Accounts</h2>
-                    <div style="display: flex; align-items: center; gap: 15px;">
+                    <div class="view-title-row">
+                        <h2>Accounts</h2>
+                        <span id="accountCount" class="account-count"></span>
+                    </div>
+                    <div class="view-header-actions">
                         <label class="auto-accept-switch">
                             <input type="checkbox" id="autoAcceptToggle">
                             <span class="slider"></span>
@@ -65,11 +72,106 @@
                         </label>
                     </div>
                 </div>
+                <div class="accounts-toolbar">
+                    <div class="search-box">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" id="accountSearch" class="search-input" placeholder="Search by name, username, region…">
+                        <button id="searchClearBtn" class="search-clear" style="display:none"><i class="fas fa-times"></i></button>
+                    </div>
+                    <select id="accountSort" class="sort-select">
+                        <option value="default">Sort: Default</option>
+                        <option value="rank">By Rank</option>
+                        <option value="name">A → Z</option>
+                        <option value="region">By Region</option>
+                        <option value="lastUsed">Recently Used</option>
+                    </select>
+                </div>
                 <div id="accountsList" class="accounts-grid">
                     <!-- Accounts injected here -->
                 </div>
             </div>
 
+
+            <!-- Live View -->
+            <div id="liveView" class="view">
+                <div class="view-header">
+                    <h2>Live</h2>
+                    <span id="gameflowBadge" class="gameflow-badge gameflow-idle">Disconnected</span>
+                </div>
+
+                <!-- Disconnected state -->
+                <div id="lcuOffline" class="lcu-offline">
+                    <div class="empty-icon"><i class="fas fa-plug"></i></div>
+                    <p>League client not detected</p>
+                    <p class="lcu-offline-hint">Launch the League of Legends client to see your account overview.</p>
+                </div>
+
+                <!-- Connected state -->
+                <div id="lcuOnline" style="display:none">
+
+                    <!-- Context action bar (contextual, hidden by default) -->
+                    <div class="ov-action-bar" id="ovActionBar" style="display:none">
+                        <button id="ovDodgeBtn"  class="action-btn danger-btn"><i class="fas fa-sign-out-alt"></i> Dodge Queue</button>
+                        <button id="ovAcceptBtn" class="action-btn"><i class="fas fa-check"></i> Accept Match</button>
+                    </div>
+
+                    <!-- Tab bar -->
+                    <div class="ov-tab-bar">
+                        <button class="ov-tab active" data-tab="tabOverview">Overview</button>
+                        <button class="ov-tab"        data-tab="tabChampions">Champions</button>
+                        <button class="ov-tab"        data-tab="tabHistory">History</button>
+                    </div>
+
+                    <!-- Overview tab -->
+                    <div class="ov-panel active" id="tabOverview">
+                        <div class="summoner-banner">
+                            <div class="summoner-banner-icon-wrap">
+                                <img id="ovIcon" src="assets/logo.png" class="summoner-banner-icon">
+                                <span id="ovLevel" class="summoner-banner-level">1</span>
+                            </div>
+                            <div class="summoner-banner-info">
+                                <div id="ovName" class="summoner-banner-name">—</div>
+                                <div id="ovPrimaryRank" class="summoner-banner-rank rank-unranked">Unranked</div>
+                            </div>
+                            <div class="summoner-banner-spacer"></div>
+                            <div id="ovHonorBadge" class="honor-badge" style="display:none"></div>
+                        </div>
+                        <div class="ov-ranked-row">
+                            <div class="ov-ranked-card">
+                                <div class="ov-ranked-emblem" id="ovSoloEmblem"></div>
+                                <div class="ov-ranked-info">
+                                    <div class="ov-ranked-label">Ranked Solo / Duo</div>
+                                    <div id="ovSoloTier"   class="ov-ranked-tier rank-unranked">Unranked</div>
+                                    <div id="ovSoloLP"     class="ov-ranked-lp">—</div>
+                                    <div id="ovSoloRecord" class="ov-ranked-record">—</div>
+                                </div>
+                            </div>
+                            <div class="ov-ranked-card">
+                                <div class="ov-ranked-emblem" id="ovFlexEmblem"></div>
+                                <div class="ov-ranked-info">
+                                    <div class="ov-ranked-label">Ranked Flex</div>
+                                    <div id="ovFlexTier"   class="ov-ranked-tier rank-unranked">Unranked</div>
+                                    <div id="ovFlexLP"     class="ov-ranked-lp">—</div>
+                                    <div id="ovFlexRecord" class="ov-ranked-record">—</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Champions tab -->
+                    <div class="ov-panel" id="tabChampions">
+                        <div class="ov-section-label">Top Champions by Mastery</div>
+                        <div id="ovMastery" class="mastery-grid"></div>
+                    </div>
+
+                    <!-- History tab -->
+                    <div class="ov-panel" id="tabHistory">
+                        <div class="ov-section-label">Recent Games</div>
+                        <div id="ovMatches" class="ov-matches"></div>
+                    </div>
+
+                </div>
+            </div>
 
             <!-- Tools View -->
             <div id="toolsView" class="view">
@@ -95,23 +197,32 @@
                 </div>
                 <div class="settings-content">
                     <div class="setting-card">
-                        <h3>League Client Path</h3>
-                        <p id="lolPathDisplay" class="path-display">Loading...</p>
-                        <button id="changePathBtn" class="action-btn">Change</button>
+                        <div class="setting-icon"><i class="fas fa-folder-open"></i></div>
+                        <div class="setting-info">
+                            <h3>League Client Path</h3>
+                            <p id="lolPathDisplay" class="path-display">Loading...</p>
+                            <button id="changePathBtn" class="action-btn">Change</button>
+                        </div>
                     </div>
                     <div class="setting-card">
-                        <h3>Updates</h3>
-                        <p class="desc">Check for the latest version of Lost League.</p>
-                        <button id="manualUpdateBtn" class="action-btn">Check for Updates</button>
+                        <div class="setting-icon"><i class="fas fa-sync-alt"></i></div>
+                        <div class="setting-info">
+                            <h3>Updates</h3>
+                            <p class="desc">Check for the latest version of Lost League.</p>
+                            <button id="manualUpdateBtn" class="action-btn">Check for Updates</button>
+                        </div>
                     </div>
                     <div class="setting-card">
-                        <h3>Language</h3>
-                        <select id="localeSelect" class="form-control"
-                            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 10px; border-radius: 10px; width: 100%; margin-bottom: 15px;">
-                            <option value="en_US">English (US)</option>
-                            <option value="de_DE">Deutsch</option>
-                        </select>
-                        <button id="changeLocaleBtn" class="action-btn">Set Language</button>
+                        <div class="setting-icon"><i class="fas fa-language"></i></div>
+                        <div class="setting-info">
+                            <h3>Language</h3>
+                            <p class="desc">Set the League client display language.</p>
+                            <select id="localeSelect" class="form-control">
+                                <option value="en_US">English (US)</option>
+                                <option value="de_DE">Deutsch</option>
+                            </select>
+                            <button id="changeLocaleBtn" class="action-btn">Set Language</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -128,12 +239,24 @@
     <!-- Launch Overlay -->
     <div id="launchOverlay" class="launch-overlay">
         <div class="launch-content">
+            <div class="launch-account-header">
+                <img id="launchAccIcon" src="assets/logo.png" class="launch-acc-icon">
+                <div class="launch-acc-details">
+                    <div id="launchAccLabel" class="launch-acc-label">Launching…</div>
+                    <div id="launchAccMeta" class="launch-acc-meta"></div>
+                </div>
+            </div>
             <div class="launch-spinner"></div>
             <div id="launchStatus" class="launch-status">Initializing...</div>
             <div class="launch-progress-track">
                 <div id="launchProgress" class="launch-progress-bar"></div>
             </div>
-            <button id="cancelLaunchBtn" class="cancel-launch-btn">Cancel</button>
+            <div class="launch-btn-row">
+                <button id="retryLaunchBtn" class="retry-launch-btn" style="display:none">
+                    <i class="fas fa-redo"></i> Try Again
+                </button>
+                <button id="cancelLaunchBtn" class="cancel-launch-btn">Cancel</button>
+            </div>
         </div>
     </div>
 
@@ -192,12 +315,17 @@
                 </label>
 
                 <label class="checkbox-group">
-                    <input type="checkbox" id="autoSpellsToggle">
-                    Auto Spells (Sets spells based on role)
+                    <input type="checkbox" id="minimizeOnLaunchToggle">
+                    Minimize app when launching this account
+                </label>
+
+                <label class="checkbox-group" style="opacity:0.45; cursor:not-allowed;" title="Not yet implemented">
+                    <input type="checkbox" id="autoSpellsToggle" disabled>
+                    Auto Spells (Coming Soon)
                 </label>
 
                 <!-- Auto Queue Section -->
-                <div style="border-top: 1px solid #3E3E42; margin: 10px 0; padding-top: 10px;">
+                <div class="modal-section">
                     <label class="checkbox-group">
                         <input type="checkbox" id="autoQueueToggle">
                         Auto Queue (Start search after login)

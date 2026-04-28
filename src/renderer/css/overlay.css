@@ -1,0 +1,379 @@
+:root {
+    --ov-primary: #0AC8B9;
+    --ov-blue:    #5B8FD6;
+    --ov-red:     #D64B4B;
+    --ov-bg:      rgba(6, 6, 10, 0.94);
+    --ov-border:  rgba(10, 200, 185, 0.22);
+    --ov-sep:     rgba(255, 255, 255, 0.07);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    background: transparent;
+    overflow: hidden;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-app-region: no-drag;
+}
+
+/* ── Root container ── */
+.ov-root {
+    background: var(--ov-bg);
+    border: 1px solid var(--ov-border);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Compact bar ── */
+.ov-bar {
+    height: 52px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px 0 8px;
+    gap: 9px;
+}
+
+.ov-drag {
+    cursor: grab;
+    color: rgba(255, 255, 255, 0.18);
+    font-size: 15px;
+    line-height: 1;
+    padding: 4px 3px;
+    flex-shrink: 0;
+    transition: color 0.2s;
+}
+.ov-drag:hover  { color: rgba(255, 255, 255, 0.45); }
+.ov-drag:active { cursor: grabbing; }
+
+/* ── Live view ── */
+.ov-live {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+}
+
+.ov-champ-wrap {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+}
+.ov-champ-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: #111;
+}
+.ov-level-badge {
+    position: absolute;
+    bottom: -4px;
+    right: -4px;
+    background: #15151A;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.ov-stats-row {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    min-width: 0;
+    white-space: nowrap;
+}
+.ov-kda  { font-weight: 800; letter-spacing: -0.2px; }
+.ov-gold { color: #FFD700; }
+.ov-sep  { color: rgba(255, 255, 255, 0.2); font-size: 9px; }
+
+.ov-csm {
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: 1px;
+    transition: color 0.4s;
+}
+.ov-csm.csm-good { color: #57E08A; }
+.ov-csm.csm-ok   { color: #F0C040; }
+.ov-csm.csm-bad  { color: #E05757; }
+
+/* ── Dead view ── */
+.ov-dead-bar {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.ov-skull { font-size: 20px; flex-shrink: 0; }
+
+.ov-respawn-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.ov-respawn-label {
+    font-size: 10px;
+    font-weight: 800;
+    color: rgba(255, 100, 100, 0.8);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.ov-respawn-count {
+    font-size: 22px;
+    font-weight: 900;
+    color: #FF6B6B;
+    line-height: 1;
+    min-width: 28px;
+    text-align: center;
+    letter-spacing: -1px;
+}
+
+.ov-dead-tip {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.45);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1;
+}
+
+/* ── Toggle button ── */
+.ov-toggle {
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.45);
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 17px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+    line-height: 1;
+}
+.ov-toggle:hover,
+.ov-toggle.active {
+    background: rgba(10, 200, 185, 0.14);
+    border-color: rgba(10, 200, 185, 0.35);
+    color: var(--ov-primary);
+}
+
+/* ── Ranked panel ── */
+.ov-ranked {
+    border-top: 1px solid var(--ov-sep);
+}
+
+.ov-rp-msg {
+    padding: 14px 12px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.35);
+    text-align: center;
+}
+
+.ov-rp-teams {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 6px 6px 8px;
+}
+
+.ov-rp-col { min-width: 0; }
+
+.ov-rp-hdr {
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 2px 4px 5px;
+}
+.ov-rp-hdr--blue { color: var(--ov-blue); }
+.ov-rp-hdr--red  { color: var(--ov-red); }
+
+/* ── Player row ── */
+.ov-rp-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 4px;
+    border-radius: 6px;
+    transition: background 0.15s;
+    cursor: default;
+    height: 28px;
+}
+.ov-rp-row:hover         { background: rgba(255,255,255,0.05); }
+.ov-rp-row.is-me         { background: rgba(10,200,185,0.09); }
+.ov-rp-row.is-dead .ov-rp-icon { opacity: 0.3; filter: grayscale(1); }
+
+.ov-rp-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: #111;
+    border: 1px solid rgba(255,255,255,0.07);
+}
+
+.ov-rp-name {
+    flex: 1;
+    font-size: 10px;
+    color: rgba(255,255,255,0.7);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+.ov-rp-row.is-me .ov-rp-name {
+    color: var(--ov-primary);
+    font-weight: 700;
+}
+
+/* Rank tier badge */
+.ov-rp-badge {
+    font-size: 9px;
+    font-weight: 800;
+    width: 24px;
+    text-align: center;
+    border-radius: 4px;
+    padding: 2px 2px;
+    flex-shrink: 0;
+    letter-spacing: 0.2px;
+}
+
+.ov-rp-wr {
+    font-size: 9px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.45);
+    width: 26px;
+    text-align: right;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.ov-rp-kda {
+    font-size: 9px;
+    font-weight: 700;
+    color: #fff;
+    width: 34px;
+    text-align: right;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+/* ── Build panel ── */
+.ov-builds {
+    border-top: 1px solid var(--ov-sep);
+}
+
+.ov-build-header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 10px 5px;
+    border-bottom: 1px solid var(--ov-sep);
+}
+
+.ov-build-champ-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    object-fit: cover;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: #111;
+    flex-shrink: 0;
+}
+
+.ov-build-champ-name {
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.75);
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ov-build-source {
+    font-size: 9px;
+    color: rgba(255,255,255,0.2);
+    flex-shrink: 0;
+}
+
+.ov-build-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+}
+
+.ov-build-row + .ov-build-row {
+    padding-top: 0;
+}
+
+.ov-build-label {
+    font-size: 9px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.28);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    width: 44px;
+    flex-shrink: 0;
+}
+
+.ov-build-items {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.ov-build-item {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    object-fit: cover;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: #111;
+    display: block;
+}
+
+.ov-build-item--boot {
+    border-color: rgba(10,200,185,0.3);
+}
+
+.ov-build-bottom {
+    padding: 4px 10px 8px;
+}
+
+/* ── Tier badge colours ── */
+.tier-unranked    { background: rgba(75,85,99,.2);    color: #6B7280; }
+.tier-iron        { background: rgba(100,100,110,.2); color: #9CA3AF; }
+.tier-bronze      { background: rgba(135,70,30,.2);   color: #C87941; }
+.tier-silver      { background: rgba(148,163,184,.2); color: #CBD5E1; }
+.tier-gold        { background: rgba(200,160,40,.2);  color: #FBBF24; }
+.tier-platinum    { background: rgba(20,155,145,.2);  color: #2DD4BF; }
+.tier-emerald     { background: rgba(20,155,80,.2);   color: #34D399; }
+.tier-diamond     { background: rgba(50,120,220,.2);  color: #60A5FA; }
+.tier-master      { background: rgba(120,50,220,.2);  color: #A78BFA; }
+.tier-grandmaster { background: rgba(220,40,40,.2);   color: #FCA5A5; }
+.tier-challenger  { background: rgba(220,170,40,.2);  color: #FDE68A; border: 1px solid rgba(220,170,40,.3); }

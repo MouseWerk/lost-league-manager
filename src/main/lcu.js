@@ -9,6 +9,8 @@ class LCUConnector {
         this.credentials = null;
         this.ws = null;
         this.handlers = [];
+        this.connectHandlers = [];
+        this.disconnectHandlers = [];
         this.connected = false;
         this.pollInterval = null;
     }
@@ -23,18 +25,7 @@ class LCUConnector {
     }
 
     tryConnect() {
-        if (this.connected) return;
-
-        // Try to find lockfile
-        // Standard path or check process? 
-        // We can just check the default install location or process arguments if we were running ps-node, 
-        // but for simplicity let's assume standard path or config path.
-        // Actually, getting it from process list is more robust if user installed elsewhere.
-        // For now, let's look in the configured path from main.js if possible, but simpler:
-        // Lockfile is at {LeaguePath}/lockfile
-        
-        // We will need the path passed to us or find it. 
-        // Let's assume standard location for now or require it to be passed.
+        // Connection is driven externally via connect(leaguePath) — see main.js.
     }
 
     // Helper to parse lockfile
@@ -67,7 +58,8 @@ class LCUConnector {
         this.ws.on('open', () => {
             this.connected = true;
             console.log('LCU Connected');
-            this.ws.send(JSON.stringify([5, "OnJsonApiEvent"])); // Subscribe to all events
+            this.ws.send(JSON.stringify([5, "OnJsonApiEvent"]));
+            this.connectHandlers.forEach(h => h());
         });
 
         this.ws.on('message', (msg) => {
@@ -85,6 +77,8 @@ class LCUConnector {
         this.ws.on('close', () => {
             this.connected = false;
             this.ws = null;
+            this.credentials = null;
+            this.disconnectHandlers.forEach(h => h());
         });
 
         this.ws.on('error', () => {
@@ -96,9 +90,9 @@ class LCUConnector {
         this.handlers.forEach(h => h(event));
     }
 
-    onEvent(callback) {
-        this.handlers.push(callback);
-    }
+    onEvent(callback)      { this.handlers.push(callback); }
+    onConnect(callback)    { this.connectHandlers.push(callback); }
+    onDisconnect(callback) { this.disconnectHandlers.push(callback); }
 
     // API Call helper
     async request(method, endpoint, body = null) {
