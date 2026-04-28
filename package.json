@@ -1,6 +1,6 @@
 {
   "name": "leaguelogin",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "description": "Lost League Manager",
   "main": "src/main/main.js",
   "scripts": {
@@ -22,8 +22,10 @@
   },
   "devDependencies": {
     "@overwolf/ow-electron": "^37.7.0",
-    "@overwolf/ow-electron-builder": "^26.0.12",
-    "electron": "^39.2.7"
+    "@overwolf/ow-electron-builder": "^26.0.12"
+  },
+  "overwolf": {
+    "packages": ["gep", "overlay"]
   },
   "build": {
     "appId": "com.lostgames.leaguelogin",
