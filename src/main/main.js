@@ -534,6 +534,15 @@ app.whenReady().then(async () => {
     setInterval(() => lcu.connect(config.lolPath), 5000);
     setInterval(checkGameFlowAndQueue, 3000);
 
+    // Check for updates 10 s after launch so the window is fully ready
+    if (app.isPackaged) {
+        setTimeout(() => {
+            autoUpdater.checkForUpdates().catch(e =>
+                console.error('[Updater] startup check failed:', e.message)
+            );
+        }, 10000);
+    }
+
     // --- Overwolf packages: GEP + Overlay ---
     if (app.overwolf) {
         app.overwolf.disableAnonymousAnalytics();
@@ -1498,71 +1507,75 @@ ipcMain.handle('overlay-get-builds', async (event, champKey) => {
 });
 
 // --- Auto Updater ---
-autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
+// Only configure and run auto-updater in a packaged build.
+// In dev mode there is no embedded app-update.yml, so any checkForUpdates()
+// call would throw and surface a confusing error toast to developers.
+if (app.isPackaged) {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.logger = console;
 
-autoUpdater.on('checking-for-update', () => {
-    console.log('Checking for update...');
-});
+    autoUpdater.on('checking-for-update', () => {
+        console.log('[Updater] Checking for update…');
+    });
 
-autoUpdater.on('update-available', (info) => {
-    console.log('Update available:', info.version);
-    if (mainWindow) {
-        mainWindow.webContents.send('update-available', {
-            version: info.version,
-            releaseNotes: info.releaseNotes
-        });
-    }
-});
+    autoUpdater.on('update-available', (info) => {
+        console.log('[Updater] Update available:', info.version);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('update-available', {
+                version: info.version,
+                releaseNotes: info.releaseNotes
+            });
+        }
+    });
 
-autoUpdater.on('update-not-available', () => {
-    console.log('Update not available.');
-});
+    autoUpdater.on('update-not-available', (info) => {
+        console.log('[Updater] Up to date:', info.version);
+    });
 
-autoUpdater.on('download-progress', (progress) => {
-    if (mainWindow) {
-        mainWindow.webContents.send('update-progress', {
-            percent: Math.round(progress.percent),
-            transferred: progress.transferred,
-            total: progress.total
-        });
-    }
-});
+    autoUpdater.on('download-progress', (progress) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('update-progress', {
+                percent: Math.round(progress.percent),
+                transferred: progress.transferred,
+                total: progress.total
+            });
+        }
+    });
 
-autoUpdater.on('update-downloaded', (info) => {
-    console.log('Update downloaded:', info.version);
-    if (mainWindow) {
-        mainWindow.webContents.send('update-downloaded', {
-            version: info.version
-        });
-    }
-});
+    autoUpdater.on('update-downloaded', (info) => {
+        console.log('[Updater] Update downloaded:', info.version);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('update-downloaded', { version: info.version });
+        }
+    });
 
-autoUpdater.on('error', (err) => {
-    console.error('AutoUpdater error:', err.message);
-    if (mainWindow) {
-        mainWindow.webContents.send('update-error', err.message);
-    }
-});
+    autoUpdater.on('error', (err) => {
+        console.error('[Updater] Error:', err.message);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('update-error', err.message);
+        }
+    });
+}
 
 ipcMain.handle('check-for-updates', async () => {
+    if (!app.isPackaged) return { updateAvailable: false, currentVersion: app.getVersion() };
     try {
         const result = await autoUpdater.checkForUpdates();
+        const latest = result?.updateInfo?.version;
         return {
-            updateAvailable: result?.updateInfo?.version !== app.getVersion(),
-            latestVersion: result?.updateInfo?.version,
+            updateAvailable: !!latest && latest !== app.getVersion(),
+            latestVersion: latest,
             currentVersion: app.getVersion()
         };
     } catch (e) {
-        console.error('Update check failed:', e.message);
-        return { updateAvailable: false, error: e.message };
+        console.error('[Updater] check-for-updates failed:', e.message);
+        return { updateAvailable: false, error: e.message, currentVersion: app.getVersion() };
     }
 });
 
 ipcMain.handle('install-update', () => {
-    autoUpdater.quitAndInstall(false, true);
+    if (app.isPackaged) autoUpdater.quitAndInstall(false, true);
 });
 
-ipcMain.handle('get-version', () => {
-    return app.getVersion();
-});
+ipcMain.handle('get-version', () => app.getVersion());

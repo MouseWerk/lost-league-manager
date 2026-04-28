@@ -22,29 +22,15 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Set Version from Tag
-        run: |
-          $TAG = "${{ github.ref_name }}"
-          $VERSION = $TAG -replace "^v", ""
-          npm version $VERSION --no-git-tag-version --allow-same-version
+      - name: Set version from tag
         shell: pwsh
+        run: |
+          $VERSION = "${{ github.ref_name }}" -replace "^v", ""
+          npm version $VERSION --no-git-tag-version --allow-same-version
 
-      - name: Build
+      - name: Build and publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run build
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/*.exe
-            dist/*.blockmap
-            dist/latest.yml
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
