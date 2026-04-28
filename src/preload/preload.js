@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onAccountsUpdated: (callback) => ipcRenderer.on('accounts-updated', () => callback()),
     onLaunchAccountInfo: (callback) => ipcRenderer.on('launch-account-info', (event, data) => callback(data)),
 
+    resetOverlayPosition: () => ipcRenderer.invoke('overlay-reset-position'),
+
     // Updates
     checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
     installUpdate: () => ipcRenderer.invoke('install-update'),

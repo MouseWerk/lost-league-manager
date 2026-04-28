@@ -1592,6 +1592,78 @@ select.form-control option {
 
 .close-banner:hover { color: #fff; }
 
+/* ── Settings rows & toggle switches ── */
+.setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.setting-row-info { flex: 1; min-width: 0; }
+
+.setting-row-info h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 2px;
+    color: #fff;
+}
+
+.setting-row-info p {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.setting-switch {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+.setting-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.setting-switch .slider {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 12px;
+    transition: background 0.2s;
+    border: 1px solid rgba(255,255,255,0.12);
+}
+
+.setting-switch .slider::before {
+    content: "";
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    left: 2px;
+    top: 2px;
+    background: rgba(255,255,255,0.55);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.setting-switch input:checked + .slider {
+    background: linear-gradient(135deg, var(--primary), #079b8f);
+    border-color: transparent;
+}
+
+.setting-switch input:checked + .slider::before {
+    transform: translateX(20px);
+    background: #fff;
+}
+
 /* ── Auto-Accept toggle ── */
 .auto-accept-switch {
     display: flex;

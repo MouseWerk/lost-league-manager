@@ -80,22 +80,59 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (pathEl) pathEl.innerText = config.lolPath;
         }
 
-        // Initialize Auto-Accept Toggle
+        // Initialize Auto-Accept Toggle (header)
         const autoAcceptToggle = document.getElementById('autoAcceptToggle');
         if (autoAcceptToggle) {
             autoAcceptToggle.checked = config.autoAccept || false;
             autoAcceptToggle.addEventListener('change', async (e) => {
                 await window.electronAPI.setConfig({ autoAccept: e.target.checked });
+                const s = document.getElementById('autoAcceptSettingsToggle');
+                if (s) s.checked = e.target.checked;
             });
         }
+
+        // Initialize all Settings toggles
+        // defaultOn = true means the setting is ON unless explicitly set false
+        function bindSettingToggle(id, configKey, defaultOn) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.checked = defaultOn ? config[configKey] !== false : !!config[configKey];
+            el.addEventListener('change', async (e) => {
+                await window.electronAPI.setConfig({ [configKey]: e.target.checked });
+            });
+        }
+
+        bindSettingToggle('overlayEnabledToggle',        'overlayEnabled',          true);
+        bindSettingToggle('overlayShowRankedToggle',     'overlayShowRanked',       true);
+        bindSettingToggle('overlayShowBuildsToggle',     'overlayShowBuilds',       true);
+        bindSettingToggle('minimizeOnGameStartToggle',   'minimizeOnGameStart',     false);
+        bindSettingToggle('startMinimizedToggle',        'startMinimized',          false);
+        bindSettingToggle('checkUpdatesOnStartupToggle', 'checkUpdatesOnStartup',   true);
+
+        // Auto-accept in settings synced with header toggle
+        const autoAcceptSettings = document.getElementById('autoAcceptSettingsToggle');
+        if (autoAcceptSettings) {
+            autoAcceptSettings.checked = config.autoAccept || false;
+            autoAcceptSettings.addEventListener('change', async (e) => {
+                await window.electronAPI.setConfig({ autoAccept: e.target.checked });
+                if (autoAcceptToggle) autoAcceptToggle.checked = e.target.checked;
+            });
+        }
+
+        document.getElementById('resetOverlayPosBtn')?.addEventListener('click', async () => {
+            await window.electronAPI.resetOverlayPosition();
+            showToast('Overlay position reset', 'success');
+        });
 
         // Load accounts
         await loadAccounts();
 
-        // Check for updates on startup (auto-download is enabled)
-        setTimeout(() => {
-            window.electronAPI.checkForUpdates();
-        }, 2000);
+        // Check for updates on startup
+        if (config.checkUpdatesOnStartup !== false) {
+            setTimeout(() => {
+                window.electronAPI.checkForUpdates();
+            }, 2000);
+        }
 
         // Auto-update event listeners
         window.electronAPI.onUpdateAvailable((data) => {
