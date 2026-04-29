@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:overwolf.github.io)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('main:', d.get\\('main'\\)\\); print\\('exports:', list\\(d.get\\('exports',{}\\).keys\\(\\)\\)[:20]\\)\")",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "WebFetch(domain:dev.overwolf.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.op.gg)",
+      "Bash(npm start *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git tag *)",
+      "Bash(git push *)",
+      "Bash(git -C \"C:/git/lost-league-manager\" status)",
+      "Bash(git -C \"C:/git/lost-league-manager\" log --oneline -5)",
+      "Bash(npm install *)",
+      "Bash(npm version *)",
+      "Bash(node -e ' *)"
+    ]
+  }
+}

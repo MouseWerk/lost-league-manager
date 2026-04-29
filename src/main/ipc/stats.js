@@ -23,6 +23,8 @@ function formatLcuRanked(q) {
     };
 }
 
+const EMPTY_RANK = { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
+
 function defaultIcon() {
     const v = championData.getLatestVersion();
     return `https://ddragon.leagueoflegends.com/cdn/${v}/img/profileicon/29.png`;
@@ -41,12 +43,16 @@ function register() {
                 );
                 if (summoner?.puuid) {
                     const ranked    = await lcu.request('GET', `/lol-ranked/v1/ranked-stats/${summoner.puuid}`);
-                    const soloData  = ranked?.RANKED_SOLO_5x5;
-                    const formatted = formatLcuRanked(soloData) || { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
+                    const solo      = formatLcuRanked(ranked?.RANKED_SOLO_5x5) || EMPTY_RANK;
+                    const flex      = formatLcuRanked(ranked?.RANKED_FLEX_SR)  || EMPTY_RANK;
                     const v         = championData.getLatestVersion();
                     const result    = {
                         success: true,
-                        ...formatted,
+                        ...solo,
+                        flexTier:    flex.tier,
+                        flexLp:      flex.lp,
+                        flexWinLose: flex.winLose,
+                        flexRatio:   flex.ratio,
                         iconSrc: summoner.profileIconId
                             ? `https://ddragon.leagueoflegends.com/cdn/${v}/img/profileicon/${summoner.profileIconId}.png`
                             : defaultIcon(),

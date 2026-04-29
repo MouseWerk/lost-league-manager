@@ -578,6 +578,63 @@
         </div>
     </div>
 
+    <!-- Account Profile Modal -->
+    <div id="profileModal" class="modal">
+        <div class="modal-content profile-modal-content">
+            <!-- Header -->
+            <div class="profile-header">
+                <div class="profile-icon-wrap">
+                    <img id="profileIcon" src="assets/logo.png" class="profile-icon">
+                    <span id="profileLevel" class="profile-level-badge"></span>
+                </div>
+                <div class="profile-header-info">
+                    <div id="profileLabel"   class="profile-name"></div>
+                    <div id="profileMeta"    class="profile-meta"></div>
+                    <div id="profileLoading" class="profile-loading" style="display:none">
+                        <span class="profile-loading-dot"></span> Loading stats…
+                    </div>
+                </div>
+                <button id="closeProfileModal" class="icon-btn" style="align-self:flex-start">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Ranks -->
+            <div class="profile-ranks-row">
+                <div class="profile-rank-card">
+                    <div class="profile-rank-label">Ranked Solo / Duo</div>
+                    <div id="profileSoloEmblem" class="profile-rank-emblem"></div>
+                    <div id="profileSoloTier"   class="profile-rank-tier rank-unranked">Unranked</div>
+                    <div id="profileSoloLp"     class="profile-rank-lp"></div>
+                    <div id="profileSoloRecord" class="profile-rank-record"></div>
+                </div>
+                <div class="profile-rank-card">
+                    <div class="profile-rank-label">Ranked Flex</div>
+                    <div id="profileFlexEmblem" class="profile-rank-emblem"></div>
+                    <div id="profileFlexTier"   class="profile-rank-tier rank-unranked">Unranked</div>
+                    <div id="profileFlexLp"     class="profile-rank-lp"></div>
+                    <div id="profileFlexRecord" class="profile-rank-record"></div>
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div id="profileNotesWrap" class="profile-notes-wrap" style="display:none">
+                <div class="profile-notes-label">Notes</div>
+                <div id="profileNotes" class="profile-notes"></div>
+            </div>
+
+            <!-- Actions -->
+            <div class="profile-actions">
+                <button id="profileLaunchBtn" class="primary-btn" style="flex:1">
+                    <i class="fas fa-play"></i> Launch Account
+                </button>
+                <button id="profileEditBtn" class="secondary-btn">
+                    <i class="fas fa-pen"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Custom Confirmation Modal -->
     <div id="confirmModal" class="modal">
         <div class="modal-content confirm-content">
