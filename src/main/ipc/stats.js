@@ -99,9 +99,9 @@ function register() {
             return result;
         } catch (e) {
             console.error('[Stats] Riot API error:', e.message);
+            // Surface actionable errors (bad key, rate limit, not found) to the renderer
+            return { tier: 'N/A', lp: '', winLose: '', ratio: '', iconSrc: defaultIcon(), level: '', error: e.message };
         }
-
-        return { tier: 'Unranked', lp: '', winLose: '', ratio: '', iconSrc: defaultIcon(), level: '' };
     });
 }
 

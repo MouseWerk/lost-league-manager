@@ -42,24 +42,38 @@ function headers() {
     return { 'X-Riot-Token': state.config.riotApiKey };
 }
 
+function handleAxiosError(e, context) {
+    const status = e.response?.status;
+    if (status === 401 || status === 403) throw new Error('Invalid or expired Riot API key — update it in Settings');
+    if (status === 404)                   throw new Error(`Not found (${context})`);
+    if (status === 429)                   throw new Error('Riot API rate limit hit — try again in a moment');
+    throw e;
+}
+
 async function getAccountByRiotId(gameName, tagLine, region) {
     const platform = getPlatform(region);
     const regional = getRegional(platform);
     const url = `https://${regional}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`;
-    const res = await axios.get(url, { headers: headers(), timeout: 8000 });
-    return { account: res.data, platform };
+    try {
+        const res = await axios.get(url, { headers: headers(), timeout: 8000 });
+        return { account: res.data, platform };
+    } catch (e) { handleAxiosError(e, `${gameName}#${tagLine}`); }
 }
 
 async function getSummonerByPuuid(puuid, platform) {
     const url = `https://${platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${puuid}`;
-    const res = await axios.get(url, { headers: headers(), timeout: 8000 });
-    return res.data;
+    try {
+        const res = await axios.get(url, { headers: headers(), timeout: 8000 });
+        return res.data;
+    } catch (e) { handleAxiosError(e, `puuid ${puuid.slice(0, 8)}…`); }
 }
 
 async function getRankedEntries(summonerId, platform) {
     const url = `https://${platform}.api.riotgames.com/lol/league/v4/entries/by-summoner/${summonerId}`;
-    const res = await axios.get(url, { headers: headers(), timeout: 8000 });
-    return res.data;
+    try {
+        const res = await axios.get(url, { headers: headers(), timeout: 8000 });
+        return res.data;
+    } catch (e) { handleAxiosError(e, `summoner ${summonerId.slice(0, 8)}…`); }
 }
 
 function capFirst(s) {
