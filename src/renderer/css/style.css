@@ -1769,3 +1769,36 @@ select.form-control option {
 .empty-state .primary-btn {
     margin-top: 20px;
 }
+
+/* ── Riot API Key notice ─────────────────────────────────────────────────────*/
+.api-key-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: rgba(255, 190, 50, 0.08);
+    border: 1px solid rgba(255, 190, 50, 0.25);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12.5px;
+    color: #f0c060;
+    line-height: 1.5;
+    margin-bottom: 14px;
+}
+
+.api-key-notice i {
+    flex-shrink: 0;
+    margin-top: 2px;
+    font-size: 13px;
+    color: #f0c060;
+}
+
+.api-key-notice strong {
+    color: #ffd87a;
+}
+
+.api-key-input {
+    flex: 1;
+    font-family: monospace;
+    font-size: 12px;
+    letter-spacing: 0.02em;
+}

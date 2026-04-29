@@ -124,6 +124,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             showToast('Overlay position reset', 'success');
         });
 
+        // Riot API Key
+        const riotApiKeyInput  = document.getElementById('riotApiKeyInput');
+        const riotApiKeyNotice = document.getElementById('riotApiKeyNotice');
+
+        function updateApiKeyNotice(key) {
+            if (riotApiKeyNotice) {
+                riotApiKeyNotice.style.display = key ? 'none' : 'flex';
+            }
+        }
+
+        if (riotApiKeyInput) {
+            riotApiKeyInput.value = config.riotApiKey || '';
+            updateApiKeyNotice(config.riotApiKey);
+
+            document.getElementById('saveRiotApiKeyBtn')?.addEventListener('click', async () => {
+                const key = riotApiKeyInput.value.trim();
+                await window.electronAPI.setConfig({ riotApiKey: key });
+                updateApiKeyNotice(key);
+                showToast(key ? 'API key saved!' : 'API key cleared', key ? 'success' : 'info');
+            });
+        }
+
         // Load accounts
         await loadAccounts();
 
