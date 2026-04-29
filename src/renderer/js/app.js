@@ -7,6 +7,8 @@ let activeAccountUsername = null;
 let currentQuery = '';
 let currentSort = 'default';
 const statsCache = {}; // username → { tier, lp, iconSrc, level }
+let _renderGen = 0;         // incremented each renderAccounts() call; cancels stale stat callbacks
+let _shownStatErrors = new Set(); // deduplicates error toasts within a render cycle
 
 // Rank tier → numeric for sorting
 const TIER_ORDER = {
@@ -451,6 +453,9 @@ async function loadAccounts() {
 }
 
 function renderAccounts() {
+    const gen = ++_renderGen; // any callback from a previous render is now stale
+    _shownStatErrors = new Set();
+
     const listEl = document.getElementById('accountsList');
     listEl.innerHTML = '';
 
@@ -479,6 +484,8 @@ function renderAccounts() {
         return;
     }
 
+    let staggerIndex = 0;
+
     for (const acc of filtered) {
         const el = createAccountCard(acc);
         listEl.appendChild(el);
@@ -486,16 +493,30 @@ function renderAccounts() {
         if (acc.riotId && acc.region) {
             const cached = statsCache[acc.username];
             if (cached) {
-                // Already loaded — apply instantly, no network call
                 applyStatsToCard(el, cached);
             } else {
-                window.electronAPI.getStats(acc.region, acc.riotId).then(stats => {
-                    if (!stats) return;
-                    statsCache[acc.username] = stats;
-                    applyStatsToCard(el, stats);
-                    // Safe: next render uses cache only, fires no more requests
-                    if (currentSort === 'rank') renderAccounts();
-                });
+                // Stagger uncached fetches by 150ms each to stay under Riot API rate limits.
+                // The generation check discards callbacks that belong to a superseded render.
+                const delay = staggerIndex++ * 150;
+                setTimeout(() => {
+                    if (_renderGen !== gen) return; // render was superseded, abort
+                    window.electronAPI.getStats(acc.region, acc.riotId).then(stats => {
+                        if (_renderGen !== gen || !stats) return;
+                        if (stats.error) {
+                            // Only show each unique error once per render cycle
+                            if (!_shownStatErrors.has(stats.error)) {
+                                _shownStatErrors.add(stats.error);
+                                showToast(stats.error, 'error');
+                            }
+                        }
+                        statsCache[acc.username] = stats;
+                        applyStatsToCard(el, stats);
+                        if (currentSort === 'rank') renderAccounts();
+                    }).catch(err => {
+                        if (_renderGen !== gen) return;
+                        console.error('[Stats]', acc.username, err);
+                    });
+                }, delay);
             }
         }
     }
