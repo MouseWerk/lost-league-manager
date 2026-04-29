@@ -372,11 +372,44 @@
         </main>
     </div>
 
-    <!-- Update Banner -->
-    <div id="updateBanner" class="update-banner">
-        <span>A new version is available!</span>
-        <button id="downloadUpdateBtn">Download</button>
-        <button id="closeUpdateBanner" class="close-banner">×</button>
+    <!-- Update Card -->
+    <div id="updateCard" class="update-card">
+        <div class="update-card-header">
+            <div class="update-card-icon">
+                <i class="fas fa-arrow-circle-up"></i>
+            </div>
+            <div class="update-card-title-group">
+                <div class="update-card-label">Update Available</div>
+                <div id="updateCardVersion" class="update-card-version">v—</div>
+            </div>
+            <button id="closeUpdateCard" class="update-card-close" title="Remind me later">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div id="updateProgressSection" class="update-progress-section">
+            <div class="update-status-row">
+                <span class="update-pulse-dot"></span>
+                <span>Downloading update…</span>
+                <span id="updateProgressPct" class="update-progress-pct">0%</span>
+            </div>
+            <div class="update-progress-track">
+                <div id="updateProgressBar" class="update-progress-bar"></div>
+            </div>
+        </div>
+
+        <div id="updateCardActions" class="update-card-actions">
+            <button id="installUpdateBtn" class="update-install-btn">
+                <i class="fas fa-download"></i> Install &amp; Restart
+            </button>
+            <button id="laterUpdateBtn" class="update-later-btn">Remind me later</button>
+        </div>
+    </div>
+
+    <!-- Dismissed update pill -->
+    <div id="updatePill" class="update-pill">
+        <span class="update-pill-dot"></span>
+        <span id="updatePillLabel">Update ready</span>
     </div>
 
     <!-- Launch Overlay -->
