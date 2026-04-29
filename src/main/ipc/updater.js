@@ -71,7 +71,7 @@ function register() {
     });
 
     ipcMain.handle('install-update', () => {
-        if (app.isPackaged) autoUpdater.quitAndInstall(false, true);
+        if (app.isPackaged) autoUpdater.quitAndInstall(true, true);
     });
 
     ipcMain.handle('get-version', () => app.getVersion());
