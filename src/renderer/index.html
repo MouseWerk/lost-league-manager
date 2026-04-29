@@ -337,6 +337,26 @@
                         </div>
                     </div>
 
+                    <!-- Riot API Key -->
+                    <div class="setting-card">
+                        <div class="setting-icon"><i class="fas fa-key"></i></div>
+                        <div class="setting-info">
+                            <h3>Riot API Key</h3>
+                            <p class="desc">Used as a fallback for ranked stats when the League client is not running.</p>
+                            <div id="riotApiKeyNotice" class="api-key-notice">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                No API key set — ranked stats only work while the League client is open.
+                                Get a free key at <strong>developer.riotgames.com</strong>.
+                            </div>
+                            <div class="setting-row" style="border-bottom:none;padding-bottom:0;gap:10px">
+                                <input type="password" id="riotApiKeyInput" class="form-control api-key-input"
+                                    placeholder="RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    autocomplete="off" spellcheck="false">
+                                <button id="saveRiotApiKeyBtn" class="action-btn" style="flex-shrink:0">Save</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Updates -->
                     <div class="setting-card">
                         <div class="setting-icon"><i class="fas fa-sync-alt"></i></div>
