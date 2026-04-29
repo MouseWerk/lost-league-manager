@@ -188,7 +188,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         document.getElementById('installUpdateBtn').addEventListener('click', () => {
-            window.electronAPI.installUpdate();
+            // Show custom install screen, then silently install after it renders
+            document.getElementById('installOverlayVersion').textContent = `v${_updateVersion}`;
+            document.getElementById('updateCard').classList.remove('active');
+            document.getElementById('updatePill').classList.remove('active');
+            document.getElementById('installOverlay').classList.add('active');
+            setTimeout(() => window.electronAPI.installUpdate(), 900);
         });
 
         document.getElementById('updatePill').addEventListener('click', () => {

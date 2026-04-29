@@ -2004,3 +2004,161 @@ select.form-control option {
     font-size: 12px;
     letter-spacing: 0.02em;
 }
+
+/* ── Install update overlay ──────────────────────────────────────────────── */
+.install-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #08080a;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+.install-overlay.active {
+    display: flex;
+    animation: installFadeIn 0.3s ease-out;
+}
+
+@keyframes installFadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.install-bg-glow {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 700px;
+    height: 700px;
+    background: radial-gradient(circle, rgba(10, 200, 185, 0.1) 0%, transparent 65%);
+    pointer-events: none;
+    filter: blur(60px);
+    animation: installGlowPulse 3s ease-in-out infinite;
+}
+
+@keyframes installGlowPulse {
+    0%, 100% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
+    50%       { opacity: 1;   transform: translate(-50%, -50%) scale(1.08); }
+}
+
+.install-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    text-align: center;
+    width: 360px;
+}
+
+.install-logo {
+    width: 72px;
+    height: 72px;
+    border-radius: 22px;
+    border: 1px solid rgba(10, 200, 185, 0.2);
+    box-shadow:
+        0 0 0 6px rgba(10, 200, 185, 0.06),
+        0 0 40px rgba(10, 200, 185, 0.2),
+        0 20px 60px rgba(0, 0, 0, 0.5);
+    margin-bottom: 24px;
+    animation: installLogoFloat 4s ease-in-out infinite;
+}
+
+@keyframes installLogoFloat {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-6px); }
+}
+
+.install-title {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(to right, #fff 30%, rgba(255,255,255,0.55));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 6px;
+}
+
+.install-version-line {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 36px;
+}
+
+.install-version-line span {
+    color: var(--primary);
+    font-weight: 700;
+}
+
+/* Concentric spinning rings */
+.install-rings {
+    position: relative;
+    width: 90px;
+    height: 90px;
+    margin-bottom: 36px;
+}
+
+.install-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+}
+
+.install-ring-1 {
+    border-top-color: var(--primary);
+    box-shadow: 0 0 12px rgba(10, 200, 185, 0.4);
+    animation: installSpin 1.1s linear infinite;
+}
+
+.install-ring-2 {
+    inset: 12px;
+    border-right-color: rgba(10, 200, 185, 0.45);
+    animation: installSpin 1.7s linear infinite reverse;
+}
+
+.install-ring-3 {
+    inset: 24px;
+    border-bottom-color: rgba(10, 200, 185, 0.25);
+    animation: installSpin 2.4s linear infinite;
+}
+
+@keyframes installSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* Indeterminate progress bar */
+.install-progress-track {
+    width: 100%;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.install-progress-fill {
+    height: 100%;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, var(--primary), #09e8d6, transparent);
+    border-radius: 10px;
+    animation: installSlide 1.6s ease-in-out infinite;
+}
+
+@keyframes installSlide {
+    0%   { transform: translateX(-150%); }
+    100% { transform: translateX(350%); }
+}
+
+.install-sub {
+    font-size: 12px;
+    color: var(--text-dim);
+    opacity: 0.45;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+}
