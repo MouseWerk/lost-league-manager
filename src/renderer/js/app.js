@@ -566,6 +566,111 @@ function applyStatsToCard(cardEl, stats) {
     }
 }
 
+// ── Profile Modal ─────────────────────────────────────────────────────────────
+
+const TIER_EMBLEMS = {
+    iron: '🩶', bronze: '🟤', silver: '⚪', gold: '🟡',
+    platinum: '🩵', emerald: '🟢', diamond: '💎',
+    master: '💜', grandmaster: '🔴', challenger: '🏆',
+};
+
+let _profileUsername = null;
+
+function fillProfileRank(tierEl, lpEl, recordEl, emblemEl, tierCls, tier, lp, winLose, ratio) {
+    const t = (tier || 'Unranked').toLowerCase().split(' ')[0];
+    tierEl.textContent  = tier || 'Unranked';
+    tierEl.className    = `profile-rank-tier ${tierCls(tier)}`;
+    lpEl.textContent    = lp     || '';
+    recordEl.textContent = winLose ? `${winLose}${ratio ? '  ·  ' + ratio : ''}` : '';
+    emblemEl.textContent = TIER_EMBLEMS[t] || '—';
+}
+
+function populateProfileModal(acc, stats) {
+    const defaultIcon = 'assets/logo.png';
+    document.getElementById('profileIcon').src    = stats?.iconSrc || defaultIcon;
+    document.getElementById('profileLabel').textContent = acc.label || acc.username;
+    document.getElementById('profileLevel').textContent = stats?.level || '';
+    document.getElementById('profileLevel').style.display = stats?.level ? 'block' : 'none';
+
+    const meta = [acc.riotId, (acc.region || '').toUpperCase()].filter(Boolean).join('  ·  ');
+    document.getElementById('profileMeta').textContent = meta;
+    document.getElementById('profileLoading').style.display = 'none';
+
+    fillProfileRank(
+        document.getElementById('profileSoloTier'),
+        document.getElementById('profileSoloLp'),
+        document.getElementById('profileSoloRecord'),
+        document.getElementById('profileSoloEmblem'),
+        tierClass,
+        stats?.tier, stats?.lp, stats?.winLose, stats?.ratio
+    );
+    fillProfileRank(
+        document.getElementById('profileFlexTier'),
+        document.getElementById('profileFlexLp'),
+        document.getElementById('profileFlexRecord'),
+        document.getElementById('profileFlexEmblem'),
+        tierClass,
+        stats?.flexTier, stats?.flexLp, stats?.flexWinLose, stats?.flexRatio
+    );
+
+    const notesWrap = document.getElementById('profileNotesWrap');
+    const notesEl   = document.getElementById('profileNotes');
+    if (acc.notes) {
+        notesEl.textContent = acc.notes;
+        notesWrap.style.display = 'block';
+    } else {
+        notesWrap.style.display = 'none';
+    }
+}
+
+async function showProfileModal(username) {
+    _profileUsername = username;
+    const acc = allAccounts.find(a => a.username === username);
+    if (!acc) return;
+
+    const modal = document.getElementById('profileModal');
+    modal.classList.add('active');
+
+    const cached = statsCache[username];
+    if (cached) {
+        populateProfileModal(acc, cached);
+    } else {
+        // Show skeleton while fetching
+        document.getElementById('profileIcon').src    = 'assets/logo.png';
+        document.getElementById('profileLabel').textContent = acc.label || acc.username;
+        document.getElementById('profileLevel').style.display = 'none';
+        document.getElementById('profileMeta').textContent   = [acc.riotId, (acc.region || '').toUpperCase()].filter(Boolean).join('  ·  ');
+        document.getElementById('profileLoading').style.display = 'flex';
+        ['profileSoloTier','profileFlexTier'].forEach(id => {
+            document.getElementById(id).textContent = '—';
+            document.getElementById(id).className   = 'profile-rank-tier rank-unranked';
+        });
+        ['profileSoloLp','profileFlexLp','profileSoloRecord','profileFlexRecord',
+         'profileSoloEmblem','profileFlexEmblem'].forEach(id => {
+            document.getElementById(id).textContent = '';
+        });
+        document.getElementById('profileNotesWrap').style.display = 'none';
+
+        if (acc.riotId && acc.region) {
+            try {
+                const stats = await window.electronAPI.getStats(acc.region, acc.riotId);
+                if (stats) {
+                    statsCache[username] = stats;
+                    if (_profileUsername === username) populateProfileModal(acc, stats);
+                }
+            } catch { /* show skeleton */ }
+        }
+        if (_profileUsername === username) {
+            document.getElementById('profileLoading').style.display = 'none';
+        }
+    }
+}
+
+function closeProfileModal() {
+    document.getElementById('profileModal').classList.remove('active');
+    _profileUsername = null;
+}
+
 function createAccountCard(account) {
     const card = document.createElement('div');
     const isActive = account.username === activeAccountUsername;
@@ -596,6 +701,7 @@ function createAccountCard(account) {
             </div>
         </div>
         <div class="card-actions">
+            <button class="icon-btn info-btn" title="View Stats"><i class="fas fa-chart-bar"></i></button>
             <button class="icon-btn play-btn" title="Launch"><i class="fas fa-play"></i></button>
             <button class="icon-btn edit-btn" title="Edit"><i class="fas fa-pen"></i></button>
             <button class="icon-btn delete-btn" title="Delete"><i class="fas fa-trash"></i></button>
@@ -607,8 +713,9 @@ function createAccountCard(account) {
     if (account.notes) card.querySelector('.card-notes').textContent = account.notes;
 
     card.querySelector('.account-info').addEventListener('click', () => launchAccount(account.username));
-    card.querySelector('.play-btn').addEventListener('click', (e) => { e.stopPropagation(); launchAccount(account.username); });
-    card.querySelector('.edit-btn').addEventListener('click', (e) => { e.stopPropagation(); editAccount(account.username); });
+    card.querySelector('.info-btn').addEventListener('click',   (e) => { e.stopPropagation(); showProfileModal(account.username); });
+    card.querySelector('.play-btn').addEventListener('click',   (e) => { e.stopPropagation(); launchAccount(account.username); });
+    card.querySelector('.edit-btn').addEventListener('click',   (e) => { e.stopPropagation(); editAccount(account.username); });
     card.querySelector('.delete-btn').addEventListener('click', (e) => { e.stopPropagation(); deleteAccount(account.username); });
 
     return card;
