@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Auto-update event listeners
         window.electronAPI.onUpdateAvailable((data) => {
-            showUpdateBanner(data.version, 'downloading');
+            showUpdateCard(data.version, 'downloading');
         });
 
         window.electronAPI.onUpdateProgress((data) => {
@@ -168,13 +168,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         window.electronAPI.onUpdateDownloaded((data) => {
-            showUpdateBanner(data.version, 'ready');
-            showToast(`v${data.version} downloaded! Restart to install.`, "success");
+            showUpdateCard(data.version, 'ready');
         });
 
         window.electronAPI.onUpdateError((message) => {
-            showToast("Update failed: " + message, "error");
-            document.getElementById('updateBanner').classList.remove('active');
+            showToast('Update failed: ' + message, 'error');
+            document.getElementById('updateCard').classList.remove('active');
+        });
+
+        // Update card controls
+        document.getElementById('closeUpdateCard').addEventListener('click', () => {
+            document.getElementById('updateCard').classList.remove('active');
+            if (_updateVersion) document.getElementById('updatePill').classList.add('active');
+        });
+
+        document.getElementById('laterUpdateBtn').addEventListener('click', () => {
+            document.getElementById('updateCard').classList.remove('active');
+            if (_updateVersion) document.getElementById('updatePill').classList.add('active');
+        });
+
+        document.getElementById('installUpdateBtn').addEventListener('click', () => {
+            window.electronAPI.installUpdate();
+        });
+
+        document.getElementById('updatePill').addEventListener('click', () => {
+            document.getElementById('updatePill').classList.remove('active');
+            showUpdateCard(_updateVersion, _updateState);
         });
 
     } catch (err) {
@@ -296,11 +315,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const update = await window.electronAPI.checkForUpdates();
             if (update && update.updateAvailable) {
-                showToast(`Downloading v${update.latestVersion}...`, "info");
+                showToast(`v${update.latestVersion} found — downloading…`, 'info');
             } else if (update && update.error) {
-                showToast("Update check failed: " + update.error, "error");
+                showToast('Update check failed: ' + update.error, 'error');
             } else {
-                showToast("Application is up to date!", "success");
+                showToast('You\'re on the latest version!', 'success');
             }
         } catch (err) {
             showToast("Failed to check for updates.", "error");
@@ -593,35 +612,42 @@ function createAccountCard(account) {
 
 
 
-function showUpdateBanner(version, state = 'ready') {
-    const banner = document.getElementById('updateBanner');
-    const downloadBtn = document.getElementById('downloadUpdateBtn');
-    const bannerText = banner.querySelector('span');
+let _updateVersion = '';
+let _updateState   = ''; // 'downloading' | 'ready'
 
-    banner.classList.add('active');
+function showUpdateCard(version, state) {
+    _updateVersion = version;
+    _updateState   = state;
+
+    const card     = document.getElementById('updateCard');
+    const pill     = document.getElementById('updatePill');
+    const progSec  = document.getElementById('updateProgressSection');
+    const actions  = document.getElementById('updateCardActions');
+    const pillLbl  = document.getElementById('updatePillLabel');
+
+    document.getElementById('updateCardVersion').textContent = `v${version}`;
 
     if (state === 'downloading') {
-        bannerText.innerHTML = `Downloading v${version}... <span id="updatePercent">0%</span>`;
-        downloadBtn.style.display = 'none';
-    } else if (state === 'ready') {
-        bannerText.textContent = `v${version} is ready to install!`;
-        downloadBtn.textContent = 'Install & Restart';
-        downloadBtn.style.display = 'inline-block';
-        downloadBtn.onclick = () => {
-            window.electronAPI.installUpdate();
-        };
+        progSec.style.display  = 'flex';
+        actions.style.display  = 'none';
+        pillLbl.textContent    = 'Downloading update…';
+    } else {
+        // ready to install
+        progSec.style.display  = 'none';
+        actions.style.display  = 'flex';
+        document.getElementById('updateProgressBar').style.width = '100%';
+        pillLbl.textContent    = 'Update ready — click to install';
     }
 
-    document.getElementById('closeUpdateBanner').onclick = () => {
-        banner.classList.remove('active');
-    };
+    pill.classList.remove('active');
+    card.classList.remove('active');
+    void card.offsetWidth; // force reflow so animation replays
+    card.classList.add('active');
 }
 
 function updateDownloadProgress(percent) {
-    const percentEl = document.getElementById('updatePercent');
-    if (percentEl) {
-        percentEl.textContent = `${percent}%`;
-    }
+    document.getElementById('updateProgressBar').style.width = `${percent}%`;
+    document.getElementById('updateProgressPct').textContent = `${percent}%`;
 }
 
 // Modal Functions
