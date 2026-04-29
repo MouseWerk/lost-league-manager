@@ -484,32 +484,40 @@ function renderAccounts() {
         listEl.appendChild(el);
 
         if (acc.riotId && acc.region) {
-            window.electronAPI.getStats(acc.region, acc.riotId).then(stats => {
-                if (!stats) return;
-
-                statsCache[acc.username] = stats;
-
-                const rankEl = el.querySelector('.rank');
-                if (rankEl) {
-                    const tierName = (stats.tier || 'unranked').split(' ')[0].toLowerCase();
-                    const valid = ['iron','bronze','silver','gold','platinum','emerald','diamond','master','grandmaster','challenger'];
-                    const cls = valid.includes(tierName) ? `rank-${tierName}` : 'rank-unranked';
-                    rankEl.className = `rank ${cls}`;
-                    const tierDisplay = stats.tier && stats.tier !== 'Unranked' ? stats.tier : 'Unranked';
-                    rankEl.innerHTML = `<span>${tierDisplay}</span>${stats.lp ? ` • <span>${stats.lp}</span>` : ''}`;
-                }
-                const iconEl = el.querySelector('.summoner-icon');
-                if (iconEl && stats.iconSrc) iconEl.src = stats.iconSrc;
-
-                const levelEl = el.querySelector('.level-badge');
-                if (levelEl && stats.level) {
-                    levelEl.innerText = stats.level;
-                    levelEl.style.display = 'block';
-                }
-
-                if (currentSort === 'rank') renderAccounts();
-            });
+            const cached = statsCache[acc.username];
+            if (cached) {
+                // Already loaded — apply instantly, no network call
+                applyStatsToCard(el, cached);
+            } else {
+                window.electronAPI.getStats(acc.region, acc.riotId).then(stats => {
+                    if (!stats) return;
+                    statsCache[acc.username] = stats;
+                    applyStatsToCard(el, stats);
+                    // Safe: next render uses cache only, fires no more requests
+                    if (currentSort === 'rank') renderAccounts();
+                });
+            }
         }
+    }
+}
+
+function applyStatsToCard(cardEl, stats) {
+    const rankEl = cardEl.querySelector('.rank');
+    if (rankEl) {
+        const tierName = (stats.tier || 'unranked').split(' ')[0].toLowerCase();
+        const valid = ['iron','bronze','silver','gold','platinum','emerald','diamond','master','grandmaster','challenger'];
+        const cls = valid.includes(tierName) ? `rank-${tierName}` : 'rank-unranked';
+        rankEl.className = `rank ${cls}`;
+        const tierDisplay = stats.tier && stats.tier !== 'Unranked' ? stats.tier : 'Unranked';
+        rankEl.innerHTML = `<span>${tierDisplay}</span>${stats.lp ? ` • <span>${stats.lp}</span>` : ''}`;
+    }
+    const iconEl = cardEl.querySelector('.summoner-icon');
+    if (iconEl && stats.iconSrc) iconEl.src = stats.iconSrc;
+
+    const levelEl = cardEl.querySelector('.level-badge');
+    if (levelEl && stats.level) {
+        levelEl.innerText = stats.level;
+        levelEl.style.display = 'block';
     }
 }
 
