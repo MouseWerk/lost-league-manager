@@ -104,13 +104,18 @@ async function getStats(gameName, tagLine, region) {
     const summoner = await getSummonerByPuuid(account.puuid, platform);
     const entries  = await getRankedEntriesByPuuid(account.puuid, platform);
 
-    const solo   = entries.find(e => e.queueType === 'RANKED_SOLO_5x5');
-    const ranked = formatEntry(solo) || { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
+    const EMPTY = { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
+    const solo   = formatEntry(entries.find(e => e.queueType === 'RANKED_SOLO_5x5')) || EMPTY;
+    const flex   = formatEntry(entries.find(e => e.queueType === 'RANKED_FLEX_SR'))  || EMPTY;
     const version = championData.getLatestVersion();
 
     return {
         success: true,
-        ...ranked,
+        ...solo,
+        flexTier:    flex.tier,
+        flexLp:      flex.lp,
+        flexWinLose: flex.winLose,
+        flexRatio:   flex.ratio,
         iconSrc: summoner.profileIconId
             ? `https://ddragon.leagueoflegends.com/cdn/${version}/img/profileicon/${summoner.profileIconId}.png`
             : `https://ddragon.leagueoflegends.com/cdn/${version}/img/profileicon/29.png`,
