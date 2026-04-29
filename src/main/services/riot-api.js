@@ -64,16 +64,17 @@ async function getSummonerByPuuid(puuid, platform) {
     const url = `https://${platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${puuid}`;
     try {
         const res = await axios.get(url, { headers: headers(), timeout: 8000 });
-        return res.data;
+        return res.data; // returns: puuid, profileIconId, revisionDate, summonerLevel
     } catch (e) { handleAxiosError(e, `puuid ${puuid.slice(0, 8)}…`); }
 }
 
-async function getRankedEntries(summonerId, platform) {
-    const url = `https://${platform}.api.riotgames.com/lol/league/v4/entries/by-summoner/${summonerId}`;
+// Riot removed summonerId from summoner-v4 responses; use the PUUID-based endpoint instead.
+async function getRankedEntriesByPuuid(puuid, platform) {
+    const url = `https://${platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/${puuid}`;
     try {
         const res = await axios.get(url, { headers: headers(), timeout: 8000 });
         return res.data;
-    } catch (e) { handleAxiosError(e, `summoner ${summonerId.slice(0, 8)}…`); }
+    } catch (e) { handleAxiosError(e, `puuid ${puuid.slice(0, 8)}…`); }
 }
 
 function capFirst(s) {
@@ -101,7 +102,7 @@ async function getStats(gameName, tagLine, region) {
 
     const { account, platform } = await getAccountByRiotId(gameName, tagLine, region);
     const summoner = await getSummonerByPuuid(account.puuid, platform);
-    const entries  = await getRankedEntries(summoner.id, platform);
+    const entries  = await getRankedEntriesByPuuid(account.puuid, platform);
 
     const solo   = entries.find(e => e.queueType === 'RANKED_SOLO_5x5');
     const ranked = formatEntry(solo) || { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
