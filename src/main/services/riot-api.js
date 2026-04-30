@@ -8,6 +8,7 @@ const REGION_TO_PLATFORM = {
     euw: 'euw1', euw1: 'euw1',
     eune: 'eun1', eun1: 'eun1',
     kr: 'kr',
+    sea: 'sea',
     br: 'br1', br1: 'br1',
     las: 'la1', la1: 'la1',
     lan: 'la2', la2: 'la2',
@@ -27,7 +28,7 @@ const PLATFORM_TO_REGIONAL = {
     na1: 'americas', br1: 'americas', la1: 'americas', la2: 'americas',
     euw1: 'europe', eun1: 'europe', tr1: 'europe', ru: 'europe',
     kr: 'asia', jp1: 'asia',
-    oc1: 'sea', ph2: 'sea', sg2: 'sea', th2: 'sea', tw2: 'sea', vn2: 'sea',
+    sea: 'sea', oc1: 'sea', ph2: 'sea', sg2: 'sea', th2: 'sea', tw2: 'sea', vn2: 'sea',
 };
 
 function getPlatform(region) {

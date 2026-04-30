@@ -15,22 +15,26 @@ function register() {
         }
 
         accounts.push({
-            username:       data.username,
-            password:       encrypt(data.password),
-            label:          data.label          || '',
-            riotId:         data.riotId         || '',
-            region:         data.region         || '',
-            autoPickChamp:  data.autoPickChamp  || '',
-            autoBanChamp:   data.autoBanChamp   || '',
-            notes:          data.notes          || '',
-            autoQueue:      data.autoQueue      || false,
-            queueType:      data.queueType      || 'RANKED_SOLO',
-            primaryRole:    data.primaryRole    || '',
-            secondaryRole:  data.secondaryRole  || '',
-            appearOffline:  data.appearOffline  || false,
-            autoSkinRandom: data.autoSkinRandom || false,
-            autoSpells:     data.autoSpells     || false,
+            username:         data.username,
+            password:         encrypt(data.password),
+            label:            data.label            || '',
+            riotId:           data.riotId           || '',
+            region:           data.region           || '',
+            autoPickChamp:    data.autoPickChamp    || '',
+            autoBanChamp:     data.autoBanChamp     || '',
+            notes:            data.notes            || '',
+            autoQueue:        data.autoQueue        || false,
+            queueType:        data.queueType        || 'RANKED_SOLO',
+            primaryRole:      data.primaryRole      || '',
+            secondaryRole:    data.secondaryRole    || '',
+            appearOffline:    data.appearOffline    || false,
+            autoSkinRandom:   data.autoSkinRandom   || false,
+            autoSpells:       data.autoSpells       || false,
             minimizeOnLaunch: data.minimizeOnLaunch || false,
+            chatOnDeath:      data.chatOnDeath      || '',
+            chatOnKill:       data.chatOnKill       || '',
+            chatOnAssist:     data.chatOnAssist     || '',
+            chatOnGameStart:  data.chatOnGameStart  || '',
         });
 
         saveAccounts(accounts);
@@ -60,6 +64,10 @@ function register() {
             autoSkinRandom: data.autoSkinRandom !== undefined ? data.autoSkinRandom : old.autoSkinRandom,
             autoSpells:     data.autoSpells     !== undefined ? data.autoSpells     : old.autoSpells,
             minimizeOnLaunch: data.minimizeOnLaunch !== undefined ? data.minimizeOnLaunch : (old.minimizeOnLaunch || false),
+            chatOnDeath:      data.chatOnDeath     !== undefined ? data.chatOnDeath     : (old.chatOnDeath     || ''),
+            chatOnKill:       data.chatOnKill      !== undefined ? data.chatOnKill      : (old.chatOnKill      || ''),
+            chatOnAssist:     data.chatOnAssist    !== undefined ? data.chatOnAssist    : (old.chatOnAssist    || ''),
+            chatOnGameStart:  data.chatOnGameStart !== undefined ? data.chatOnGameStart : (old.chatOnGameStart || ''),
         };
 
         if (data.password) accounts[index].password = encrypt(data.password);
