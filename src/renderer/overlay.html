@@ -43,12 +43,46 @@
 
             <button class="ov-toggle" id="ovToggle" title="Toggle player ranks">≡</button>
             <button class="ov-toggle" id="ovBuildToggle" title="Toggle item builds">⊞</button>
+            <button class="ov-toggle" id="ovSettingsBtn" title="Overlay settings">⚙</button>
         </div>
 
         <!-- Ranked panel -->
         <div class="ov-ranked" id="ovRanked" style="display:none">
             <div id="ovRankedContent">
                 <div class="ov-rp-msg">Waiting for game data…</div>
+            </div>
+        </div>
+
+        <!-- Settings panel -->
+        <div class="ov-settings-panel" id="ovSettingsPanel" style="display:none">
+            <div class="ov-setting-row">
+                <span class="ov-setting-label">Opacity</span>
+                <div class="ov-slider-wrap">
+                    <input type="range" class="ov-slider" id="ovOpacitySlider" min="10" max="100" step="1" value="100">
+                    <span class="ov-setting-val" id="ovOpacityVal">100%</span>
+                </div>
+            </div>
+            <div class="ov-setting-row">
+                <span class="ov-setting-label">Hide key</span>
+                <select class="ov-select" id="ovHotkeySelect">
+                    <option value="Ctrl+Shift+H">Ctrl+Shift+H</option>
+                    <option value="Ctrl+Shift+X">Ctrl+Shift+X</option>
+                    <option value="Ctrl+Shift+O">Ctrl+Shift+O</option>
+                    <option value="F9">F9</option>
+                    <option value="F10">F10</option>
+                </select>
+            </div>
+            <div class="ov-setting-row">
+                <span class="ov-setting-label">Lock position</span>
+                <label class="ov-switch"><input type="checkbox" id="ovLockToggle"><span class="ov-switch-track"></span></label>
+            </div>
+            <div class="ov-setting-row">
+                <span class="ov-setting-label">Ranked panel</span>
+                <label class="ov-switch"><input type="checkbox" id="ovShowRankedToggle" checked><span class="ov-switch-track"></span></label>
+            </div>
+            <div class="ov-setting-row">
+                <span class="ov-setting-label">Build guide</span>
+                <label class="ov-switch"><input type="checkbox" id="ovShowBuildsToggle" checked><span class="ov-switch-track"></span></label>
             </div>
         </div>
 

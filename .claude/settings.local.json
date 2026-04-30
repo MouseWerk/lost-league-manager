@@ -18,7 +18,21 @@
       "Bash(git -C \"C:/git/lost-league-manager\" log --oneline -5)",
       "Bash(npm install *)",
       "Bash(npm version *)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "WebFetch(domain:libraries.io)",
+      "WebFetch(domain:lolalytics.com)",
+      "WebFetch(domain:ax.lolalytics.com)",
+      "WebFetch(domain:stats2.u.gg)",
+      "WebFetch(domain:u.gg)",
+      "WebFetch(domain:lol-api-champion.op.gg)",
+      "WebFetch(domain:op.gg)",
+      "WebFetch(domain:ddragon.leagueoflegends.com)",
+      "WebFetch(domain:www.murderbridge.com)",
+      "WebFetch(domain:blitz-cdn.blitz.gg)",
+      "WebFetch(domain:raw.communitydragon.org)",
+      "WebFetch(domain:www.leagueofgraphs.com)",
+      "WebFetch(domain:www.metasrc.com)",
+      "WebFetch(domain:glama.ai)"
     ]
   }
 }

@@ -105,6 +105,22 @@ function register() {
         }
     });
 
+    // ── In-game chat messages ─────────────────────────────────────────────────
+    ipcMain.handle('trigger-chat-event', async (event, eventType) => {
+        if (!state.currentAccount) return;
+        const msg = {
+            death:     state.currentAccount.chatOnDeath,
+            kill:      state.currentAccount.chatOnKill,
+            assist:    state.currentAccount.chatOnAssist,
+            gameStart: state.currentAccount.chatOnGameStart,
+        }[eventType];
+        if (!msg || !msg.trim()) return;
+        // Game start: delay so the chat system is ready
+        const delay = eventType === 'gameStart' ? 8000 : 0;
+        if (delay) await new Promise(r => setTimeout(r, delay));
+        sendInGameChatMessage(msg.trim());
+    });
+
     ipcMain.handle('open-file-dialog', async (event, options) => {
         return dialog.showOpenDialog(state.mainWindow, options);
     });
@@ -114,6 +130,33 @@ function register() {
         if (action === 'close')    state.mainWindow.close();
         if (action === 'minimize') state.mainWindow.minimize();
     });
+}
+
+// Escape WScript.Shell SendKeys special characters
+function escapeSendKeys(text) {
+    return text.replace(/[+^%~(){}]/g, '{$&}');
+}
+
+function sendInGameChatMessage(message) {
+    const escaped   = escapeSendKeys(message);
+    const psLiteral = "'" + escaped.replace(/'/g, "''") + "'";
+
+    // Select-Object -First 1 guards against multiple matching processes
+    // Shift+Enter opens team chat in LoL
+    const lines = [
+        `$proc = Get-Process "League of Legends" -ErrorAction SilentlyContinue | Select-Object -First 1`,
+        `if (-not $proc) { exit 0 }`,
+        `$wsh = New-Object -ComObject WScript.Shell`,
+        `if (-not $wsh.AppActivate($proc.Id)) { exit 0 }`,
+        `Start-Sleep -Milliseconds 250`,
+        `$wsh.SendKeys("+{ENTER}")`,
+        `Start-Sleep -Milliseconds 120`,
+        `$wsh.SendKeys(${psLiteral})`,
+        `Start-Sleep -Milliseconds 80`,
+        `$wsh.SendKeys("{ENTER}")`,
+    ];
+
+    spawn('powershell.exe', ['-NonInteractive', '-Command', lines.join('; ')]);
 }
 
 module.exports = { register };

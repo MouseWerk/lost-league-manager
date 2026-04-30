@@ -10,5 +10,9 @@ contextBridge.exposeInMainWorld('overlayAPI', {
     getPosition:     ()  => ipcRenderer.invoke('overlay-get-position'),
     resize:          (w, h) => ipcRenderer.send('overlay-resize', w, h),
     fetchRanked:     (players) => ipcRenderer.invoke('overlay-get-ranked-bulk', players),
-    fetchBuilds:     (champKey) => ipcRenderer.invoke('overlay-get-builds', champKey)
+    fetchBuilds:     (champKey, gameMode, position) => ipcRenderer.invoke('overlay-get-builds', { champKey, gameMode, position }),
+    setOpacity:      (v)       => ipcRenderer.invoke('overlay-set-opacity', v),
+    saveSettings:    (s)       => ipcRenderer.invoke('overlay-save-settings', s),
+    onSettingsUpdate: (cb)      => ipcRenderer.on('overlay-settings-update', (_, d) => cb(d)),
+    triggerChatEvent: (type)   => ipcRenderer.invoke('trigger-chat-event', type)
 });

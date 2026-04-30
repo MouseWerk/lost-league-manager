@@ -314,10 +314,21 @@ body {
     text-overflow: ellipsis;
 }
 
+.ov-build-mode {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(10, 200, 185, 0.85);
+    background: rgba(10, 200, 185, 0.1);
+    border-radius: 4px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+}
+
 .ov-build-source {
     font-size: 9px;
     color: rgba(255,255,255,0.2);
     flex-shrink: 0;
+    margin-left: auto;
 }
 
 .ov-build-row {
@@ -363,6 +374,126 @@ body {
 
 .ov-build-bottom {
     padding: 4px 10px 8px;
+}
+
+/* ── Settings panel ── */
+.ov-settings-panel {
+    border-top: 1px solid var(--ov-sep);
+    padding: 6px 12px 10px;
+}
+
+.ov-setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 40px;
+    gap: 10px;
+}
+
+.ov-setting-row + .ov-setting-row {
+    border-top: 1px solid rgba(255,255,255,0.04);
+}
+
+.ov-setting-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.55);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Slider */
+.ov-slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    justify-content: flex-end;
+    min-width: 0;
+}
+
+.ov-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 130px;
+    height: 4px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.12);
+    outline: none;
+    cursor: pointer;
+}
+.ov-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--ov-primary);
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(10,200,185,0.5);
+    transition: transform 0.15s;
+}
+.ov-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+.ov-setting-val {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ov-primary);
+    width: 36px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+/* Select */
+.ov-select {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 4px 6px;
+    cursor: pointer;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.ov-select:focus { border-color: var(--ov-primary); }
+.ov-select option { background: #1a1a22; }
+
+/* Toggle switch */
+.ov-switch {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 18px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.ov-switch input { display: none; }
+.ov-switch-track {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 18px;
+    transition: background 0.2s;
+}
+.ov-switch-track::after {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.4);
+    transition: transform 0.2s, background 0.2s;
+}
+.ov-switch input:checked + .ov-switch-track {
+    background: rgba(10,200,185,0.35);
+}
+.ov-switch input:checked + .ov-switch-track::after {
+    transform: translateX(16px);
+    background: var(--ov-primary);
 }
 
 /* ── Tier badge colours ── */

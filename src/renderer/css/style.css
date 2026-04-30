@@ -1939,6 +1939,24 @@ select.form-control option {
     padding-top: 10px;
 }
 
+.modal-section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+}
+
+.modal-section-hint {
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    color: rgba(255,255,255,0.25);
+    margin-left: 4px;
+}
+
 /* Setting info form-control spacing */
 .setting-info .form-control {
     margin-top: 4px;
@@ -2161,4 +2179,179 @@ select.form-control option {
     opacity: 0.45;
     font-weight: 500;
     letter-spacing: 0.2px;
+}
+
+/* ── Profile Modal ─────────────────────────────────────────────────────────── */
+.profile-modal-content {
+    width: 520px;
+    padding: 24px 28px 26px;
+}
+
+.profile-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    margin-bottom: 24px;
+}
+
+.profile-icon-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.profile-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.12);
+    object-fit: cover;
+}
+
+.profile-level-badge {
+    display: none;
+    position: absolute;
+    bottom: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--primary);
+    color: #000;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 1px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+    line-height: 16px;
+}
+
+.profile-header-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-top: 4px;
+}
+
+.profile-name {
+    font-size: 20px;
+    font-weight: 800;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.profile-meta {
+    font-size: 13px;
+    color: var(--text-dim);
+    font-weight: 500;
+}
+
+.profile-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 4px;
+}
+
+.profile-loading-dot {
+    width: 7px;
+    height: 7px;
+    background: var(--primary);
+    border-radius: 50%;
+    animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.75); }
+}
+
+/* ── Rank cards ── */
+.profile-ranks-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.profile-rank-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
+    padding: 16px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    text-align: center;
+}
+
+.profile-rank-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+}
+
+.profile-rank-emblem {
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 6px;
+}
+
+.profile-rank-tier {
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.profile-rank-lp {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 600;
+    min-height: 16px;
+}
+
+.profile-rank-record {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-weight: 500;
+    min-height: 15px;
+}
+
+/* ── Notes ── */
+.profile-notes-wrap {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+
+.profile-notes-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+}
+
+.profile-notes {
+    font-size: 13px;
+    color: var(--text-main);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+/* ── Actions ── */
+.profile-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
 }

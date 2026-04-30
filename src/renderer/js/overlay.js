@@ -8,6 +8,8 @@ let ddragonVersion = '15.1.1';
 let allPlayers = [];
 let panelOpen = false;
 let buildPanelOpen = false;
+let settingsPanelOpen = false;
+let overlayLocked = false;
 
 // Ranked data fetched from LCU
 let rankedData = {};    // { [playerName]: { tier, lp, winLose, ratio } }
@@ -19,6 +21,8 @@ let buildData = null;   // { champKey, starting:[], core:[], optional:[] }
 let buildLoading = false;
 let buildFetched = false;
 let myChampKey = null;  // Data Dragon key of my champion
+let myGameMode = 'CLASSIC';
+let myPosition = null;
 
 // Death tracking
 let isDead = false;
@@ -42,16 +46,25 @@ const ovGold   = document.getElementById('ovGold');
 const ovTimer  = document.getElementById('ovTimer');
 const ovLevel  = document.getElementById('ovLevel');
 const ovChamp  = document.getElementById('ovChampIcon');
-const ovToggle = document.getElementById('ovToggle');
-const ovBuildToggle = document.getElementById('ovBuildToggle');
-const ovRanked = document.getElementById('ovRanked');
-const ovRankedContent = document.getElementById('ovRankedContent');
-const ovBuilds = document.getElementById('ovBuilds');
-const ovBuildsContent = document.getElementById('ovBuildsContent');
-const ovLive   = document.getElementById('ovLive');
-const ovDeadB  = document.getElementById('ovDeadBar');
-const ovRCount = document.getElementById('ovRespawnCount');
-const ovTip    = document.getElementById('ovDeadTip');
+const ovToggle       = document.getElementById('ovToggle');
+const ovBuildToggle  = document.getElementById('ovBuildToggle');
+const ovSettingsBtn  = document.getElementById('ovSettingsBtn');
+const ovRanked       = document.getElementById('ovRanked');
+const ovRankedContent= document.getElementById('ovRankedContent');
+const ovBuilds       = document.getElementById('ovBuilds');
+const ovBuildsContent= document.getElementById('ovBuildsContent');
+const ovSettingsPanel= document.getElementById('ovSettingsPanel');
+const ovLive         = document.getElementById('ovLive');
+const ovDeadB        = document.getElementById('ovDeadBar');
+const ovRCount       = document.getElementById('ovRespawnCount');
+const ovTip          = document.getElementById('ovDeadTip');
+// Settings controls
+const ovOpacitySlider    = document.getElementById('ovOpacitySlider');
+const ovOpacityVal       = document.getElementById('ovOpacityVal');
+const ovHotkeySelect     = document.getElementById('ovHotkeySelect');
+const ovLockToggle       = document.getElementById('ovLockToggle');
+const ovShowRankedToggle = document.getElementById('ovShowRankedToggle');
+const ovShowBuildsToggle = document.getElementById('ovShowBuildsToggle');
 
 const COMPACT_H = 52;
 
@@ -192,6 +205,8 @@ function resetAll() {
     buildFetched = false;
     buildLoading = false;
     myChampKey = null;
+    myGameMode = 'CLASSIC';
+    myPosition = null;
     if (deathTick) { clearInterval(deathTick); deathTick = null; }
     stopTimer();
 
@@ -212,7 +227,7 @@ function triggerBuildFetch() {
     if (buildFetched || !myChampKey) return;
     buildFetched = true;
     buildLoading = true;
-    window.overlayAPI.fetchBuilds(myChampKey)
+    window.overlayAPI.fetchBuilds(myChampKey, myGameMode, myPosition)
         .then(data => {
             buildData = data;
             buildLoading = false;
@@ -241,20 +256,19 @@ function renderBuildPanel() {
     const champIcon = champIconUrl(myChampKey);
     const rows = [];
 
-    if (buildData.starting.length) {
-        rows.push(buildRow('START', buildData.starting));
-    }
-    if (buildData.core.length) {
-        rows.push(buildRow('CORE', buildData.core));
-    }
-    if (buildData.optional.length) {
-        rows.push(buildRow('OPT', buildData.optional, true));
-    }
+    if (buildData.starting?.length) rows.push(buildRow('START', buildData.starting));
+    if (buildData.boots?.length)    rows.push(buildRow('BOOTS', buildData.boots));
+    if (buildData.core?.length)     rows.push(buildRow('CORE',  buildData.core));
+    if (buildData.optional?.length) rows.push(buildRow('OPT',   buildData.optional));
+
+    const modeLabel = myGameMode === 'ARAM' ? 'ARAM'
+        : (myPosition ? myPosition.charAt(0) + myPosition.slice(1).toLowerCase() : 'Ranked');
 
     ovBuildsContent.innerHTML = `
         <div class="ov-build-header">
             <img class="ov-build-champ-icon" src="${champIcon}" onerror="this.src='assets/logo.png'">
             <span class="ov-build-champ-name">${myChampKey}</span>
+            <span class="ov-build-mode">${modeLabel}</span>
             <span class="ov-build-source">op.gg</span>
         </div>
         ${rows.join('')}
@@ -280,7 +294,7 @@ function toggleBuildPanel(force) {
     }
 
     const rows = buildData
-        ? (buildData.starting.length ? 1 : 0) + (buildData.core.length ? 1 : 0) + (buildData.optional.length ? 1 : 0)
+        ? ['starting', 'boots', 'core', 'optional'].filter(k => buildData[k]?.length).length
         : 0;
     const panelH = 36 + rows * 42 + 10;
     window.overlayAPI.resize(480, COMPACT_H + (buildPanelOpen ? Math.max(panelH, 60) : 0));
@@ -373,6 +387,7 @@ function triggerRankedFetch() {
 // ── Dragging ──────────────────────────────────────────────────────────────────
 const drag = document.getElementById('ovDrag');
 drag.addEventListener('mousedown', (e) => {
+    if (overlayLocked) return;
     e.preventDefault();
     window.overlayAPI.startDragging();
 });
@@ -384,14 +399,88 @@ document.addEventListener('mouseleave', () => window.overlayAPI.setInteractive(f
 // ── Toggle buttons ────────────────────────────────────────────────────────────
 ovToggle.addEventListener('click', () => togglePanel());
 ovBuildToggle.addEventListener('click', () => toggleBuildPanel());
+ovSettingsBtn.addEventListener('click', () => toggleSettingsPanel());
+
+// ── Settings panel ────────────────────────────────────────────────────────────
+function toggleSettingsPanel(force) {
+    settingsPanelOpen = force !== undefined ? force : !settingsPanelOpen;
+    ovSettingsPanel.style.display = settingsPanelOpen ? 'block' : 'none';
+    ovSettingsBtn.classList.toggle('active', settingsPanelOpen);
+
+    if (settingsPanelOpen) {
+        if (panelOpen)      togglePanel(false);
+        if (buildPanelOpen) toggleBuildPanel(false);
+    }
+
+    const panelH = settingsPanelOpen ? 5 * 40 + 16 : 0; // 5 rows × 40px + padding
+    window.overlayAPI.resize(480, COMPACT_H + panelH);
+}
+
+// Opacity slider — instant CSS preview on input, save to config on release
+function applyOpacity(v) {
+    document.getElementById('ovRoot').style.opacity = v;
+}
+
+ovOpacitySlider.addEventListener('input', () => {
+    const pct = parseInt(ovOpacitySlider.value);
+    ovOpacityVal.textContent = pct + '%';
+    applyOpacity(pct / 100);
+});
+ovOpacitySlider.addEventListener('change', () => {
+    // Persist to config (no BrowserWindow.setOpacity — doesn't work on transparent windows)
+    window.overlayAPI.setOpacity(parseInt(ovOpacitySlider.value) / 100);
+});
+
+// Hotkey select
+ovHotkeySelect.addEventListener('change', () => {
+    window.overlayAPI.saveSettings({ hotkey: ovHotkeySelect.value });
+});
+
+// Lock toggle
+ovLockToggle.addEventListener('change', () => {
+    overlayLocked = ovLockToggle.checked;
+    window.overlayAPI.saveSettings({ locked: overlayLocked });
+});
+
+// Show ranked toggle
+ovShowRankedToggle.addEventListener('change', () => {
+    const on = ovShowRankedToggle.checked;
+    ovToggle.style.display = on ? '' : 'none';
+    if (!on && panelOpen) togglePanel(false);
+    window.overlayAPI.saveSettings({ showRanked: on });
+});
+
+// Show builds toggle
+ovShowBuildsToggle.addEventListener('change', () => {
+    const on = ovShowBuildsToggle.checked;
+    ovBuildToggle.style.display = on ? '' : 'none';
+    if (!on && buildPanelOpen) toggleBuildPanel(false);
+    window.overlayAPI.saveSettings({ showBuilds: on });
+});
+
+// Settings pushed from main (when another window changes a config value)
+window.overlayAPI.onSettingsUpdate((s) => {
+    if (s.showRanked !== undefined) {
+        ovToggle.style.display = s.showRanked ? '' : 'none';
+        ovShowRankedToggle.checked = s.showRanked;
+    }
+    if (s.showBuilds !== undefined) {
+        ovBuildToggle.style.display = s.showBuilds ? '' : 'none';
+        ovShowBuildsToggle.checked = s.showBuilds;
+    }
+    if (s.locked !== undefined) {
+        overlayLocked = s.locked;
+        ovLockToggle.checked = s.locked;
+    }
+});
 
 // ── GEP: game events ──────────────────────────────────────────────────────────
 window.overlayAPI.onGepGameEvent((data) => {
     if (!data?.feature) return;
     const k = data.key || data.feature;
-    if (k === 'kill')   kills++;
-    if (k === 'death')  { deaths++; onDeath(); }
-    if (k === 'assist') assists++;
+    if (k === 'kill')   { kills++;   window.overlayAPI.triggerChatEvent('kill'); }
+    if (k === 'death')  { deaths++;  onDeath(); window.overlayAPI.triggerChatEvent('death'); }
+    if (k === 'assist') { assists++; window.overlayAPI.triggerChatEvent('assist'); }
     updateBar();
 });
 
@@ -403,7 +492,7 @@ window.overlayAPI.onGepInfoUpdate((data) => {
         case 'matchState': {
             if (data.key !== 'matchState') break;
             const state = data.value;
-            if (state === 'InProgress') startTimer();
+            if (state === 'InProgress') { startTimer(); window.overlayAPI.triggerChatEvent('gameStart'); }
             else if (state === 'EndOfGame' || state === 'PreGame') resetAll();
             break;
         }
@@ -413,6 +502,11 @@ window.overlayAPI.onGepInfoUpdate((data) => {
                 case 'game_data': {
                     const gd = tryParse(data.value);
                     if (gd?.gameTime) { gameTime = parseFloat(gd.gameTime); if (!timerTick) startTimer(); }
+                    if (gd?.gameMode && gd.gameMode !== myGameMode) {
+                        myGameMode = gd.gameMode;
+                        buildFetched = false;
+                        buildData = null;
+                    }
                     break;
                 }
                 case 'active_player': {
@@ -444,8 +538,14 @@ window.overlayAPI.onGepInfoUpdate((data) => {
                             const iconUrl = champIconUrl(me.rawChampionName || me.championName);
                             if (ovChamp.src !== iconUrl) ovChamp.src = iconUrl;
 
-                            // Detect champion and kick off build fetch
+                            // Detect champion and position, kick off build fetch
                             const key = champDDKey(me.rawChampionName || me.championName);
+                            const pos = me.position || me.role || null;
+                            if (pos && pos !== 'NONE' && pos !== myPosition) {
+                                myPosition = pos;
+                                buildFetched = false;
+                                buildData = null;
+                            }
                             if (key && key !== myChampKey) {
                                 myChampKey = key;
                                 buildFetched = false;
@@ -481,8 +581,27 @@ window.overlayAPI.onGepInfoUpdate((data) => {
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.overlayAPI.onInit((initData) => {
     if (initData?.ddragonVersion) ddragonVersion = initData.ddragonVersion;
-    if (initData?.showRanked === false) ovToggle.style.display = 'none';
-    if (initData?.showBuilds === false) ovBuildToggle.style.display = 'none';
+
+    // Populate settings panel from saved config and apply opacity via CSS
+    const opacity = typeof initData?.opacity === 'number' ? initData.opacity : 1.0;
+    applyOpacity(opacity);
+    ovOpacitySlider.value    = Math.round(opacity * 100);
+    ovOpacityVal.textContent = Math.round(opacity * 100) + '%';
+
+    if (initData?.hotkey) {
+        const opt = ovHotkeySelect.querySelector(`option[value="${initData.hotkey}"]`);
+        if (opt) ovHotkeySelect.value = initData.hotkey;
+    }
+
+    overlayLocked = initData?.locked || false;
+    ovLockToggle.checked = overlayLocked;
+
+    const showRanked = initData?.showRanked !== false;
+    const showBuilds = initData?.showBuilds !== false;
+    ovToggle.style.display      = showRanked ? '' : 'none';
+    ovBuildToggle.style.display = showBuilds ? '' : 'none';
+    ovShowRankedToggle.checked  = showRanked;
+    ovShowBuildsToggle.checked  = showBuilds;
 });
 
 updateBar();

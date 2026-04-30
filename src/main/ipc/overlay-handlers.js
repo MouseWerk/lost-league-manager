@@ -3,6 +3,7 @@ const lcu = require('../lcu');
 const state = require('../state');
 const championData = require('../services/champion-data');
 const { getBuilds } = require('../services/builds-api');
+const { saveConfig } = require('../services/storage');
 
 function capFirst(s) {
     return s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : '';
@@ -52,6 +53,42 @@ function register() {
         if (!state.overlayWindow || state.overlayWindow.isDestroyed()) return { x: 0, y: 0 };
         const [x, y] = state.overlayWindow.getPosition();
         return { x, y };
+    });
+
+    // ── Opacity ────────────────────────────────────────────────────────────────
+    ipcMain.handle('overlay-set-opacity', (_, opacity) => {
+        const val = Math.max(0.1, Math.min(1.0, Number(opacity) || 1.0));
+        if (state.overlayWindow && !state.overlayWindow.isDestroyed()) {
+            state.overlayWindow.setOpacity(val);
+        }
+        state.config.overlayOpacity = val;
+        saveConfig();
+    });
+
+    // ── Settings ───────────────────────────────────────────────────────────────
+    ipcMain.handle('overlay-save-settings', (_, settings) => {
+        if (settings.hotkey !== undefined && settings.hotkey !== state.config.overlayHotkey) {
+            try {
+                const { registerOverlayHotkey } = require('../overlay-hotkey');
+                registerOverlayHotkey(settings.hotkey);
+                state.config.overlayHotkey = settings.hotkey;
+                saveConfig();
+            } catch (e) {
+                console.error('[Overlay] Hotkey re-register failed:', e.message);
+            }
+        }
+        if (settings.locked      !== undefined) state.config.overlayLocked      = settings.locked;
+        if (settings.showRanked  !== undefined) state.config.overlayShowRanked  = settings.showRanked;
+        if (settings.showBuilds  !== undefined) state.config.overlayShowBuilds  = settings.showBuilds;
+        saveConfig();
+        // Push UI updates back to the overlay
+        if (state.overlayWindow && !state.overlayWindow.isDestroyed()) {
+            state.overlayWindow.webContents.send('overlay-settings-update', {
+                showRanked: state.config.overlayShowRanked !== false,
+                showBuilds: state.config.overlayShowBuilds !== false,
+                locked:     state.config.overlayLocked     || false,
+            });
+        }
     });
 
     ipcMain.handle('overlay-reset-position', () => {
@@ -105,9 +142,9 @@ function register() {
     });
 
     // ── Build data (from OP.GG JSON API) ──────────────────────────────────────
-    ipcMain.handle('overlay-get-builds', async (event, champKey) => {
+    ipcMain.handle('overlay-get-builds', async (event, { champKey, gameMode, position } = {}) => {
         if (!champKey) return null;
-        return await getBuilds(champKey);
+        return await getBuilds(champKey, gameMode, position);
     });
 
     // ── LCU overview (main window dashboard) ──────────────────────────────────
