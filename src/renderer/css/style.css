@@ -191,7 +191,7 @@ body {
     display: flex;
     flex-direction: column;
     padding: 60px 40px 40px;
-    overflow-y: auto;
+    overflow: hidden; /* Changed to hidden to allow internal scrolling */
     position: relative;
     background: radial-gradient(circle at top right, rgba(10, 200, 185, 0.03), transparent 600px);
     min-width: 0;
@@ -260,6 +260,8 @@ body {
 .view {
     display: none;
     flex-direction: column;
+    height: 100%;
+    overflow: hidden;
     animation: fadeIn 0.25s ease-out;
 }
 
@@ -396,6 +398,10 @@ body {
     grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
     gap: 16px;
     padding-bottom: 40px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 8px; /* Space for scrollbar */
 }
 
 .account-card {
@@ -557,7 +563,8 @@ body {
 }
 
 .card-actions {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
     flex-shrink: 0;
 }
@@ -722,7 +729,13 @@ body {
 .ov-tab:hover  { background: rgba(255,255,255,0.04); color: var(--text-main); }
 .ov-tab.active { background: rgba(10,200,185,0.12); color: var(--primary); }
 .ov-panel { display: none; }
-.ov-panel.active { display: block; }
+.ov-panel.active {
+    display: block;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 8px;
+}
 
 /* ── LCU offline state ── */
 .lcu-offline {
@@ -1046,6 +1059,10 @@ body {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 8px;
 }
 
 .setting-card {
