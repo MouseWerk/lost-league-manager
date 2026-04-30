@@ -1,4 +1,4 @@
-const { app } = require('electron');
+const { app, globalShortcut } = require('electron');
 const lcu = require('./lcu');
 
 // ── Shared state must be required before anything that imports it ────────────
@@ -13,6 +13,7 @@ const { registerAll: registerIpc }     = require('./ipc/index');
 const { executeAccountLaunch, checkGameFlowAndQueue } = require('./ipc/launch');
 const windows = require('./windows');
 const { initOverwolf } = require('./overwolf');
+const { registerOverlayHotkey } = require('./overlay-hotkey');
 
 // ── Single-instance lock ──────────────────────────────────────────────────────
 app.isQuiting = false;
@@ -46,6 +47,7 @@ app.whenReady().then(async () => {
     registerLcuEvents();
     initAutoUpdater();
     initOverwolf();
+    registerOverlayHotkey(state.config.overlayHotkey);
 
     // Handle --launch= argument on first run
     const launchArg = process.argv.find(a => a.startsWith('--launch='));
@@ -62,5 +64,6 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
     lcu.stop();
+    globalShortcut.unregisterAll();
     if (app.isQuiting && process.platform !== 'darwin') app.quit();
 });

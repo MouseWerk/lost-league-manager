@@ -82,10 +82,17 @@ function createOverlayWindow(owOverlay) {
         state.overlayWindow.webContents.on('did-finish-load', () => {
             if (!state.overlayWindow || state.overlayWindow.isDestroyed()) return;
             const championData = require('./services/champion-data');
+            // Apply saved opacity
+            const opacity = typeof state.config.overlayOpacity === 'number'
+                ? state.config.overlayOpacity : 1.0;
+            state.overlayWindow.setOpacity(opacity);
             state.overlayWindow.webContents.send('overlay-init', {
                 ddragonVersion: championData.getLatestVersion(),
-                showRanked: state.config.overlayShowRanked !== false,
-                showBuilds: state.config.overlayShowBuilds !== false,
+                showRanked:  state.config.overlayShowRanked  !== false,
+                showBuilds:  state.config.overlayShowBuilds  !== false,
+                opacity,
+                hotkey:  state.config.overlayHotkey  || 'Ctrl+Shift+H',
+                locked:  state.config.overlayLocked  || false,
             });
         });
     };

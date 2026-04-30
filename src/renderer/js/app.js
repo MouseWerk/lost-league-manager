@@ -372,6 +372,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('minimizeAppBtn').addEventListener('click', () => window.electronAPI.minimizeWindow());
     document.getElementById('closeAppBtn').addEventListener('click', () => window.electronAPI.closeWindow());
 
+    // Profile modal
+    document.getElementById('closeProfileModal').addEventListener('click', closeProfileModal);
+    document.getElementById('profileLaunchBtn').addEventListener('click', () => {
+        closeProfileModal();
+        if (_profileUsername) launchAccount(_profileUsername);
+    });
+    document.getElementById('profileEditBtn').addEventListener('click', () => {
+        const u = _profileUsername;
+        closeProfileModal();
+        if (u) editAccount(u);
+    });
+
     // Add Account
     document.getElementById('addAccountBtn').addEventListener('click', openModal);
 
@@ -790,6 +802,10 @@ function openModal(account = null) {
         document.getElementById('queueType').value = account.queueType || 'RANKED_SOLO';
         document.getElementById('primaryRole').value = account.primaryRole || '';
         document.getElementById('secondaryRole').value = account.secondaryRole || '';
+        document.getElementById('chatOnDeath').value     = account.chatOnDeath     || '';
+        document.getElementById('chatOnKill').value      = account.chatOnKill      || '';
+        document.getElementById('chatOnAssist').value    = account.chatOnAssist    || '';
+        document.getElementById('chatOnGameStart').value = account.chatOnGameStart || '';
 
         document.getElementById('newUsername').disabled = true;
     } else {
@@ -815,6 +831,10 @@ function openModal(account = null) {
         document.getElementById('queueType').value = 'RANKED_SOLO';
         document.getElementById('primaryRole').value = '';
         document.getElementById('secondaryRole').value = '';
+        document.getElementById('chatOnDeath').value     = '';
+        document.getElementById('chatOnKill').value      = '';
+        document.getElementById('chatOnAssist').value    = '';
+        document.getElementById('chatOnGameStart').value = '';
 
         document.getElementById('newUsername').disabled = false;
     }
@@ -844,6 +864,10 @@ async function saveAccount() {
     const queueType = document.getElementById('queueType').value;
     const primaryRole = document.getElementById('primaryRole').value;
     const secondaryRole = document.getElementById('secondaryRole').value;
+    const chatOnDeath     = document.getElementById('chatOnDeath').value.trim();
+    const chatOnKill      = document.getElementById('chatOnKill').value.trim();
+    const chatOnAssist    = document.getElementById('chatOnAssist').value.trim();
+    const chatOnGameStart = document.getElementById('chatOnGameStart').value.trim();
 
     if (!username) {
         showToast("Username required!", "error");
@@ -867,7 +891,11 @@ async function saveAccount() {
         queueType,
         primaryRole,
         secondaryRole,
-        minimizeOnLaunch
+        minimizeOnLaunch,
+        chatOnDeath,
+        chatOnKill,
+        chatOnAssist,
+        chatOnGameStart,
     };
 
     let res;
@@ -1003,12 +1031,6 @@ function tierClass(tier) {
     return valid.includes(t) ? `rank-${t}` : 'rank-unranked';
 }
 
-// Rank tier emoji emblems
-const TIER_EMBLEMS = {
-    iron: '🩶', bronze: '🟤', silver: '⚪', gold: '🟡',
-    platinum: '🩵', emerald: '🟢', diamond: '💎',
-    master: '💜', grandmaster: '🔴', challenger: '🏆'
-};
 
 async function loadLiveView() {
     const data = await window.electronAPI.getLcuOverview();
