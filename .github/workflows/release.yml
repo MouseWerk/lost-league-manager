@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # full history so --generate-notes covers all commits
+          fetch-depth: 0   # full history so generate-notes covers all commits
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -32,11 +32,15 @@ jobs:
           $VERSION = "${{ github.ref_name }}" -replace "^v", ""
           npm version $VERSION --no-git-tag-version --allow-same-version
 
-      - name: Build installer
-        run: npm run build -- --publish never
-        # --publish never prevents ow-electron-builder from trying to upload when it detects a tag
+      - name: Build and publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run build
+        # electron-builder creates the release and uploads exe + latest.yml + blockmap
+        # latest.yml must be published by electron-builder — it encodes the SHA512/size
+        # in a format electron-updater understands; uploading it manually causes 404s
 
-      - name: Create GitHub Release
+      - name: Set release title and changelog
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -44,33 +48,12 @@ jobs:
           $VERSION = "${{ github.ref_name }}"
           $TITLE   = "Lost League Manager $VERSION"
 
-          # Installer
-          $EXE = Get-ChildItem dist\*Setup*.exe -ErrorAction SilentlyContinue |
-                   Select-Object -First 1 -ExpandProperty FullName
-          if (-not $EXE) {
-            $EXE = Get-ChildItem dist\*.exe -ErrorAction SilentlyContinue |
-                     Select-Object -First 1 -ExpandProperty FullName
-          }
-          if (-not $EXE) { Write-Error "No installer found in dist/"; exit 1 }
+          # GitHub API: generate changelog from commits since previous tag
+          $BODY = gh api "repos/${{ github.repository }}/releases/generate-notes" `
+            -f tag_name=$VERSION `
+            --jq '.body'
 
-          # latest.yml  — electron-updater reads this to detect new versions
-          $YAML = "dist\latest.yml"
-          if (-not (Test-Path $YAML)) { Write-Error "latest.yml not found in dist/"; exit 1 }
-
-          # blockmap — enables delta (partial) downloads for the updater
-          $BLOCKMAP = Get-ChildItem dist\*.blockmap -ErrorAction SilentlyContinue |
-                        Select-Object -First 1 -ExpandProperty FullName
-
-          Write-Host "Releasing: $EXE"
-          Write-Host "Metadata:  $YAML"
-
-          $assets = @($EXE, $YAML)
-          if ($BLOCKMAP) { $assets += $BLOCKMAP }
-
-          gh release create $VERSION `
-            --title $TITLE `
-            --generate-notes `
-            @assets
+          gh release edit $VERSION --title $TITLE --notes $BODY --draft=false
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
