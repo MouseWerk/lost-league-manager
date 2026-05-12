@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so --generate-notes covers all commits
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,10 +32,32 @@ jobs:
           $VERSION = "${{ github.ref_name }}" -replace "^v", ""
           npm version $VERSION --no-git-tag-version --allow-same-version
 
-      - name: Build and publish
+      - name: Build installer
+        run: npm run build
+        # No GH_TOKEN here — electron-builder just produces the .exe without trying to publish
+
+      - name: Create GitHub Release
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run build
+        run: |
+          $VERSION  = "${{ github.ref_name }}"
+          $TITLE    = "Lost League Manager $VERSION"
+
+          # Prefer the Setup installer; fall back to any .exe in dist/
+          $EXE = Get-ChildItem dist\*Setup*.exe -ErrorAction SilentlyContinue |
+                   Select-Object -First 1 -ExpandProperty FullName
+          if (-not $EXE) {
+            $EXE = Get-ChildItem dist\*.exe -ErrorAction SilentlyContinue |
+                     Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $EXE) { Write-Error "No installer found in dist/"; exit 1 }
+          Write-Host "Releasing $EXE as $TITLE"
+
+          gh release create $VERSION `
+            --title  $TITLE `
+            --generate-notes `
+            $EXE
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
