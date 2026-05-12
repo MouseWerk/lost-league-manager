@@ -187,6 +187,30 @@
                             <button id="fixClientBtn" class="action-btn danger-btn">Kill Processes</button>
                         </div>
                     </div>
+                    <div class="setting-card">
+                        <div class="setting-icon"><i class="fas fa-wrench"></i></div>
+                        <div class="setting-info">
+                            <h3>Repair Client</h3>
+                            <p class="desc">Deletes the League client lockfile. Fixes "client won't start" issues without closing a running game.</p>
+                            <button id="repairClientBtn" class="action-btn">Delete Lockfile</button>
+                        </div>
+                    </div>
+                    <div class="setting-card">
+                        <div class="setting-icon"><i class="fas fa-broom"></i></div>
+                        <div class="setting-info">
+                            <h3>Clear Cache</h3>
+                            <p class="desc">Wipes the Riot Client cache. Fixes broken UI, stuck loading screens, and ghost notifications.</p>
+                            <button id="clearCacheBtn" class="action-btn">Clear Cache</button>
+                        </div>
+                    </div>
+                    <div class="setting-card">
+                        <div class="setting-icon"><i class="fas fa-folder-open"></i></div>
+                        <div class="setting-info">
+                            <h3>App Data</h3>
+                            <p class="desc">Opens the folder where Lost League Manager stores account data and settings.</p>
+                            <button id="openDataFolderBtn" class="action-btn">Open Folder</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -198,11 +222,11 @@
                 <div class="settings-content">
 
                     <!-- Overlay -->
-                    <div class="setting-card">
+                    <div class="setting-card setting-card--wip">
                         <div class="setting-icon"><i class="fas fa-layer-group"></i></div>
                         <div class="setting-info">
-                            <h3>Game Overlay</h3>
-                            <p class="desc">Configure the in-game overlay window shown while playing.</p>
+                            <h3>Game Overlay <span class="wip-badge">In Development</span></h3>
+                            <p class="desc">The in-game overlay is currently in development and will be available in a future update.</p>
                             <div class="setting-row">
                                 <div class="setting-row-info">
                                     <h4>Enable overlay</h4>
@@ -367,6 +391,19 @@
                         </div>
                     </div>
 
+                    <!-- Backup -->
+                    <div class="setting-card">
+                        <div class="setting-icon"><i class="fas fa-database"></i></div>
+                        <div class="setting-info">
+                            <h3>Accounts Backup</h3>
+                            <p class="desc">Export your accounts to a backup file or import from one. Useful when switching PCs or reinstalling.</p>
+                            <div style="display:flex;gap:10px;flex-wrap:wrap">
+                                <button id="exportAccountsBtn" class="action-btn"><i class="fas fa-upload"></i> Export</button>
+                                <button id="importAccountsBtn" class="action-btn"><i class="fas fa-download"></i> Import</button>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </main>
@@ -494,17 +531,6 @@
                     <input type="text" id="newLabel">
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group half">
-                        <label>Auto Pick (Name)</label>
-                        <input type="text" id="newAutoPick" placeholder="Yasuo">
-                    </div>
-                    <div class="form-group half">
-                        <label>Auto Ban (Name)</label>
-                        <input type="text" id="newAutoBan" placeholder="Teemo">
-                    </div>
-                </div>
-
                 <label class="checkbox-group">
                     <input type="checkbox" id="autoSkinToggle">
                     Auto Random Skin (Picks random skin)
@@ -520,76 +546,10 @@
                     Auto Spells (Coming Soon)
                 </label>
 
-                <!-- Auto Queue Section -->
-                <div class="modal-section">
-                    <label class="checkbox-group">
-                        <input type="checkbox" id="autoQueueToggle">
-                        Auto Queue (Start search after login)
-                    </label>
-
-                    <label class="checkbox-group">
-                        <input type="checkbox" id="appearOfflineToggle">
-                        Appear Offline
-                    </label>
-
-                    <div class="form-group">
-                        <label>Queue Type</label>
-                        <select id="queueType">
-                            <option value="RANKED_SOLO">Ranked Solo/Duo</option>
-                            <option value="RANKED_FLEX">Ranked Flex</option>
-                        </select>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group half">
-                            <label>Primary Role</label>
-                            <select id="primaryRole">
-                                <option value="">(None)</option>
-                                <option value="TOP">Top</option>
-                                <option value="JUNGLE">Jungle</option>
-                                <option value="MIDDLE">Mid</option>
-                                <option value="BOTTOM">Bot</option>
-                                <option value="UTILITY">Support</option>
-                            </select>
-                        </div>
-                        <div class="form-group half">
-                            <label>Secondary Role</label>
-                            <select id="secondaryRole">
-                                <option value="">(None)</option>
-                                <option value="TOP">Top</option>
-                                <option value="JUNGLE">Jungle</option>
-                                <option value="MIDDLE">Mid</option>
-                                <option value="BOTTOM">Bot</option>
-                                <option value="UTILITY">Support</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Chat Messages Section -->
-                <div class="modal-section">
-                    <div class="modal-section-title">Chat Messages <span class="modal-section-hint">(sent to team chat via keyboard)</span></div>
-                    <div class="form-row">
-                        <div class="form-group half">
-                            <label>On Death</label>
-                            <input type="text" id="chatOnDeath" placeholder="e.g. my bad :(" maxlength="200">
-                        </div>
-                        <div class="form-group half">
-                            <label>On Kill</label>
-                            <input type="text" id="chatOnKill" placeholder="e.g. ez" maxlength="200">
-                        </div>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group half">
-                            <label>On Assist</label>
-                            <input type="text" id="chatOnAssist" placeholder="e.g. nice!" maxlength="200">
-                        </div>
-                        <div class="form-group half">
-                            <label>On Game Start</label>
-                            <input type="text" id="chatOnGameStart" placeholder="e.g. gl hf!" maxlength="200">
-                        </div>
-                    </div>
-                </div>
+                <label class="checkbox-group">
+                    <input type="checkbox" id="appearOfflineToggle">
+                    Appear Offline
+                </label>
 
                 <div class="form-group">
                     <label>Notes</label>

@@ -12,30 +12,22 @@ class LCUConnector {
         this.connectHandlers = [];
         this.disconnectHandlers = [];
         this.connected = false;
-        this.pollInterval = null;
-    }
-
-    start() {
-        this.pollInterval = setInterval(() => this.tryConnect(), 2000);
     }
 
     stop() {
-        if (this.pollInterval) clearInterval(this.pollInterval);
-        if (this.ws) this.ws.close();
+        if (this.ws) {
+            try { this.ws.terminate(); } catch {}
+            this.ws = null;
+        }
     }
 
-    tryConnect() {
-        // Connection is driven externally via connect(leaguePath) — see main.js.
-    }
-
-    // Helper to parse lockfile
     async getLockfileData(leaguePath) {
         const lockfilePath = path.join(path.dirname(leaguePath), 'lockfile');
         if (!fs.existsSync(lockfilePath)) return null;
 
         try {
             const content = fs.readFileSync(lockfilePath, 'utf8');
-            const [processName, pid, port, password, protocol] = content.split(':');
+            const [, , port, password, protocol] = content.split(':');
             return { port, password, protocol };
         } catch (e) {
             return null;
@@ -48,40 +40,48 @@ class LCUConnector {
         const data = await this.getLockfileData(leaguePath);
         if (!data) return;
 
+        // Terminate any stale socket before creating a new one to prevent the
+        // old close event from nulling out the new socket reference.
+        if (this.ws) {
+            const stale = this.ws;
+            this.ws = null;
+            try { stale.terminate(); } catch {}
+        }
+
         this.credentials = data;
         const url = `wss://riot:${data.password}@127.0.0.1:${data.port}`;
 
-        this.ws = new WebSocket(url, {
-            rejectUnauthorized: false
-        });
+        const socket = new WebSocket(url, { rejectUnauthorized: false });
+        this.ws = socket;
 
-        this.ws.on('open', () => {
+        socket.on('open', () => {
+            if (this.ws !== socket) return;
             this.connected = true;
             console.log('LCU Connected');
-            this.ws.send(JSON.stringify([5, "OnJsonApiEvent"]));
+            socket.send(JSON.stringify([5, 'OnJsonApiEvent']));
             this.connectHandlers.forEach(h => h());
         });
 
-        this.ws.on('message', (msg) => {
-            if (!msg) return;
+        socket.on('message', (msg) => {
+            if (!msg || this.ws !== socket) return;
             try {
                 const json = JSON.parse(msg);
-                // Event structure is usually [opcode, eventName, data]
-                // For OnJsonApiEvent: [8, "OnJsonApiEvent", { uri, eventType, data }]
                 if (json[0] === 8 && json[1] === 'OnJsonApiEvent') {
                     this.handleEvent(json[2]);
                 }
-            } catch (e) {}
+            } catch {}
         });
 
-        this.ws.on('close', () => {
+        socket.on('close', () => {
+            if (this.ws !== socket) return;
             this.connected = false;
             this.ws = null;
             this.credentials = null;
             this.disconnectHandlers.forEach(h => h());
         });
 
-        this.ws.on('error', () => {
+        socket.on('error', () => {
+            if (this.ws !== socket) return;
             this.connected = false;
         });
     }

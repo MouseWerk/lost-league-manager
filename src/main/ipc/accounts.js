@@ -1,7 +1,9 @@
-const { ipcMain } = require('electron');
+const { ipcMain, dialog } = require('electron');
+const fs = require('fs');
 const { loadAccounts, saveAccounts } = require('../services/storage');
-const { encrypt } = require('../services/encryption');
+const { encrypt, decrypt, encryptExport, decryptExport } = require('../services/encryption');
 const { broadcastAccountsUpdate } = require('../windows');
+const state = require('../state');
 
 function register() {
     ipcMain.handle('get-accounts', () => {
@@ -20,21 +22,10 @@ function register() {
             label:            data.label            || '',
             riotId:           data.riotId           || '',
             region:           data.region           || '',
-            autoPickChamp:    data.autoPickChamp    || '',
-            autoBanChamp:     data.autoBanChamp     || '',
             notes:            data.notes            || '',
-            autoQueue:        data.autoQueue        || false,
-            queueType:        data.queueType        || 'RANKED_SOLO',
-            primaryRole:      data.primaryRole      || '',
-            secondaryRole:    data.secondaryRole    || '',
             appearOffline:    data.appearOffline    || false,
             autoSkinRandom:   data.autoSkinRandom   || false,
-            autoSpells:       data.autoSpells       || false,
             minimizeOnLaunch: data.minimizeOnLaunch || false,
-            chatOnDeath:      data.chatOnDeath      || '',
-            chatOnKill:       data.chatOnKill       || '',
-            chatOnAssist:     data.chatOnAssist     || '',
-            chatOnGameStart:  data.chatOnGameStart  || '',
         });
 
         saveAccounts(accounts);
@@ -50,24 +41,13 @@ function register() {
         const old = accounts[index];
         accounts[index] = {
             ...old,
-            label:          data.label          ?? old.label,
-            riotId:         data.riotId         ?? old.riotId,
-            region:         data.region         ?? old.region,
-            autoPickChamp:  data.autoPickChamp  !== undefined ? data.autoPickChamp  : old.autoPickChamp,
-            autoBanChamp:   data.autoBanChamp   !== undefined ? data.autoBanChamp   : old.autoBanChamp,
-            notes:          data.notes          !== undefined ? data.notes          : old.notes,
-            autoQueue:      data.autoQueue      !== undefined ? data.autoQueue      : old.autoQueue,
-            queueType:      data.queueType      !== undefined ? data.queueType      : old.queueType,
-            primaryRole:    data.primaryRole    !== undefined ? data.primaryRole    : old.primaryRole,
-            secondaryRole:  data.secondaryRole  !== undefined ? data.secondaryRole  : old.secondaryRole,
-            appearOffline:  data.appearOffline  !== undefined ? data.appearOffline  : old.appearOffline,
-            autoSkinRandom: data.autoSkinRandom !== undefined ? data.autoSkinRandom : old.autoSkinRandom,
-            autoSpells:     data.autoSpells     !== undefined ? data.autoSpells     : old.autoSpells,
+            label:            data.label            ?? old.label,
+            riotId:           data.riotId           ?? old.riotId,
+            region:           data.region           ?? old.region,
+            notes:            data.notes            !== undefined ? data.notes            : old.notes,
+            appearOffline:    data.appearOffline    !== undefined ? data.appearOffline    : old.appearOffline,
+            autoSkinRandom:   data.autoSkinRandom   !== undefined ? data.autoSkinRandom   : old.autoSkinRandom,
             minimizeOnLaunch: data.minimizeOnLaunch !== undefined ? data.minimizeOnLaunch : (old.minimizeOnLaunch || false),
-            chatOnDeath:      data.chatOnDeath     !== undefined ? data.chatOnDeath     : (old.chatOnDeath     || ''),
-            chatOnKill:       data.chatOnKill      !== undefined ? data.chatOnKill      : (old.chatOnKill      || ''),
-            chatOnAssist:     data.chatOnAssist    !== undefined ? data.chatOnAssist    : (old.chatOnAssist    || ''),
-            chatOnGameStart:  data.chatOnGameStart !== undefined ? data.chatOnGameStart : (old.chatOnGameStart || ''),
         };
 
         if (data.password) accounts[index].password = encrypt(data.password);
@@ -89,6 +69,57 @@ function register() {
         saveAccounts(accounts);
         broadcastAccountsUpdate();
         return { success: true };
+    });
+
+    ipcMain.handle('get-account-password', (event, username) => {
+        const acc = loadAccounts().find(a => a.username === username);
+        if (!acc) return null;
+        return decrypt(acc.password);
+    });
+
+    ipcMain.handle('export-accounts', async () => {
+        const result = await dialog.showSaveDialog(state.mainWindow, {
+            title: 'Export Accounts',
+            defaultPath: 'lost-league-accounts.llem',
+            filters: [{ name: 'Lost League Backup', extensions: ['llem'] }],
+        });
+        if (result.canceled) return { success: false, canceled: true };
+
+        const accounts = loadAccounts();
+        const exportData = {
+            version: 1,
+            exported: Date.now(),
+            accounts: accounts.map(a => ({ ...a, password: decrypt(a.password) || '' })),
+        };
+        fs.writeFileSync(result.filePath, encryptExport(exportData));
+        return { success: true, count: accounts.length };
+    });
+
+    ipcMain.handle('import-accounts', async () => {
+        const result = await dialog.showOpenDialog(state.mainWindow, {
+            title: 'Import Accounts',
+            filters: [{ name: 'Lost League Backup', extensions: ['llem'] }],
+            properties: ['openFile'],
+        });
+        if (result.canceled || !result.filePaths.length) return { success: false, canceled: true };
+
+        const raw = fs.readFileSync(result.filePaths[0], 'utf8').trim();
+        const data = decryptExport(raw);
+        if (!data || !Array.isArray(data.accounts)) {
+            return { success: false, message: 'Invalid or corrupted backup file' };
+        }
+
+        const existing = loadAccounts();
+        let added = 0, skipped = 0;
+        for (const acc of data.accounts) {
+            if (!acc.username || !acc.password) { skipped++; continue; }
+            if (existing.find(e => e.username === acc.username)) { skipped++; continue; }
+            existing.push({ ...acc, password: encrypt(acc.password) });
+            added++;
+        }
+        saveAccounts(existing);
+        broadcastAccountsUpdate();
+        return { success: true, added, skipped };
     });
 }
 

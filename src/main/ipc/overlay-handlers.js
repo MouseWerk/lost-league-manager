@@ -103,9 +103,11 @@ function register() {
         const results = {};
         if (!lcu.connected || !Array.isArray(players)) return results;
 
-        for (const p of players) {
+        const EMPTY = { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
+
+        await Promise.all(players.map(async (p) => {
             const key = p.gameName || p.summonerName;
-            if (!key) continue;
+            if (!key) return;
             try {
                 let summoner = null;
 
@@ -129,15 +131,16 @@ function register() {
                 if (summoner?.puuid) {
                     const ranked   = await lcu.request('GET', `/lol-ranked/v1/ranked-stats/${summoner.puuid}`);
                     const soloData = ranked?.RANKED_SOLO_5x5;
-                    results[key]   = formatLcuRanked(soloData) || { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
+                    results[key]   = formatLcuRanked(soloData) || EMPTY;
                 } else {
-                    results[key] = { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
+                    results[key] = EMPTY;
                 }
             } catch (e) {
                 console.log(`[Overlay Ranked] ${key}:`, e.message);
-                results[key] = { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
+                results[key] = EMPTY;
             }
-        }
+        }));
+
         return results;
     });
 
