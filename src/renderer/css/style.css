@@ -94,16 +94,35 @@ body {
     gap: 12px;
 }
 
-.logo { width: 42px; height: 42px; }
+.logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+    border: 1px solid rgba(10, 200, 185, 0.25);
+    box-shadow: 0 0 12px rgba(10, 200, 185, 0.12);
+    flex-shrink: 0;
+}
 
-.sidebar h1 {
-    font-size: 20px;
+.brand-name {
+    font-size: 16px;
     font-weight: 800;
     margin: 0;
-    background: linear-gradient(to right, #fff, #888);
+    line-height: 1.2;
+    letter-spacing: -0.2px;
+    background: linear-gradient(to right, #fff 50%, rgba(255,255,255,0.55));
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
+}
+
+.brand-sub {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    color: var(--primary);
+    opacity: 0.75;
+    margin-top: 1px;
 }
 
 .nav-links {

@@ -24,6 +24,7 @@ if (!gotLock) {
 } else {
     app.on('second-instance', (event, commandLine) => {
         if (state.mainWindow) {
+            state.mainWindow.show();
             if (state.mainWindow.isMinimized()) state.mainWindow.restore();
             state.mainWindow.focus();
         }
