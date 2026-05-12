@@ -33,8 +33,8 @@ jobs:
           npm version $VERSION --no-git-tag-version --allow-same-version
 
       - name: Build installer
-        run: npm run build
-        # No GH_TOKEN here — electron-builder just produces the .exe without trying to publish
+        run: npm run build -- --publish never
+        # --publish never prevents ow-electron-builder from trying to upload when it detects a tag
 
       - name: Create GitHub Release
         shell: pwsh
