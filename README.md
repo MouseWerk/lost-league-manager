@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/platform-Windows-blue?style=for-the-badge" alt="Windows">
 
   <br><br>
-  <img src="docs/screenshot.jpg" alt="Lost League Manager Screenshot" width="700" />
+  <img src="docs/screenshot.jpg" alt="Lost League Manager" width="700" />
 </div>
 
 ---
