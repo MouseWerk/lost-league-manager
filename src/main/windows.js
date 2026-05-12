@@ -141,9 +141,11 @@ function createTray() {
     const iconPath = path.join(__dirname, '../renderer/assets/logo.ico');
     state.tray = new Tray(iconPath);
     state.tray.setToolTip('Lost League Manager');
-    state.tray.on('double-click', () => {
+    const showMain = () => {
         if (state.mainWindow) { state.mainWindow.show(); state.mainWindow.focus(); }
-    });
+    };
+    state.tray.on('click',        showMain);
+    state.tray.on('double-click', showMain);
     updateTrayMenu();
 }
 
