@@ -65,9 +65,66 @@ function getFilteredSorted() {
     return list;
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    // Load system info
+async function sha256(str) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
+async function initVault(config) {
+    if (!config.vaultEnabled || !config.vaultPasswordHash) return;
+    return new Promise((resolve) => {
+        const lockEl  = document.getElementById('vaultLock');
+        const input   = document.getElementById('vaultPasswordInput');
+        const errorEl = document.getElementById('vaultError');
+        lockEl.style.display = 'flex';
+        setTimeout(() => input.focus(), 80);
+
+        async function tryUnlock() {
+            if (!input.value) return;
+            const hash = await sha256(input.value);
+            if (hash === config.vaultPasswordHash) {
+                lockEl.classList.add('vault-unlocking');
+                setTimeout(() => { lockEl.style.display = 'none'; resolve(); }, 220);
+            } else {
+                input.value = '';
+                errorEl.style.display = 'block';
+                const c = lockEl.querySelector('.vault-lock-content');
+                c.classList.add('shake');
+                setTimeout(() => { c.classList.remove('shake'); input.focus(); }, 500);
+            }
+        }
+
+        document.getElementById('vaultUnlockBtn').addEventListener('click', tryUnlock);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryUnlock(); });
+    });
+}
+
+// ── Compact / grid view ───────────────────────────────────────────────────────
+let compactView = localStorage.getItem('llm-view') === 'compact';
+
+function applyViewMode() {
+    const grid    = document.getElementById('accountsList');
+    const gridBtn = document.getElementById('viewGridBtn');
+    const listBtn = document.getElementById('viewListBtn');
+    if (!grid) return;
+    grid.classList.toggle('compact', compactView);
+    gridBtn?.classList.toggle('active', !compactView);
+    listBtn?.classList.toggle('active',  compactView);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    applyViewMode();
+
+    document.getElementById('viewGridBtn')?.addEventListener('click', () => {
+        compactView = false;
+        localStorage.setItem('llm-view', 'grid');
+        applyViewMode();
+    });
+    document.getElementById('viewListBtn')?.addEventListener('click', () => {
+        compactView = true;
+        localStorage.setItem('llm-view', 'compact');
+        applyViewMode();
+    });
 
     // Version
     const version = await window.electronAPI.getVersion();
@@ -77,6 +134,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         // Load config
         const config = await window.electronAPI.getConfig();
+
+        // Vault lock — must resolve before anything is shown
+        await initVault(config);
+
         if (config.lolPath) {
             const pathEl = document.getElementById('lolPathDisplay');
             if (pathEl) pathEl.innerText = config.lolPath;
@@ -110,6 +171,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         bindSettingToggle('minimizeOnGameStartToggle',   'minimizeOnGameStart',     false);
         bindSettingToggle('startMinimizedToggle',        'startMinimized',          false);
         bindSettingToggle('checkUpdatesOnStartupToggle', 'checkUpdatesOnStartup',   true);
+        bindSettingToggle('toastOnQueuePopToggle',       'toastOnQueuePop',         true);
+
+        // Vault settings
+        const vaultToggle  = document.getElementById('vaultEnabledToggle');
+        const vaultSection = document.getElementById('vaultPasswordSection');
+        if (vaultToggle) {
+            vaultToggle.checked = config.vaultEnabled || false;
+            vaultSection.style.display = config.vaultEnabled ? 'block' : 'none';
+            vaultToggle.addEventListener('change', async (e) => {
+                if (!e.target.checked) {
+                    await window.electronAPI.setConfig({ vaultEnabled: false, vaultPasswordHash: '' });
+                    vaultSection.style.display = 'none';
+                    showToast('Vault disabled', 'info');
+                } else {
+                    vaultSection.style.display = 'block';
+                    showToast('Set a password below to activate the vault', 'info');
+                }
+            });
+        }
+        document.getElementById('saveVaultPasswordBtn')?.addEventListener('click', async () => {
+            const pw = document.getElementById('vaultPasswordSet')?.value?.trim();
+            if (!pw) { showToast('Enter a password first', 'error'); return; }
+            const hash = await sha256(pw);
+            await window.electronAPI.setConfig({ vaultEnabled: true, vaultPasswordHash: hash });
+            document.getElementById('vaultPasswordSet').value = '';
+            if (vaultToggle) vaultToggle.checked = true;
+            showToast('Vault password set!', 'success');
+        });
 
         // Auto-accept in settings synced with header toggle
         const autoAcceptSettings = document.getElementById('autoAcceptSettingsToggle');

@@ -420,8 +420,33 @@ body {
     flex: 1;
     overflow-y: auto;
     min-height: 0;
-    padding-right: 8px; /* Space for scrollbar */
+    padding-right: 8px;
 }
+
+/* ── Compact list view ── */
+.accounts-grid.compact {
+    grid-template-columns: 1fr;
+    gap: 5px;
+}
+.accounts-grid.compact .account-card {
+    padding: 8px 14px;
+    border-radius: 11px;
+}
+.accounts-grid.compact .summoner-icon-container {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+}
+.accounts-grid.compact .summoner-icon { border-radius: 9px; }
+.accounts-grid.compact .level-badge   { font-size: 9px; padding: 1px 5px; }
+.accounts-grid.compact .card-title-row { margin-bottom: 0; }
+.accounts-grid.compact .text-content h3 { font-size: 13px; }
+.accounts-grid.compact .card-meta { margin: 0 0 2px; }
+.accounts-grid.compact .rank { font-size: 12px; }
+.accounts-grid.compact .last-used    { display: none; }
+.accounts-grid.compact .notes-preview { display: none; }
+.accounts-grid.compact .icon-btn { width: 26px; height: 26px; font-size: 10px; border-radius: 7px; }
+.accounts-grid.compact .card-actions { gap: 4px; }
 
 .account-card {
     background: var(--glass-bg);
@@ -1997,6 +2022,39 @@ select.form-control option {
     gap: 15px;
 }
 
+.view-toggle-btns {
+    display: flex;
+    gap: 4px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    padding: 3px;
+}
+
+.view-toggle-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    border-radius: 7px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    transition: background 0.15s, color 0.15s;
+}
+
+.view-toggle-btn.active {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+}
+
+.view-toggle-btn:hover:not(.active) {
+    color: rgba(255,255,255,0.6);
+}
+
 /* ── Modal section divider ── */
 .modal-section {
     border-top: 1px solid var(--glass-border);
@@ -2420,3 +2478,95 @@ select.form-control option {
     gap: 10px;
     margin-top: 8px;
 }
+
+/* ── Vault lock screen ── */
+.vault-lock {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: var(--bg-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.vault-lock::before {
+    content: '';
+    position: absolute;
+    top: -120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 700px;
+    height: 700px;
+    background: radial-gradient(circle, rgba(10,200,185,0.07) 0%, transparent 65%);
+    pointer-events: none;
+}
+.vault-lock-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    width: 320px;
+    position: relative;
+    z-index: 1;
+}
+.vault-lock-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 18px;
+    border: 1px solid rgba(10,200,185,0.3);
+    box-shadow: 0 0 32px rgba(10,200,185,0.15);
+    margin-bottom: 6px;
+}
+.vault-lock-title {
+    font-size: 22px;
+    font-weight: 800;
+    margin: 0;
+    background: linear-gradient(to right, #fff, #aaa);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.vault-lock-sub {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin: 0;
+    text-align: center;
+    line-height: 1.5;
+}
+.vault-lock-input-wrap {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    margin-top: 4px;
+}
+.vault-lock-input {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    color: #fff;
+    padding: 11px 14px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.vault-lock-input:focus { border-color: var(--primary); }
+.vault-lock-btn {
+    background: var(--primary);
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 22px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+.vault-lock-btn:hover { background: var(--primary-hover); }
+.vault-lock-error {
+    font-size: 12px;
+    color: var(--danger);
+    margin: 0;
+}
+.vault-unlocking { opacity: 0; transition: opacity 0.2s; }

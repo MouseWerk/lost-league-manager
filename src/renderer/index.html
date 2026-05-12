@@ -71,6 +71,10 @@
                             <span class="slider"></span>
                             <span class="label-text">Auto-Accept</span>
                         </label>
+                        <div class="view-toggle-btns">
+                            <button id="viewGridBtn" class="view-toggle-btn active" title="Grid view"><i class="fas fa-th-large"></i></button>
+                            <button id="viewListBtn" class="view-toggle-btn" title="Compact list"><i class="fas fa-list"></i></button>
+                        </div>
                     </div>
                 </div>
                 <div class="accounts-toolbar">
@@ -284,13 +288,23 @@
                                     <span class="slider"></span>
                                 </label>
                             </div>
-                            <div class="setting-row" style="border-bottom:none;padding-bottom:0">
+                            <div class="setting-row">
                                 <div class="setting-row-info">
                                     <h4>Minimize when game starts</h4>
                                     <p>Hide the app to the tray when a match begins</p>
                                 </div>
                                 <label class="setting-switch">
                                     <input type="checkbox" id="minimizeOnGameStartToggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row" style="border-bottom:none;padding-bottom:0">
+                                <div class="setting-row-info">
+                                    <h4>Queue pop notification</h4>
+                                    <p>Show a Windows notification when a match is found</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="toastOnQueuePopToggle">
                                     <span class="slider"></span>
                                 </label>
                             </div>
@@ -389,6 +403,31 @@
                             <h3>Updates</h3>
                             <p class="desc">Lost League Manager updates automatically in the background.</p>
                             <button id="manualUpdateBtn" class="action-btn">Check for Updates</button>
+                        </div>
+                    </div>
+
+                    <!-- Vault -->
+                    <div class="setting-card">
+                        <div class="setting-icon"><i class="fas fa-lock"></i></div>
+                        <div class="setting-info">
+                            <h3>Vault Password</h3>
+                            <p class="desc">Require a password before the app shows your accounts.</p>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h4>Enable vault lock</h4>
+                                    <p>Show a password prompt every time the app opens</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="vaultEnabledToggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div id="vaultPasswordSection" style="display:none;padding-top:4px">
+                                <div class="setting-row" style="border-bottom:none;padding-bottom:0;gap:10px">
+                                    <input type="password" id="vaultPasswordSet" class="form-control" placeholder="Set new password" autocomplete="new-password">
+                                    <button id="saveVaultPasswordBtn" class="action-btn" style="flex-shrink:0">Set Password</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -638,6 +677,20 @@
 
     <!-- Toast Container -->
     <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Vault Lock Screen -->
+    <div id="vaultLock" class="vault-lock" style="display:none">
+        <div class="vault-lock-content">
+            <img src="assets/logo.png" class="vault-lock-logo">
+            <h2 class="vault-lock-title">Lost League Manager</h2>
+            <p class="vault-lock-sub">Enter your vault password to continue</p>
+            <div class="vault-lock-input-wrap">
+                <input type="password" id="vaultPasswordInput" class="vault-lock-input" placeholder="Password" autocomplete="current-password">
+                <button id="vaultUnlockBtn" class="vault-lock-btn">Unlock</button>
+            </div>
+            <p id="vaultError" class="vault-lock-error" style="display:none">Incorrect password</p>
+        </div>
+    </div>
 
     <script src="js/app.js"></script>
 </body>
