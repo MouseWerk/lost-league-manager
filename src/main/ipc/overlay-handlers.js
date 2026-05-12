@@ -162,20 +162,32 @@ function register() {
                 lcu.request('GET', '/lol-honor-v2/v1/profiles'),
             ]);
 
-            // Mastery: try several endpoint variants until one returns data
+            // Mastery: try several endpoint variants; last resort fetches all and sorts
             let mastery = null;
-            const masteryEndpoints = [
-                summoner?.summonerId
-                    ? `/lol-champion-mastery/v1/champion-masteries/by-summoner/${summoner.summonerId}/top?count=8`
-                    : null,
-                '/lol-champion-mastery/v1/local-player/top-champion-masteries?count=8',
+            const masteryTries = [
                 '/lol-champion-mastery/v1/champion-masteries/top?count=8',
+                '/lol-champion-mastery/v1/local-player/top-champion-masteries?count=8',
+                summoner?.puuid
+                    ? `/lol-champion-mastery/v1/champion-masteries/by-puuid/${summoner.puuid}/top?count=8`
+                    : null,
             ].filter(Boolean);
 
-            for (const ep of masteryEndpoints) {
+            for (const ep of masteryTries) {
                 const res = await lcu.request('GET', ep);
                 if (Array.isArray(res) && res.length > 0) { mastery = res; break; }
             }
+
+            // Last resort: fetch all masteries and sort manually
+            if (!mastery || mastery.length === 0) {
+                const all = await lcu.request('GET', '/lol-champion-mastery/v1/champion-masteries');
+                if (Array.isArray(all) && all.length > 0) {
+                    mastery = all
+                        .sort((a, b) => (b.championPoints || 0) - (a.championPoints || 0))
+                        .slice(0, 8);
+                }
+            }
+
+            console.log(`[Mastery] fetched ${mastery?.length ?? 0} champions`);
 
             // Context data — depends on current phase
             let lobby = null, queueSearch = null, liveGame = null;
