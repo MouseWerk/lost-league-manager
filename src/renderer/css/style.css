@@ -2570,3 +2570,123 @@ select.form-control option {
     margin: 0;
 }
 .vault-unlocking { opacity: 0; transition: opacity 0.2s; }
+
+/* ── LP progress bar ── */
+.ov-lp-track {
+    width: 100%;
+    height: 3px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 2px;
+    margin: 4px 0 6px;
+    overflow: hidden;
+}
+.ov-lp-fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 2px;
+    transition: width 0.6s ease;
+}
+
+/* ── Context panel ── */
+.ov-context {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 14px 18px;
+    margin-top: 14px;
+}
+.ov-ctx-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.ov-ctx-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.ov-ctx-dot.lobby   { background: #5865f2; box-shadow: 0 0 6px #5865f2; }
+.ov-ctx-dot.queue   { background: #faa61a; box-shadow: 0 0 6px #faa61a; animation: pulse-dot 1.5s ease-in-out infinite; }
+.ov-ctx-dot.game    { background: var(--primary); box-shadow: 0 0 6px var(--primary); animation: pulse-dot 2s ease-in-out infinite; }
+.ov-ctx-title { font-size: 13px; font-weight: 700; color: #fff; flex: 1; }
+.ov-ctx-timer { font-size: 13px; font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; }
+.ov-ctx-sub   { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+.ov-ctx-members { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ov-ctx-member-chip {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+/* ── Match history improvements ── */
+.match-summary-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 10px;
+    margin-bottom: 6px;
+    font-size: 12px;
+}
+.ms-stat { color: var(--text-dim); font-weight: 600; }
+.ms-win  { color: #4caf50; }
+.ms-loss { color: var(--danger); }
+.ms-sep  { color: rgba(255,255,255,0.2); }
+
+.match-kda-row { display: flex; align-items: center; gap: 8px; }
+.kda-d { color: var(--danger); }
+
+.match-multikill {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: rgba(255,170,0,0.15);
+    color: #ffaa00;
+    border: 1px solid rgba(255,170,0,0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+.match-multikill.penta {
+    background: rgba(209,54,57,0.15);
+    color: var(--danger);
+    border-color: rgba(209,54,57,0.3);
+}
+
+.match-items {
+    display: flex;
+    gap: 3px;
+    margin-top: 5px;
+}
+.match-item-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    object-fit: cover;
+    background: rgba(255,255,255,0.05);
+}
+.match-item-icon.empty {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.05);
+    display: inline-block;
+}
+.match-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    flex-shrink: 0;
+}
+.match-queue  { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+.match-duration { font-size: 12px; color: var(--text-dim); }
+
+/* mastery level 10 (new milestone) */
+.mastery-lv10 { background: rgba(200,160,50,0.25); color: #ffd700; border: 1px solid rgba(200,160,50,0.5); }

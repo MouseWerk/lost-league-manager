@@ -1108,7 +1108,10 @@ async function launchAccount(username) {
 const QUEUE_NAMES = {
     420: 'Ranked Solo/Duo', 440: 'Ranked Flex', 450: 'ARAM',
     400: 'Normal Draft', 430: 'Normal Blind', 900: 'URF',
-    1020: 'One for All', 1900: 'URF', 76: 'URF'
+    1020: 'One for All', 1900: 'URF', 76: 'URF',
+    830: 'Co-op vs AI', 840: 'Co-op vs AI', 850: 'Co-op vs AI',
+    700: 'Clash', 600: 'Blood Hunt', 1400: 'Ultimate Spellbook',
+    1700: 'Arena', 1710: 'Arena',
 };
 
 const PHASE_CONFIG = {
@@ -1200,6 +1203,7 @@ async function loadLiveView() {
     function fillRanked(qd, ids, emblemId, primaryBadgeId) {
         const tierEl   = document.getElementById(ids.tier);
         const lpEl     = document.getElementById(ids.lp);
+        const barEl    = ids.lpBar ? document.getElementById(ids.lpBar) : null;
         const recEl    = document.getElementById(ids.record);
         const emblemEl = document.getElementById(emblemId);
         const primary  = primaryBadgeId ? document.getElementById(primaryBadgeId) : null;
@@ -1208,6 +1212,7 @@ async function loadLiveView() {
         if (unranked) {
             if (tierEl)   { tierEl.textContent = 'Unranked'; tierEl.className = 'ov-ranked-tier rank-unranked'; }
             if (lpEl)     lpEl.textContent = '—';
+            if (barEl)    barEl.style.width = '0%';
             if (recEl)    recEl.textContent = '—';
             if (emblemEl) emblemEl.textContent = '—';
             if (primary)  { primary.textContent = 'Unranked'; primary.className = 'summoner-banner-rank rank-unranked'; }
@@ -1215,114 +1220,223 @@ async function loadLiveView() {
         }
         const t = cap(qd.tier), div = qd.division || '';
         const tierStr = `${t} ${div}`.trim();
-        const lpStr   = `${qd.leaguePoints ?? 0} LP`;
+        const rawLp   = qd.leaguePoints ?? 0;
+        const lpStr   = `${rawLp} LP`;
         const w = qd.wins || 0, l = qd.losses || 0;
         const wr = w + l > 0 ? ` · ${Math.round(w / (w + l) * 100)}% WR` : '';
         const cls = tierClass(qd.tier);
+        const isApex = ['MASTER','GRANDMASTER','CHALLENGER'].includes(qd.tier.toUpperCase());
         if (tierEl)   { tierEl.textContent = tierStr; tierEl.className = `ov-ranked-tier ${cls}`; }
         if (lpEl)     lpEl.textContent = lpStr;
+        if (barEl)    barEl.style.width = isApex ? '100%' : `${Math.min(rawLp, 100)}%`;
         if (recEl)    recEl.textContent = `${w}W / ${l}L${wr}`;
         if (emblemEl) emblemEl.textContent = TIER_EMBLEMS[qd.tier.toLowerCase()] || '?';
         if (primary)  { primary.textContent = `${tierStr} · ${lpStr}`; primary.className = `summoner-banner-rank ${cls}`; }
     }
 
     fillRanked(soloData,
-        { tier: 'ovSoloTier', lp: 'ovSoloLP', record: 'ovSoloRecord' },
+        { tier: 'ovSoloTier', lp: 'ovSoloLP', lpBar: 'ovSoloLpBar', record: 'ovSoloRecord' },
         'ovSoloEmblem', 'ovPrimaryRank');
     fillRanked(flexData,
-        { tier: 'ovFlexTier', lp: 'ovFlexLP', record: 'ovFlexRecord' },
+        { tier: 'ovFlexTier', lp: 'ovFlexLP', lpBar: 'ovFlexLpBar', record: 'ovFlexRecord' },
         'ovFlexEmblem', null);
 
     // ── Gameflow ───────────────────────────────────────────────────────────────
     if (gameflow) { updateGameflowBadge(gameflow); updateContextButtons(gameflow); }
 
+    // ── Context panel (lobby / queue / in-game) ────────────────────────────────
+    const ctxEl      = document.getElementById('ovContext');
+    const ctxLobby   = document.getElementById('ovCtxLobby');
+    const ctxQueue   = document.getElementById('ovCtxQueue');
+    const ctxGame    = document.getElementById('ovCtxGame');
+    [ctxLobby, ctxQueue, ctxGame].forEach(el => el && (el.style.display = 'none'));
+
+    if (gameflow === 'Lobby' && data.lobby) {
+        ctxEl.style.display = '';
+        ctxLobby.style.display = '';
+        const qName = QUEUE_NAMES[data.lobby.gameConfig?.queueId] || 'Custom Game';
+        document.getElementById('ovCtxLobbyQueue').textContent = qName;
+        const membersEl = document.getElementById('ovCtxLobbyMembers');
+        membersEl.innerHTML = '';
+        (data.lobby.members || []).forEach(m => {
+            const chip = document.createElement('span');
+            chip.className = 'ov-ctx-member-chip';
+            chip.textContent = m.summonerInternalName || m.summonerName || '?';
+            membersEl.appendChild(chip);
+        });
+    } else if (gameflow === 'Matchmaking' && data.queueSearch) {
+        ctxEl.style.display = '';
+        ctxQueue.style.display = '';
+        const qName = QUEUE_NAMES[data.queueSearch.queueId] || 'Queue';
+        document.getElementById('ovCtxQueueName').textContent = qName;
+        const elapsed = Math.floor(data.queueSearch.timeInQueue || 0);
+        const timerEl = document.getElementById('ovCtxQueueTimer');
+        timerEl.textContent = formatDuration(elapsed);
+        // tick the timer locally
+        let secs = elapsed;
+        clearInterval(window._queueTimerInterval);
+        window._queueTimerInterval = setInterval(() => {
+            timerEl.textContent = formatDuration(++secs);
+        }, 1000);
+        const est = data.queueSearch.estimatedQueueTime;
+        document.getElementById('ovCtxQueueEst').textContent =
+            est ? `Estimated wait: ~${Math.round(est)}s` : '';
+    } else if (gameflow === 'InProgress') {
+        ctxEl.style.display = '';
+        ctxGame.style.display = '';
+        const gameTimerEl = document.getElementById('ovCtxGameTimer');
+        if (data.liveGame?.gameTime != null) {
+            let secs = Math.floor(data.liveGame.gameTime);
+            gameTimerEl.textContent = formatDuration(secs);
+            clearInterval(window._gameTimerInterval);
+            window._gameTimerInterval = setInterval(() => {
+                gameTimerEl.textContent = formatDuration(++secs);
+            }, 1000);
+            const stats = data.liveGame;
+            document.getElementById('ovCtxGameStats').textContent =
+                stats ? `${stats.championStats?.currentHealth ?? '?'} / ${stats.championStats?.maxHealth ?? '?'} HP` : '';
+        }
+    } else {
+        ctxEl.style.display = 'none';
+        clearInterval(window._queueTimerInterval);
+        clearInterval(window._gameTimerInterval);
+    }
+
     // ── Champion mastery ───────────────────────────────────────────────────────
-    const masteryEl = document.getElementById('ovMastery');
+    const masteryEl   = document.getElementById('ovMastery');
     masteryEl.innerHTML = '';
-    const masteryList = Array.isArray(mastery) ? mastery : [];
+    const masteryList   = Array.isArray(mastery) ? mastery : [];
     if (masteryList.length === 0) {
         masteryEl.innerHTML = `<div class="empty-state" style="padding:30px 0;grid-column:1/-1">
             <div class="empty-icon"><i class="fas fa-hat-wizard"></i></div>
             <p>No mastery data found.</p></div>`;
     } else {
-        for (const m of masteryList.slice(0, 5)) {
+        for (const m of masteryList) {
             const champKey = idToNameMap?.[m.championId];
             const iconSrc  = champKey
                 ? `https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/champion/${champKey}.png`
                 : 'assets/logo.png';
-            const lv = m.championLevel || 0;
-            const lvCls = lv >= 7 ? 'mastery-lv7' : lv >= 6 ? 'mastery-lv6' : lv >= 5 ? 'mastery-lv5' : 'mastery-lv-other';
-            const pts = m.championPoints ? (m.championPoints >= 1000 ? (m.championPoints / 1000).toFixed(0) + 'k' : m.championPoints) : '?';
+            const lv    = m.championLevel || 0;
+            const lvCls = lv >= 10 ? 'mastery-lv10' : lv >= 7 ? 'mastery-lv7' : lv >= 6 ? 'mastery-lv6' : lv >= 5 ? 'mastery-lv5' : 'mastery-lv-other';
+            const pts   = m.championPoints >= 1000
+                ? (m.championPoints / 1000).toFixed(1) + 'k'
+                : (m.championPoints || 0).toString();
             const card = document.createElement('div');
             card.className = 'mastery-card';
             card.innerHTML = `
                 <img class="mastery-champ-icon" src="${iconSrc}" onerror="this.src='assets/logo.png'">
                 <div class="mastery-champ-name">${champKey || 'Unknown'}</div>
                 <div class="mastery-level-badge ${lvCls}">M${lv}</div>
-                <div class="mastery-pts">${pts} pts</div>
+                <div class="mastery-pts">${pts}</div>
             `;
             masteryEl.appendChild(card);
         }
     }
 
     // ── Match history ──────────────────────────────────────────────────────────
-    const matchesEl = document.getElementById('ovMatches');
+    const matchesEl    = document.getElementById('ovMatches');
     matchesEl.innerHTML = '';
-    const games     = matches?.games?.games || [];
-    const myAccountId = summoner?.accountId;
-    const myPuuid     = summoner?.puuid;
+    const games         = Array.isArray(matches) ? matches : [];
+    const myAccountId   = summoner?.accountId;
+    const myPuuid       = summoner?.puuid;
 
     if (games.length === 0) {
         matchesEl.innerHTML = `<div class="empty-state" style="padding:40px 0">
             <div class="empty-icon"><i class="fas fa-gamepad"></i></div>
             <p>No recent games found.</p></div>`;
-    }
+    } else {
+        // Summary row
+        let totalW = 0, totalL = 0, totalK = 0, totalD = 0, totalA = 0, counted = 0;
+        const summaryEl = document.createElement('div');
+        summaryEl.className = 'match-summary-row';
+        matchesEl.appendChild(summaryEl);
 
-    for (const game of games.slice(0, 10)) {
-        let myPId = null;
-        const identity = game.participantIdentities?.find(pi =>
-            pi.player?.puuid === myPuuid ||
-            pi.player?.currentAccountId === myAccountId ||
-            pi.player?.accountId === myAccountId
-        );
-        if (identity) myPId = identity.participantId;
+        for (const game of games) {
+            let myPId = null;
+            const identity = game.participantIdentities?.find(pi =>
+                pi.player?.puuid === myPuuid ||
+                pi.player?.currentAccountId === myAccountId ||
+                pi.player?.accountId === myAccountId
+            );
+            if (identity) myPId = identity.participantId;
+            const participant = myPId
+                ? game.participants?.find(p => p.participantId === myPId)
+                : game.participants?.[0];
+            if (!participant) continue;
 
-        const participant = myPId
-            ? game.participants?.find(p => p.participantId === myPId)
-            : game.participants?.[0];
-        if (!participant) continue;
+            const s   = participant.stats || {};
+            const win = s.win === true;
+            const k = s.kills || 0, d = s.deaths || 0, a = s.assists || 0;
+            const cs  = (s.totalMinionsKilled || 0) + (s.neutralMinionsKilled || 0);
+            const dur = game.gameDuration ? formatDuration(game.gameDuration) : '—';
+            const csMin = game.gameDuration > 0 ? (cs / (game.gameDuration / 60)).toFixed(1) : null;
+            const queue = QUEUE_NAMES[game.queueId] || 'Custom';
+            if (win) totalW++; else totalL++;
+            totalK += k; totalD += d; totalA += a; counted++;
 
-        const s      = participant.stats || {};
-        const win    = s.win === true;
-        const k = s.kills || 0, d = s.deaths || 0, a = s.assists || 0;
-        const cs     = (s.totalMinionsKilled || 0) + (s.neutralMinionsKilled || 0);
-        const dur    = game.gameDuration ? formatDuration(game.gameDuration) : '—';
-        const csMin  = game.gameDuration > 0 ? (cs / (game.gameDuration / 60)).toFixed(1) : null;
-        const queue  = QUEUE_NAMES[game.queueId] || 'Custom';
+            const champKey = idToNameMap?.[participant.championId];
+            const champSrc = champKey
+                ? `https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/champion/${champKey}.png`
+                : 'assets/logo.png';
 
-        const champKey = idToNameMap?.[participant.championId];
-        const champSrc = champKey
-            ? `https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/champion/${champKey}.png`
-            : 'assets/logo.png';
+            // Items (slots 0-6, 6 = trinket)
+            const itemSlots = [s.item0,s.item1,s.item2,s.item3,s.item4,s.item5,s.item6];
+            const itemsHtml = itemSlots.map(id =>
+                id ? `<img class="match-item-icon" src="https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/item/${id}.png" onerror="this.style.display='none'">`
+                   : `<span class="match-item-icon empty"></span>`
+            ).join('');
 
-        const item = document.createElement('div');
-        item.className = `match-item ${win ? 'win' : 'loss'}`;
-        item.innerHTML = `
-            <img class="match-champ-icon" src="${champSrc}" onerror="this.src='assets/logo.png'">
-            <span class="match-result-badge">${win ? 'WIN' : 'LOSS'}</span>
-            <div class="match-main">
-                <div class="match-kda">${k} / ${d} / ${a}</div>
-                <div class="match-sub">
-                    <span>${cs} CS</span>
-                    ${csMin ? `<span class="match-sub-sep">·</span><span class="match-cs-min">${csMin}/min</span>` : ''}
+            // Multi-kill badge
+            const mk = s.largestMultiKill || 0;
+            const mkLabels = ['','','Double','Triple','Quadra','Penta'];
+            const mkHtml = mk >= 2
+                ? `<span class="match-multikill ${mk >= 5 ? 'penta' : ''}">${mkLabels[mk] || mk+'x'} Kill</span>`
+                : '';
+
+            // Vision + damage
+            const vs  = s.visionScore != null ? `${s.visionScore} VS` : '';
+            const dmg = s.totalDamageDealtToChampions
+                ? (s.totalDamageDealtToChampions >= 1000
+                    ? (s.totalDamageDealtToChampions / 1000).toFixed(1) + 'k'
+                    : s.totalDamageDealtToChampions) + ' dmg'
+                : '';
+
+            const item = document.createElement('div');
+            item.className = `match-item ${win ? 'win' : 'loss'}`;
+            item.innerHTML = `
+                <img class="match-champ-icon" src="${champSrc}" onerror="this.src='assets/logo.png'">
+                <span class="match-result-badge">${win ? 'WIN' : 'LOSS'}</span>
+                <div class="match-main">
+                    <div class="match-kda-row">
+                        <span class="match-kda">${k} / <span class="kda-d">${d}</span> / ${a}</span>
+                        ${mkHtml}
+                    </div>
+                    <div class="match-sub">
+                        <span>${cs} CS${csMin ? ` (${csMin}/m)` : ''}</span>
+                        ${vs ? `<span class="match-sub-sep">·</span><span>${vs}</span>` : ''}
+                        ${dmg ? `<span class="match-sub-sep">·</span><span>${dmg}</span>` : ''}
+                    </div>
+                    <div class="match-items">${itemsHtml}</div>
                 </div>
-            </div>
-            <span class="match-queue">${queue}</span>
-            <div class="match-right">
-                <span class="match-duration">${dur}</span>
-            </div>
-        `;
-        matchesEl.appendChild(item);
+                <div class="match-right">
+                    <span class="match-queue">${queue}</span>
+                    <span class="match-duration">${dur}</span>
+                </div>
+            `;
+            matchesEl.appendChild(item);
+        }
+
+        if (counted > 0) {
+            const avgK = (totalK / counted).toFixed(1);
+            const avgD = (totalD / counted).toFixed(1);
+            const avgA = (totalA / counted).toFixed(1);
+            const wr   = Math.round(totalW / counted * 100);
+            summaryEl.innerHTML = `
+                <span class="ms-stat ${totalW > totalL ? 'ms-win' : 'ms-loss'}">${totalW}W ${totalL}L — ${wr}% WR</span>
+                <span class="ms-sep">·</span>
+                <span class="ms-stat">Avg ${avgK} / ${avgD} / ${avgA}</span>
+            `;
+        }
     }
 }
 

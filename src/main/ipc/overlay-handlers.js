@@ -154,18 +154,50 @@ function register() {
     ipcMain.handle('get-lcu-overview', async () => {
         if (!lcu.connected) return { connected: false };
         try {
-            const results = await Promise.allSettled([
+            const [summoner, ranked, gameflow, matches, honor] = await Promise.all([
                 lcu.request('GET', '/lol-summoner/v1/current-summoner'),
                 lcu.request('GET', '/lol-ranked/v1/current-ranked-stats'),
                 lcu.request('GET', '/lol-gameflow/v1/gameflow-phase'),
-                lcu.request('GET', '/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=7'),
-                lcu.request('GET', '/lol-champion-mastery/v1/top-champion-masteries/count/5'),
+                lcu.request('GET', '/lol-match-history/v1/products/lol/current-summoner/matches?begIndex=0&endIndex=9'),
                 lcu.request('GET', '/lol-honor-v2/v1/profiles'),
             ]);
-            const [summoner, ranked, gameflow, matches, mastery, honor] = results.map(r => r.value ?? null);
+
+            // Mastery: try several endpoint variants until one returns data
+            let mastery = null;
+            const masteryEndpoints = [
+                summoner?.summonerId
+                    ? `/lol-champion-mastery/v1/champion-masteries/by-summoner/${summoner.summonerId}/top?count=8`
+                    : null,
+                '/lol-champion-mastery/v1/local-player/top-champion-masteries?count=8',
+                '/lol-champion-mastery/v1/champion-masteries/top?count=8',
+            ].filter(Boolean);
+
+            for (const ep of masteryEndpoints) {
+                const res = await lcu.request('GET', ep);
+                if (Array.isArray(res) && res.length > 0) { mastery = res; break; }
+            }
+
+            // Context data — depends on current phase
+            let lobby = null, queueSearch = null, liveGame = null;
+            if (gameflow === 'Lobby') {
+                lobby = await lcu.request('GET', '/lol-lobby/v2/lobby');
+            } else if (gameflow === 'Matchmaking') {
+                queueSearch = await lcu.request('GET', '/lol-matchmaking/v1/search');
+            } else if (gameflow === 'InProgress') {
+                // Live client data runs on port 2999, no auth required
+                try {
+                    const axios = require('axios');
+                    const r = await axios.get('http://127.0.0.1:2999/liveclientdata/activeplayer', { timeout: 2000 });
+                    liveGame = r.data;
+                } catch { /* client data not available yet */ }
+            }
+
             return {
                 connected: true,
-                summoner, ranked, gameflow, matches, mastery, honor,
+                summoner, ranked, gameflow,
+                matches: matches?.games?.games || [],
+                mastery: Array.isArray(mastery) ? mastery : [],
+                honor, lobby, queueSearch, liveGame,
                 ddragonVersion: championData.getLatestVersion(),
                 idToNameMap:    championData.getIdToNameMap(),
             };

@@ -148,6 +148,7 @@
                                     <div class="ov-ranked-label">Ranked Solo / Duo</div>
                                     <div id="ovSoloTier"   class="ov-ranked-tier rank-unranked">Unranked</div>
                                     <div id="ovSoloLP"     class="ov-ranked-lp">—</div>
+                                    <div class="ov-lp-track"><div id="ovSoloLpBar" class="ov-lp-fill" style="width:0%"></div></div>
                                     <div id="ovSoloRecord" class="ov-ranked-record">—</div>
                                 </div>
                             </div>
@@ -157,8 +158,36 @@
                                     <div class="ov-ranked-label">Ranked Flex</div>
                                     <div id="ovFlexTier"   class="ov-ranked-tier rank-unranked">Unranked</div>
                                     <div id="ovFlexLP"     class="ov-ranked-lp">—</div>
+                                    <div class="ov-lp-track"><div id="ovFlexLpBar" class="ov-lp-fill" style="width:0%"></div></div>
                                     <div id="ovFlexRecord" class="ov-ranked-record">—</div>
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- Phase-aware context panel -->
+                        <div id="ovContext" class="ov-context" style="display:none">
+                            <div id="ovCtxLobby" style="display:none">
+                                <div class="ov-ctx-header">
+                                    <span class="ov-ctx-dot lobby"></span>
+                                    <span id="ovCtxLobbyQueue" class="ov-ctx-title">In Lobby</span>
+                                </div>
+                                <div id="ovCtxLobbyMembers" class="ov-ctx-members"></div>
+                            </div>
+                            <div id="ovCtxQueue" style="display:none">
+                                <div class="ov-ctx-header">
+                                    <span class="ov-ctx-dot queue"></span>
+                                    <span id="ovCtxQueueName" class="ov-ctx-title">In Queue</span>
+                                    <span id="ovCtxQueueTimer" class="ov-ctx-timer">0:00</span>
+                                </div>
+                                <div id="ovCtxQueueEst" class="ov-ctx-sub"></div>
+                            </div>
+                            <div id="ovCtxGame" style="display:none">
+                                <div class="ov-ctx-header">
+                                    <span class="ov-ctx-dot game"></span>
+                                    <span class="ov-ctx-title">In Game</span>
+                                    <span id="ovCtxGameTimer" class="ov-ctx-timer">0:00</span>
+                                </div>
+                                <div id="ovCtxGameStats" class="ov-ctx-sub"></div>
                             </div>
                         </div>
                     </div>
