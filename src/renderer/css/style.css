@@ -779,13 +779,25 @@ body {
 }
 .ov-tab:hover  { background: rgba(255,255,255,0.04); color: var(--text-main); }
 .ov-tab.active { background: rgba(10,200,185,0.12); color: var(--primary); }
+/* lcuOnline must be a flex column so ov-panel.active can fill + scroll */
+#lcuOnline {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+#lcuOffline { flex: 1; }
+
 .ov-panel { display: none; }
 .ov-panel.active {
-    display: block;
+    display: flex;
+    flex-direction: column;
     flex: 1;
     overflow-y: auto;
     min-height: 0;
     padding-right: 8px;
+    padding-top: 14px;
 }
 
 /* ── LCU offline state ── */
@@ -937,9 +949,10 @@ body {
 /* ── Mastery grid ── */
 .mastery-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 10px;
     margin-bottom: 22px;
+    flex-shrink: 0;
 }
 .mastery-card {
     background: var(--glass-bg);
@@ -1009,6 +1022,7 @@ body {
     flex-direction: column;
     gap: 6px;
     padding-bottom: 40px;
+    flex-shrink: 0;
 }
 .match-item {
     display: flex;
