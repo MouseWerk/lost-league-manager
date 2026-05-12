@@ -41,10 +41,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $VERSION  = "${{ github.ref_name }}"
-          $TITLE    = "Lost League Manager $VERSION"
+          $VERSION = "${{ github.ref_name }}"
+          $TITLE   = "Lost League Manager $VERSION"
 
-          # Prefer the Setup installer; fall back to any .exe in dist/
+          # Installer
           $EXE = Get-ChildItem dist\*Setup*.exe -ErrorAction SilentlyContinue |
                    Select-Object -First 1 -ExpandProperty FullName
           if (-not $EXE) {
@@ -52,12 +52,25 @@ jobs:
                      Select-Object -First 1 -ExpandProperty FullName
           }
           if (-not $EXE) { Write-Error "No installer found in dist/"; exit 1 }
-          Write-Host "Releasing $EXE as $TITLE"
+
+          # latest.yml  — electron-updater reads this to detect new versions
+          $YAML = "dist\latest.yml"
+          if (-not (Test-Path $YAML)) { Write-Error "latest.yml not found in dist/"; exit 1 }
+
+          # blockmap — enables delta (partial) downloads for the updater
+          $BLOCKMAP = Get-ChildItem dist\*.blockmap -ErrorAction SilentlyContinue |
+                        Select-Object -First 1 -ExpandProperty FullName
+
+          Write-Host "Releasing: $EXE"
+          Write-Host "Metadata:  $YAML"
+
+          $assets = @($EXE, $YAML)
+          if ($BLOCKMAP) { $assets += $BLOCKMAP }
 
           gh release create $VERSION `
-            --title  $TITLE `
+            --title $TITLE `
             --generate-notes `
-            $EXE
+            @assets
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
