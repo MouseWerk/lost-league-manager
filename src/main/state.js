@@ -33,7 +33,10 @@ const state = {
         startMinimized: false,
         minimizeOnGameStart: false,
         checkUpdatesOnStartup: true,
+        toastOnQueuePop: true,
         riotApiKey: '',
+        vaultEnabled: false,
+        vaultPasswordHash: '',
     },
 
     paths: {
