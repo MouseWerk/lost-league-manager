@@ -54,4 +54,28 @@ function decryptLegacy(text) {
     }
 }
 
-module.exports = { encrypt, decrypt, decryptLegacy };
+const EXPORT_KEY = crypto.scryptSync('lost-league-export-v1', 'export-salt-ll', 32);
+
+function encryptExport(obj) {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(ALGORITHM, EXPORT_KEY, iv);
+    const payload = Buffer.from(JSON.stringify(obj));
+    const enc = Buffer.concat([cipher.update(payload), cipher.final()]);
+    return 'llem:' + iv.toString('hex') + ':' + enc.toString('hex');
+}
+
+function decryptExport(text) {
+    try {
+        if (!text.startsWith('llem:')) return null;
+        const raw = text.slice(5);
+        const sep = raw.indexOf(':');
+        const iv  = Buffer.from(raw.slice(0, sep), 'hex');
+        const enc = Buffer.from(raw.slice(sep + 1), 'hex');
+        const d = crypto.createDecipheriv(ALGORITHM, EXPORT_KEY, iv);
+        return JSON.parse(Buffer.concat([d.update(enc), d.final()]).toString());
+    } catch {
+        return null;
+    }
+}
+
+module.exports = { encrypt, decrypt, decryptLegacy, encryptExport, decryptExport };

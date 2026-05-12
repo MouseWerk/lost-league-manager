@@ -13,6 +13,5 @@ contextBridge.exposeInMainWorld('overlayAPI', {
     fetchBuilds:     (champKey, gameMode, position) => ipcRenderer.invoke('overlay-get-builds', { champKey, gameMode, position }),
     setOpacity:      (v)       => ipcRenderer.invoke('overlay-set-opacity', v),
     saveSettings:    (s)       => ipcRenderer.invoke('overlay-save-settings', s),
-    onSettingsUpdate: (cb)      => ipcRenderer.on('overlay-settings-update', (_, d) => cb(d)),
-    triggerChatEvent: (type)   => ipcRenderer.invoke('trigger-chat-event', type)
+    onSettingsUpdate: (cb)      => ipcRenderer.on('overlay-settings-update', (_, d) => cb(d))
 });

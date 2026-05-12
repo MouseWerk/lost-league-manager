@@ -223,6 +223,13 @@ function resetAll() {
 }
 
 // ── Build panel ───────────────────────────────────────────────────────────────
+function calcBuildPanelHeight() {
+    const rows = buildData
+        ? ['starting', 'boots', 'core', 'optional'].filter(k => buildData[k]?.length).length
+        : 0;
+    return Math.max(36 + rows * 42 + 10, 60);
+}
+
 function triggerBuildFetch() {
     if (buildFetched || !myChampKey) return;
     buildFetched = true;
@@ -231,9 +238,14 @@ function triggerBuildFetch() {
         .then(data => {
             buildData = data;
             buildLoading = false;
-            if (buildPanelOpen) renderBuildPanel();
+            if (buildPanelOpen) {
+                renderBuildPanel();
+                // Resize to fit actual data now that it has loaded
+                window.overlayAPI.resize(480, COMPACT_H + calcBuildPanelHeight());
+            }
         })
         .catch(() => {
+            buildFetched = false;  // allow retry on next trigger
             buildLoading = false;
             if (buildPanelOpen) renderBuildPanel();
         });
@@ -293,11 +305,7 @@ function toggleBuildPanel(force) {
         renderBuildPanel();
     }
 
-    const rows = buildData
-        ? ['starting', 'boots', 'core', 'optional'].filter(k => buildData[k]?.length).length
-        : 0;
-    const panelH = 36 + rows * 42 + 10;
-    window.overlayAPI.resize(480, COMPACT_H + (buildPanelOpen ? Math.max(panelH, 60) : 0));
+    window.overlayAPI.resize(480, COMPACT_H + (buildPanelOpen ? calcBuildPanelHeight() : 0));
 }
 
 // ── Ranked panel ──────────────────────────────────────────────────────────────
@@ -379,6 +387,7 @@ function triggerRankedFetch() {
             if (panelOpen) renderRankedPanel();
         })
         .catch(() => {
+            rankedFetched = false;  // allow retry on next trigger
             rankedLoading = false;
             if (panelOpen) renderRankedPanel();
         });
@@ -478,9 +487,9 @@ window.overlayAPI.onSettingsUpdate((s) => {
 window.overlayAPI.onGepGameEvent((data) => {
     if (!data?.feature) return;
     const k = data.key || data.feature;
-    if (k === 'kill')   { kills++;   window.overlayAPI.triggerChatEvent('kill'); }
-    if (k === 'death')  { deaths++;  onDeath(); window.overlayAPI.triggerChatEvent('death'); }
-    if (k === 'assist') { assists++; window.overlayAPI.triggerChatEvent('assist'); }
+    if (k === 'kill')   { kills++;  }
+    if (k === 'death')  { deaths++; onDeath(); }
+    if (k === 'assist') { assists++; }
     updateBar();
 });
 
@@ -492,7 +501,7 @@ window.overlayAPI.onGepInfoUpdate((data) => {
         case 'matchState': {
             if (data.key !== 'matchState') break;
             const state = data.value;
-            if (state === 'InProgress') { startTimer(); window.overlayAPI.triggerChatEvent('gameStart'); }
+            if (state === 'InProgress') { startTimer(); }
             else if (state === 'EndOfGame' || state === 'PreGame') resetAll();
             break;
         }

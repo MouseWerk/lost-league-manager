@@ -564,7 +564,7 @@ body {
 
 .card-actions {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 8px;
     flex-shrink: 0;
 }
@@ -603,6 +603,13 @@ body {
     background: var(--danger);
     color: #fff;
     border-color: var(--danger);
+}
+
+.icon-btn.copied,
+.icon-btn.copied:hover {
+    color: var(--primary) !important;
+    border-color: rgba(10, 200, 185, 0.35) !important;
+    background: rgba(10, 200, 185, 0.1) !important;
 }
 
 /* ── Rank tier colors ── */
@@ -1109,6 +1116,28 @@ body {
     color: var(--text-dim);
     margin: 0 0 14px;
     line-height: 1.5;
+}
+
+.setting-card--wip {
+    opacity: 0.5;
+    pointer-events: none;
+    user-select: none;
+}
+
+.wip-badge {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 170, 0, 0.12);
+    border: 1px solid rgba(255, 170, 0, 0.3);
+    color: #ffaa00;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 6px;
+    vertical-align: middle;
+    margin-left: 8px;
 }
 
 .path-display {

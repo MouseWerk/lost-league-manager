@@ -131,31 +131,6 @@ async function executeAccountLaunch(username) {
     return { success: true };
 }
 
-async function checkGameFlowAndQueue() {
-    if (!state.currentAccount?.autoQueue) return;
-    try {
-        const phase = await lcu.request('GET', '/lol-gameflow/v1/gameflow-phase');
-        if (phase === 'None') {
-            const queueId = state.currentAccount.queueType === 'RANKED_SOLO' ? 420 : 440;
-            await lcu.request('POST', '/lol-lobby/v2/lobby', { queueId });
-        } else if (phase === 'Lobby') {
-            if (state.currentAccount.primaryRole && state.currentAccount.secondaryRole) {
-                await lcu.request('PUT', '/lol-lobby/v2/lobby/members/localMember/position-preferences', {
-                    firstPreference:  state.currentAccount.primaryRole,
-                    secondPreference: state.currentAccount.secondaryRole,
-                });
-            }
-            const res = await lcu.request('POST', '/lol-lobby/v2/lobby/matchmaking/search');
-            if (res) {
-                state.currentAccount.autoQueue = false;
-                console.log('[AutoQueue] Search started. Disabling flag.');
-            }
-        }
-    } catch (e) {
-        console.error('[AutoQueue] error:', e.message);
-    }
-}
-
 function register() {
     ipcMain.handle('launch-account', (event, username) => executeAccountLaunch(username));
 
@@ -171,4 +146,4 @@ function register() {
     ipcMain.handle('get-current-account', () => state.currentAccount?.username ?? null);
 }
 
-module.exports = { register, executeAccountLaunch, checkGameFlowAndQueue };
+module.exports = { register, executeAccountLaunch };
