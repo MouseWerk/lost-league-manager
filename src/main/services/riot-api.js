@@ -3,6 +3,7 @@ const state = require('../state');
 const championData = require('./champion-data');
 
 // Maps user-facing region strings → Riot platform routing values
+// cn is not on the Riot Developer API (Tencent operates CN servers separately)
 const REGION_TO_PLATFORM = {
     na: 'na1', na1: 'na1',
     euw: 'euw1', euw1: 'euw1',
@@ -21,6 +22,7 @@ const REGION_TO_PLATFORM = {
     th: 'th2', th2: 'th2',
     tw: 'tw2', tw2: 'tw2',
     vn: 'vn2', vn2: 'vn2',
+    cn: 'cn',
 };
 
 // Maps platform → regional routing host for account-v1
@@ -99,6 +101,10 @@ function formatEntry(entry) {
 async function getStats(gameName, tagLine, region) {
     if (!state.config.riotApiKey) {
         throw new Error('No Riot API key set — add one in Settings → Riot API Key');
+    }
+
+    if ((region || '').toLowerCase() === 'cn') {
+        throw new Error('CN server stats require the League client to be running (Tencent servers are not on the Riot API)');
     }
 
     const { account, platform } = await getAccountByRiotId(gameName, tagLine, region);
