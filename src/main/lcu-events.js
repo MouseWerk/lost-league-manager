@@ -1,4 +1,6 @@
-const lcu = require('./lcu');
+const { Notification } = require('electron');
+const path  = require('path');
+const lcu   = require('./lcu');
 const state = require('./state');
 
 function send(win, channel, ...args) {
@@ -39,6 +41,23 @@ function registerLcuEvents() {
             if (event.uri === '/lol-gameflow/v1/gameflow-phase' && event.eventType === 'Update') {
                 const phase = event.data;
                 send(state.mainWindow, 'lcu-gameflow', phase);
+
+                // Queue-pop toast notification
+                if (phase === 'ReadyCheck' && state.config.toastOnQueuePop !== false) {
+                    try {
+                        const n = new Notification({
+                            title: 'Match Found!',
+                            body: 'Your queue has popped — ready to accept?',
+                            icon: path.join(__dirname, '../renderer/assets/logo.png'),
+                        });
+                        n.on('click', () => {
+                            if (state.mainWindow) { state.mainWindow.show(); state.mainWindow.focus(); }
+                        });
+                        n.show();
+                    } catch (e) {
+                        console.error('[Notify] Toast failed:', e.message);
+                    }
+                }
 
                 if (state.overlayWindow && !state.overlayWindow.isDestroyed()) {
                     if (phase === 'InProgress') {
