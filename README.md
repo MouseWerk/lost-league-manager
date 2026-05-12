@@ -1,67 +1,120 @@
-# Lost League Manager
-
 <div align="center">
-  <img src="docs/screenshot.jpg" alt="Lost League Manager Screenshot" width="450" />
-  <br><br>
-  <a href="https://github.com/lostsarius/lost-league-manager/releases/latest">
-    <img src="https://img.shields.io/github/v/release/lostsarius/lost-league-manager?label=Download&style=for-the-badge&color=blue" alt="Download Latest Version">
+  <img src="src/renderer/assets/logo.png" alt="Lost League Manager" width="80" />
+  <h1>Lost League Manager</h1>
+  <p>A lightweight Windows utility for managing multiple League of Legends accounts</p>
+
+  <a href="https://github.com/mauricekleindienst/lost-league-manager/releases/latest">
+    <img src="https://img.shields.io/github/v/release/mauricekleindienst/lost-league-manager?style=for-the-badge&color=0ac8b9&label=Download" alt="Latest Release">
   </a>
+  &nbsp;
+  <a href="https://github.com/mauricekleindienst/lost-league-manager/releases">
+    <img src="https://img.shields.io/github/downloads/mauricekleindienst/lost-league-manager/total?style=for-the-badge&color=5865f2&label=Total%20Downloads" alt="Total Downloads">
+  </a>
+  &nbsp;
+  <a href="https://github.com/mauricekleindienst/lost-league-manager/actions/workflows/release.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/mauricekleindienst/lost-league-manager/release.yml?style=for-the-badge&label=Build" alt="Build Status">
+  </a>
+  &nbsp;
+  <img src="https://img.shields.io/badge/platform-Windows-blue?style=for-the-badge" alt="Windows">
+
+  <br><br>
+  <img src="docs/screenshot.jpg" alt="Lost League Manager Screenshot" width="700" />
 </div>
 
-**Lost League Manager** is a lightweight utility designed to enhance your League of Legends experience.
+---
 
-## Key Features
+## Features
 
-- **Instant Auto-Login**: Securely store multiple accounts and log in with a single click. The app handles process termination and credential entry automatically.
-- **Secure Input**: Features reliable input handling (mouse/keyboard locking) during login to ensure credentials are typed correctly every time.
-- **Auto Queue & Accept**: Automatically start queuing for your preferred game mode and accept matches instantly.
+### Account Management
+- **One-click login** — stores multiple accounts and handles the entire login flow automatically
+- **Machine-bound encryption** — passwords are encrypted with AES-256 using a key derived from your hardware, never stored in plain text
+- **Copy username / password** — clipboard buttons on every card for quick access
+- **Account profiles** — view rank, LP, win rate, and match history per account
+- **Search & sort** — filter by name, tag, region; sort by rank, name, region, or last used
+- **Backup & restore** — export all accounts to a portable `.llem` file and import on any machine
+
+### League Client Integration
+- **Live view** — shows your active summoner's ranked stats, champion mastery, and recent match history in real time
+- **Auto-accept** — automatically clicks Accept when a match is found
+- **Auto random skin** — picks a random owned skin at champion select
+- **Appear offline** — launches the client with hidden online status
+- **Dodge queue** — one-click queue dodge from within the app
+- **Client language** — change the League client language without reinstalling
+- **Minimize on game start** — hides the app to the system tray when a match begins
+
+### Tools
+- **Kill Processes** — emergency kill for all Riot/League processes
+- **Repair Client** — removes the lockfile to fix "client won't start" without closing a running game
+- **Clear Cache** — wipes the Riot Client CEF cache to fix broken UI and stuck loading screens
+- **Open Data Folder** — quick access to the app's config and accounts directory
+
+### App
+- **Auto-updates** — downloads and installs new versions silently in the background
+- **System tray** — minimizes to tray with a jump list for instant account access
+- **Accounts Backup** — export/import accounts to a portable encrypted file
+
+---
 
 ## Installation
 
-1.  Download the latest installer (.exe) from the Releases page.
-2.  Run the setup file.
-3.  Launch **Lost League Manager** from your desktop.
+1. Download `Lost-League-Manager-Setup.exe` from the **[latest release](https://github.com/mauricekleindienst/lost-league-manager/releases/latest)**
+2. Run the installer
+3. Launch **Lost League Manager** from your desktop or Start Menu
 
-*Note: Run as Administrator for full Auto-Login functionality.*
+> **Windows SmartScreen warning?** Right-click the installer → Properties → check **Unblock** → Apply → run again.
+> This is expected for unsigned apps. The source code is fully open here.
 
-## Troubleshooting
-
-**Windows SmartScreen Warning**:
-Because this app is new and doesn't have a paid certificate, Windows might stop it from running.
-1.  **Right-click** the `Lost League Manager Setup.exe`.
-2.  Select **Properties**.
-3.  Check the **"Unblock"** box at the bottom.
-4.  Click **Apply** and then **OK**.
-5.  Run the installer again.
+---
 
 ## Usage
 
-1.  **Add Account**: Click the "+" button, enter your username, password, and region.
-2.  **Login**: Click on any account card. The app will restart the League Client and log you in automatically.
-    - **IMPORTANT**: Please wait and do not use your mouse or keyboard until the login is complete to ensure success.
-3.  **Settings**: Configure your game path or change the client language via the Settings menu.
+| Action | How |
+|---|---|
+| Add account | Click **+** in the sidebar, fill in username, password, region |
+| Launch account | Click any account card or the play button |
+| Copy credentials | Use the user/key icon buttons on each card |
+| Auto-accept | Toggle the switch in the header or Settings |
+| Live stats | Click **Live** in the sidebar (requires League client open) |
+| Backup accounts | Settings → Accounts Backup → Export |
+| Tools | Click **Tools** in the sidebar |
+
+> **Important:** Do not move your mouse or keyboard during the auto-login sequence — the app types your credentials directly into the client.
+
+---
 
 ## Building from Source
 
-To build the application locally:
+```bash
+# Clone
+git clone https://github.com/mauricekleindienst/lost-league-manager.git
+cd lost-league-manager
 
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/lostsarius/lost-league-manager.git
-    cd leaguelogin
-    ```
-2.  **Install Dependencies**
-    ```bash
-    npm install
-    ```
-3.  **Run (Dev Mode)**
-    ```bash
-    npm start
-    ```
-4.  **Build Installer**
-    ```bash
-    npm run build
-    ```
+# Install dependencies
+npm install
 
-This software is an unofficial fan-made utility and is not endorsed by or affiliated with Riot Games. Use at your own risk.
+# Dev mode
+npm start
 
+# Build installer
+npm run build
+```
+
+Requires **Node.js 20+** and **Windows** (the app uses Windows-only APIs for credential injection).
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Shell | [Overwolf Electron](https://overwolf.github.io/ow-electron/) |
+| Auto-update | electron-updater |
+| LCU API | WebSocket + REST over localhost |
+| Encryption | Node.js `crypto` — AES-256-CBC, machine-bound key |
+| HTTP | axios |
+
+---
+
+## Disclaimer
+
+Lost League Manager is an unofficial fan-made utility and is **not affiliated with or endorsed by Riot Games**. League of Legends is a trademark of Riot Games, Inc. Use at your own risk and in accordance with Riot's Terms of Service.
