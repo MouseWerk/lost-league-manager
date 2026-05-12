@@ -10,7 +10,7 @@ const { fetchChampionData }            = require('./services/champion-data');
 const { registerLcuEvents }            = require('./lcu-events');
 const { initAutoUpdater }              = require('./ipc/updater');
 const { registerAll: registerIpc }     = require('./ipc/index');
-const { executeAccountLaunch, checkGameFlowAndQueue } = require('./ipc/launch');
+const { executeAccountLaunch } = require('./ipc/launch');
 const windows = require('./windows');
 const { initOverwolf } = require('./overwolf');
 const { registerOverlayHotkey } = require('./overlay-hotkey');
@@ -53,9 +53,8 @@ app.whenReady().then(async () => {
     const launchArg = process.argv.find(a => a.startsWith('--launch='));
     if (launchArg) executeAccountLaunch(launchArg.split('=')[1]);
 
-    // Poll for LCU connection and auto-queue
+    // Poll for LCU connection
     setInterval(() => lcu.connect(state.config.lolPath), 5000);
-    setInterval(checkGameFlowAndQueue, 3000);
 
     app.on('activate', () => {
         if (!state.mainWindow) windows.createMainWindow();

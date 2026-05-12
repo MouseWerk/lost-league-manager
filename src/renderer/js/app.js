@@ -312,6 +312,67 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    document.getElementById('repairClientBtn').addEventListener('click', async (e) => {
+        const btn = e.target;
+        btn.disabled = true;
+        const res = await window.electronAPI.repairClient();
+        btn.disabled = false;
+        if (res.success) {
+            showToast(res.removed ? 'Lockfile removed — client repaired!' : 'No lockfile found (already clean)', res.removed ? 'success' : 'info');
+        } else {
+            showToast('Repair failed: ' + res.message, 'error');
+        }
+    });
+
+    document.getElementById('clearCacheBtn').addEventListener('click', async (e) => {
+        const ok = await showConfirm('Clear Cache', 'This will delete the Riot Client cache. The client will re-download it on next launch.', 'info');
+        if (!ok) return;
+        const btn = e.target;
+        btn.disabled = true;
+        const res = await window.electronAPI.clearClientCache();
+        btn.disabled = false;
+        if (res.success) {
+            showToast(res.cleared > 0 ? 'Cache cleared!' : 'Cache already empty', res.cleared > 0 ? 'success' : 'info');
+        } else {
+            showToast('Failed: ' + res.message, 'error');
+        }
+    });
+
+    document.getElementById('openDataFolderBtn').addEventListener('click', async () => {
+        await window.electronAPI.openDataFolder();
+    });
+
+    // Backup
+    document.getElementById('exportAccountsBtn').addEventListener('click', async (e) => {
+        const btn = e.target.closest('button');
+        btn.disabled = true;
+        const res = await window.electronAPI.exportAccounts();
+        btn.disabled = false;
+        if (res.canceled) return;
+        if (res.success) {
+            showToast(`${res.count} account(s) exported!`, 'success');
+        } else {
+            showToast('Export failed: ' + (res.message || 'unknown error'), 'error');
+        }
+    });
+
+    document.getElementById('importAccountsBtn').addEventListener('click', async (e) => {
+        const btn = e.target.closest('button');
+        btn.disabled = true;
+        const res = await window.electronAPI.importAccounts();
+        btn.disabled = false;
+        if (res.canceled) return;
+        if (res.success) {
+            const msg = res.added > 0
+                ? `${res.added} account(s) imported${res.skipped > 0 ? `, ${res.skipped} skipped (already exist)` : ''}!`
+                : `No new accounts — all ${res.skipped} already exist`;
+            showToast(msg, res.added > 0 ? 'success' : 'info');
+            if (res.added > 0) loadAccounts();
+        } else {
+            showToast('Import failed: ' + (res.message || 'unknown error'), 'error');
+        }
+    });
+
     // Manual update check
     document.getElementById('manualUpdateBtn').addEventListener('click', async (e) => {
         const btn = e.target;
@@ -713,10 +774,12 @@ function createAccountCard(account) {
             </div>
         </div>
         <div class="card-actions">
-            <button class="icon-btn info-btn" title="View Stats"><i class="fas fa-chart-bar"></i></button>
-            <button class="icon-btn play-btn" title="Launch"><i class="fas fa-play"></i></button>
-            <button class="icon-btn edit-btn" title="Edit"><i class="fas fa-pen"></i></button>
-            <button class="icon-btn delete-btn" title="Delete"><i class="fas fa-trash"></i></button>
+            <button class="icon-btn info-btn"      title="View Profile"><i class="fas fa-chart-bar"></i></button>
+            <button class="icon-btn copy-user-btn" title="Copy Username"><i class="fas fa-user"></i></button>
+            <button class="icon-btn copy-pass-btn" title="Copy Password"><i class="fas fa-key"></i></button>
+            <button class="icon-btn play-btn"      title="Launch"><i class="fas fa-play"></i></button>
+            <button class="icon-btn edit-btn"      title="Edit"><i class="fas fa-pen"></i></button>
+            <button class="icon-btn delete-btn"    title="Delete"><i class="fas fa-trash"></i></button>
         </div>
     `;
 
@@ -726,6 +789,21 @@ function createAccountCard(account) {
 
     card.querySelector('.account-info').addEventListener('click', () => launchAccount(account.username));
     card.querySelector('.info-btn').addEventListener('click',   (e) => { e.stopPropagation(); showProfileModal(account.username); });
+    card.querySelector('.copy-user-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(account.username);
+        flashCopied(card.querySelector('.copy-user-btn'));
+    });
+    card.querySelector('.copy-pass-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const pw = await window.electronAPI.getAccountPassword(account.username);
+        if (pw) {
+            navigator.clipboard.writeText(pw);
+            flashCopied(card.querySelector('.copy-pass-btn'));
+        } else {
+            showToast('Could not retrieve password', 'error');
+        }
+    });
     card.querySelector('.play-btn').addEventListener('click',   (e) => { e.stopPropagation(); launchAccount(account.username); });
     card.querySelector('.edit-btn').addEventListener('click',   (e) => { e.stopPropagation(); editAccount(account.username); });
     card.querySelector('.delete-btn').addEventListener('click', (e) => { e.stopPropagation(); deleteAccount(account.username); });
@@ -792,20 +870,8 @@ function openModal(account = null) {
 
         document.getElementById('appearOfflineToggle').checked = account.appearOffline || false;
         document.getElementById('autoSkinToggle').checked = account.autoSkinRandom || false;
-        document.getElementById('autoSpellsToggle').checked = account.autoSpells || false;
-        document.getElementById('autoQueueToggle').checked = account.autoQueue || false;
+        document.getElementById('autoSpellsToggle').checked = false;
         document.getElementById('minimizeOnLaunchToggle').checked = account.minimizeOnLaunch || false;
-
-        // Per-account auto pick/ban and queue settings
-        document.getElementById('newAutoPick').value = account.autoPickChamp || "";
-        document.getElementById('newAutoBan').value = account.autoBanChamp || "";
-        document.getElementById('queueType').value = account.queueType || 'RANKED_SOLO';
-        document.getElementById('primaryRole').value = account.primaryRole || '';
-        document.getElementById('secondaryRole').value = account.secondaryRole || '';
-        document.getElementById('chatOnDeath').value     = account.chatOnDeath     || '';
-        document.getElementById('chatOnKill').value      = account.chatOnKill      || '';
-        document.getElementById('chatOnAssist').value    = account.chatOnAssist    || '';
-        document.getElementById('chatOnGameStart').value = account.chatOnGameStart || '';
 
         document.getElementById('newUsername').disabled = true;
     } else {
@@ -822,19 +888,7 @@ function openModal(account = null) {
         document.getElementById('appearOfflineToggle').checked = false;
         document.getElementById('autoSkinToggle').checked = false;
         document.getElementById('autoSpellsToggle').checked = false;
-        document.getElementById('autoQueueToggle').checked = false;
         document.getElementById('minimizeOnLaunchToggle').checked = false;
-
-        // Reset per-account auto pick/ban and queue settings
-        document.getElementById('newAutoPick').value = "";
-        document.getElementById('newAutoBan').value = "";
-        document.getElementById('queueType').value = 'RANKED_SOLO';
-        document.getElementById('primaryRole').value = '';
-        document.getElementById('secondaryRole').value = '';
-        document.getElementById('chatOnDeath').value     = '';
-        document.getElementById('chatOnKill').value      = '';
-        document.getElementById('chatOnAssist').value    = '';
-        document.getElementById('chatOnGameStart').value = '';
 
         document.getElementById('newUsername').disabled = false;
     }
@@ -854,20 +908,7 @@ async function saveAccount() {
 
     const appearOffline = document.getElementById('appearOfflineToggle').checked;
     const autoSkin = document.getElementById('autoSkinToggle').checked;
-    const autoSpells = document.getElementById('autoSpellsToggle').checked;
-    const autoQueue = document.getElementById('autoQueueToggle').checked;
     const minimizeOnLaunch = document.getElementById('minimizeOnLaunchToggle').checked;
-
-    // Per-account auto pick/ban and queue settings
-    const autoPickChamp = document.getElementById('newAutoPick').value;
-    const autoBanChamp = document.getElementById('newAutoBan').value;
-    const queueType = document.getElementById('queueType').value;
-    const primaryRole = document.getElementById('primaryRole').value;
-    const secondaryRole = document.getElementById('secondaryRole').value;
-    const chatOnDeath     = document.getElementById('chatOnDeath').value.trim();
-    const chatOnKill      = document.getElementById('chatOnKill').value.trim();
-    const chatOnAssist    = document.getElementById('chatOnAssist').value.trim();
-    const chatOnGameStart = document.getElementById('chatOnGameStart').value.trim();
 
     if (!username) {
         showToast("Username required!", "error");
@@ -884,18 +925,7 @@ async function saveAccount() {
         region,
         appearOffline,
         autoSkinRandom: autoSkin,
-        autoSpells,
-        autoQueue,
-        autoPickChamp,
-        autoBanChamp,
-        queueType,
-        primaryRole,
-        secondaryRole,
         minimizeOnLaunch,
-        chatOnDeath,
-        chatOnKill,
-        chatOnAssist,
-        chatOnGameStart,
     };
 
     let res;
@@ -918,6 +948,18 @@ async function saveAccount() {
         showToast("Error: " + res.message, "error");
         shakeModal();
     }
+}
+
+function flashCopied(btn) {
+    if (!btn) return;
+    const icon = btn.querySelector('i');
+    const prev = icon.className;
+    icon.className = 'fas fa-check';
+    btn.classList.add('copied');
+    setTimeout(() => {
+        icon.className = prev;
+        btn.classList.remove('copied');
+    }, 1500);
 }
 
 function shakeModal() {
