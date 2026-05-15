@@ -69,6 +69,9 @@ const ovShowBuildsToggle = document.getElementById('ovShowBuildsToggle');
 const COMPACT_H = 52;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 function fmt2(n) { return String(Math.max(0, Math.floor(n))).padStart(2, '0'); }
 function formatTime(s) { return `${fmt2(s / 60)}:${fmt2(s % 60)}`; }
 function fmtGold(g) { return g >= 1000 ? (g / 1000).toFixed(1) + 'k' : String(g); }
@@ -261,7 +264,7 @@ function renderBuildPanel() {
         return;
     }
     if (!buildData || (!buildData.starting.length && !buildData.core.length)) {
-        ovBuildsContent.innerHTML = '<div class="ov-rp-msg">No build data available for ' + myChampKey + '</div>';
+        ovBuildsContent.innerHTML = `<div class="ov-rp-msg">No build data available for ${escHtml(myChampKey)}</div>`;
         return;
     }
 
@@ -279,8 +282,8 @@ function renderBuildPanel() {
     ovBuildsContent.innerHTML = `
         <div class="ov-build-header">
             <img class="ov-build-champ-icon" src="${champIcon}" onerror="this.src='assets/logo.png'">
-            <span class="ov-build-champ-name">${myChampKey}</span>
-            <span class="ov-build-mode">${modeLabel}</span>
+            <span class="ov-build-champ-name">${escHtml(myChampKey)}</span>
+            <span class="ov-build-mode">${escHtml(modeLabel)}</span>
             <span class="ov-build-source">op.gg</span>
         </div>
         ${rows.join('')}
