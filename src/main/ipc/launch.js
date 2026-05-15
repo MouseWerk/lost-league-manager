@@ -1,4 +1,4 @@
-const { ipcMain } = require('electron');
+const { ipcMain, Notification } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 const { spawn } = require('child_process');
@@ -48,6 +48,11 @@ async function executeAccountLaunch(username) {
     const password = decrypt(account.password);
     if (!password) return { success: false, message: 'Password decryption failed' };
 
+    // Kill any in-progress login before overwriting state
+    const oldChild = state.currentAccount?.loginChild;
+    if (oldChild) {
+        try { oldChild.kill(); } catch { /* already dead */ }
+    }
     state.currentAccount = { ...account };
 
     await new Promise(r => setTimeout(r, 100));
@@ -82,10 +87,6 @@ async function executeAccountLaunch(username) {
     send('login-status', { message: 'Waiting for client window...', progress: 50 });
 
     const loginScriptPath = path.join(state.RESOURCES_PATH, 'scripts', 'login.ps1');
-
-    if (state.currentAccount.loginChild) {
-        try { state.currentAccount.loginChild.kill(); } catch { /* already dead */ }
-    }
 
     const child = spawn('powershell.exe', [
         '-ExecutionPolicy', 'Bypass',
@@ -123,6 +124,20 @@ async function executeAccountLaunch(username) {
         if (code !== 0 && code !== null) return;
 
         send('login-status', { message: 'Done!', progress: 100 });
+
+        // Notify the user — especially useful when the window was minimized on launch
+        try {
+            const n = new Notification({
+                title: 'League Launched!',
+                body: `${state.currentAccount?.label || state.currentAccount?.username || 'Account'} is ready to play.`,
+                icon: path.join(__dirname, '../../renderer/assets/logo.png'),
+            });
+            n.on('click', () => {
+                if (state.mainWindow) { state.mainWindow.show(); state.mainWindow.focus(); }
+            });
+            n.show();
+        } catch { /* notifications may not be supported in this environment */ }
+
         // Re-trigger launch as safety net (harmless if League is already running)
         spawn('powershell.exe', ['-Command', launchCmd]);
         setTimeout(() => send('login-status', null), 3000);

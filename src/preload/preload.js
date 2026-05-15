@@ -58,5 +58,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     // Overwolf GEP (Game Events Provider)
     onGepGameEvent: (callback) => ipcRenderer.on('gep-game-event', (event, data) => callback(data)),
-    onGepInfoUpdate: (callback) => ipcRenderer.on('gep-info-update', (event, data) => callback(data))
+    onGepInfoUpdate: (callback) => ipcRenderer.on('gep-info-update', (event, data) => callback(data)),
+
+    // Dodge info (queue type + active penalty) — call before confirming a dodge
+    getDodgeInfo: () => ipcRenderer.invoke('get-dodge-info'),
+
+    // Fired when LCU connect reveals which account is logged in externally
+    onActiveAccountDetected: (cb) => ipcRenderer.on('active-account-detected', (_, username) => cb(username)),
 });
