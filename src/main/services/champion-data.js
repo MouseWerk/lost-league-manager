@@ -5,7 +5,8 @@ let idToNameMap  = {};   // champId (int)  → DDragon key string  (e.g. "Ahri")
 let idToImageMap = {};   // DDragon key    → champion icon URL
 let latestVersion = '14.1.1';
 
-async function fetchChampionData() {
+async function fetchChampionData(attempt = 0) {
+    const MAX_ATTEMPTS = 3;
     try {
         const ver = await axios.get('https://ddragon.leagueoflegends.com/api/versions.json');
         latestVersion = ver.data[0];
@@ -25,7 +26,12 @@ async function fetchChampionData() {
 
         console.log(`[DDragon] Loaded ${Object.keys(championMap).length} champions (v${latestVersion})`);
     } catch (e) {
-        console.error('[DDragon] Failed to fetch champion data:', e.message);
+        console.error(`[DDragon] Attempt ${attempt + 1}/${MAX_ATTEMPTS} failed: ${e.message}`);
+        if (attempt < MAX_ATTEMPTS - 1) {
+            await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+            return fetchChampionData(attempt + 1);
+        }
+        console.warn('[DDragon] All attempts failed, overlay will use fallback version:', latestVersion);
     }
 }
 

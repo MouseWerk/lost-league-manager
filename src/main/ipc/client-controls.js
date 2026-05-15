@@ -9,6 +9,14 @@ const state = require('../state');
 const KILL_ALL = 'Get-Process -Name LeagueClient, LeagueClientUx, RiotClientServices, RiotClientUx -ErrorAction SilentlyContinue | Stop-Process -Force';
 const KILL_CLIENT = 'Get-Process -Name LeagueClient, LeagueClientUx -ErrorAction SilentlyContinue | Stop-Process -Force';
 
+const VALID_LOCALES = new Set([
+    'en_US', 'en_GB', 'de_DE', 'es_ES', 'es_MX', 'fr_FR', 'it_IT', 'ja_JP',
+    'ko_KR', 'pl_PL', 'pt_BR', 'ro_RO', 'ru_RU', 'tr_TR', 'zh_TW', 'zh_CN',
+    'cs_CZ', 'hu_HU', 'el_GR', 'nl_NL', 'vi_VN', 'th_TH', 'id_ID',
+]);
+
+const RANKED_QUEUE_IDS = new Set([420, 440]);
+
 function register() {
     ipcMain.handle('accept-match', async () => {
         try {
@@ -19,7 +27,35 @@ function register() {
         }
     });
 
+    ipcMain.handle('get-dodge-info', async () => {
+        if (!lcu.connected) return { connected: false };
+        try {
+            const [lobby, searchErrors] = await Promise.all([
+                lcu.request('GET', '/lol-lobby/v2/lobby').catch(() => null),
+                lcu.request('GET', '/lol-matchmaking/v1/search/errors').catch(() => null),
+            ]);
+            const queueId = lobby?.gameConfig?.queueId ?? null;
+            const dodgeErr = Array.isArray(searchErrors)
+                ? searchErrors.find(e => String(e.errorType || '').includes('DODGE'))
+                : null;
+            return {
+                connected: true,
+                isRanked: RANKED_QUEUE_IDS.has(queueId),
+                queueId,
+                hasActivePenalty: !!dodgeErr,
+                penaltyMinutesRemaining: dodgeErr
+                    ? Math.ceil((dodgeErr.penaltyTimeRemaining || 0) / 60)
+                    : null,
+            };
+        } catch (e) {
+            return { connected: true, error: e.message };
+        }
+    });
+
     ipcMain.handle('change-language', async (event, locale) => {
+        if (!VALID_LOCALES.has(locale)) {
+            return { success: false, message: `Invalid locale: ${locale}` };
+        }
         try {
             const gameDir     = path.dirname(state.config.lolPath);
             const settingsPath = path.join(gameDir, 'Config', 'LeagueClientSettings.yaml');
