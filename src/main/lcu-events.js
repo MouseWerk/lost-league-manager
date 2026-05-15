@@ -18,8 +18,27 @@ async function setAppearOffline() {
 }
 
 function registerLcuEvents() {
+    lcu.clearHandlers(); // prevent accumulation if called more than once
+
     lcu.onConnect(async () => {
         send(state.mainWindow, 'lcu-connected');
+
+        // Detect which account is logged in so the UI can highlight it even if
+        // the user launched League externally (not through this app).
+        try {
+            const session = await lcu.request('GET', '/lol-login/v1/session');
+            if (session?.username && !state.currentAccount) {
+                const { loadAccounts } = require('./services/storage');
+                const matched = loadAccounts().find(
+                    a => a.username.toLowerCase() === session.username.toLowerCase()
+                );
+                if (matched) {
+                    state.currentAccount = { ...matched };
+                    send(state.mainWindow, 'active-account-detected', matched.username);
+                }
+            }
+        } catch { /* not critical */ }
+
         try {
             const phase = await lcu.request('GET', '/lol-gameflow/v1/gameflow-phase');
             if (phase) {
@@ -76,7 +95,11 @@ function registerLcuEvents() {
                 const data = event.data;
                 if (data?.state === 'InProgress' && data?.playerResponse === 'None') {
                     console.log('[LCU] Auto-accepting match...');
-                    await lcu.request('POST', '/lol-matchmaking/v1/ready-check/accept');
+                    try {
+                        await lcu.request('POST', '/lol-matchmaking/v1/ready-check/accept');
+                    } catch (e) {
+                        console.error('[LCU] Auto-accept failed:', e.message);
+                    }
                 }
             }
 

@@ -94,6 +94,12 @@ class LCUConnector {
     onConnect(callback)    { this.connectHandlers.push(callback); }
     onDisconnect(callback) { this.disconnectHandlers.push(callback); }
 
+    clearHandlers() {
+        this.handlers = [];
+        this.connectHandlers = [];
+        this.disconnectHandlers = [];
+    }
+
     // API Call helper
     async request(method, endpoint, body = null) {
         if (!this.credentials) return null;

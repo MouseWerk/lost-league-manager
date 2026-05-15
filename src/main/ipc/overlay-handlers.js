@@ -105,7 +105,7 @@ function register() {
 
         const EMPTY = { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
 
-        await Promise.all(players.map(async (p) => {
+        await Promise.allSettled(players.map(async (p) => {
             const key = p.gameName || p.summonerName;
             if (!key) return;
             try {

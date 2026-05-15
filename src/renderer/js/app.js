@@ -320,8 +320,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateContextButtons(phase);
     });
 
+    // When LCU reveals which account is currently logged in (external launch)
+    window.electronAPI.onActiveAccountDetected((username) => {
+        if (activeAccountUsername !== username) {
+            activeAccountUsername = username;
+            renderAccounts();
+        }
+    });
+
     // Dodge / Accept buttons
     document.getElementById('ovDodgeBtn').addEventListener('click', async () => {
+        const info = await window.electronAPI.getDodgeInfo().catch(() => ({}));
+        let warningMsg = info.isRanked
+            ? 'Dodging ranked will cost LP (−3 first dodge, −10 second in 16 hours) and apply a queue cooldown.'
+            : 'Dodging will apply a queue cooldown (5 min first, 30 min second in 16 hours).';
+        if (info.hasActivePenalty && info.penaltyMinutesRemaining) {
+            warningMsg += `\n\n⚠ You already have an active dodge penalty (${info.penaltyMinutesRemaining} min remaining) — this will extend it.`;
+        }
+        const ok = await showConfirm('Dodge Queue?', warningMsg, 'danger');
+        if (!ok) return;
         await window.electronAPI.dodgeQueue();
         showToast('Queue dodged', 'info');
     });
@@ -360,6 +377,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             statusEl.textContent = msg;
             overlay.classList.add('active');
             if (pct > 0) progressEl.style.width = pct + '%';
+            if (pct === 100) showToast('League launched successfully!', 'success');
         } else {
             overlay.classList.remove('active');
             setTimeout(() => { progressEl.style.width = '0%'; }, 500);

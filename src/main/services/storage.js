@@ -15,7 +15,9 @@ function loadAccounts() {
 }
 
 function saveAccounts(accounts) {
-    fs.writeFileSync(state.paths.accounts, JSON.stringify(accounts, null, 4));
+    const tmp = state.paths.accounts + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(accounts, null, 4));
+    fs.renameSync(tmp, state.paths.accounts);
 }
 
 function loadConfig() {
@@ -29,7 +31,9 @@ function loadConfig() {
 }
 
 function saveConfig() {
-    fs.writeFileSync(state.paths.config, JSON.stringify(state.config, null, 4));
+    const tmp = state.paths.config + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(state.config, null, 4));
+    fs.renameSync(tmp, state.paths.config);
 }
 
 function migratePasswords() {
