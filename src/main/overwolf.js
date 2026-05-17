@@ -1,6 +1,5 @@
 const { app } = require('electron');
 const state = require('./state');
-const { createOverlayWindow } = require('./windows');
 
 function send(win, channel, ...args) {
     if (win && !win.isDestroyed()) win.webContents.send(channel, ...args);
@@ -9,7 +8,6 @@ function send(win, channel, ...args) {
 function initOverwolf() {
     if (!app.overwolf) {
         console.warn('[OW] app.overwolf not available — running outside ow-electron');
-        createOverlayWindow(null);
         return;
     }
 
@@ -114,9 +112,7 @@ function initOverwolf() {
                 if (state.overlayWindow && !state.overlayWindow.isDestroyed()) state.overlayWindow.hide();
             });
 
-            if (!state.overlayWindow || state.overlayWindow.isDestroyed()) {
-                createOverlayWindow(owOverlay);
-            }
+            // overlay feature disabled — createOverlayWindow skipped
 
             try {
                 owOverlay.registerGames({ gameIds: [state.LOL_GEP_GAME_ID, state.LOL_OVERLAY_CLASS_ID] });
@@ -129,9 +125,7 @@ function initOverwolf() {
 
     packages.on('failed-to-initialize', (e, packageName) => {
         console.warn(`[OW] Package failed to initialize: ${packageName}`);
-        if (packageName === 'overlay' && (!state.overlayWindow || state.overlayWindow.isDestroyed())) {
-            createOverlayWindow(null);
-        }
+        // overlay feature disabled — createOverlayWindow skipped
     });
 }
 

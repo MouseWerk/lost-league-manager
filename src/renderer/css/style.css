@@ -98,8 +98,6 @@ body {
     width: 40px;
     height: 40px;
     border-radius: 11px;
-    border: 1px solid rgba(10, 200, 185, 0.25);
-    box-shadow: 0 0 12px rgba(10, 200, 185, 0.12);
     flex-shrink: 0;
 }
 
@@ -444,7 +442,7 @@ body {
 .accounts-grid.compact .card-meta { margin: 0 0 2px; }
 .accounts-grid.compact .rank { font-size: 12px; }
 .accounts-grid.compact .last-used    { display: none; }
-.accounts-grid.compact .notes-preview { display: none; }
+.accounts-grid.compact .notes-preview { -webkit-line-clamp: 1; margin-top: 2px; }
 .accounts-grid.compact .icon-btn { width: 26px; height: 26px; font-size: 10px; border-radius: 7px; }
 .accounts-grid.compact .card-actions { gap: 4px; }
 
@@ -601,9 +599,11 @@ body {
     margin-top: 6px;
     opacity: 0.6;
     font-style: italic;
-    white-space: nowrap;
+    white-space: pre-wrap;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .card-actions {
@@ -611,6 +611,44 @@ body {
     grid-template-columns: repeat(3, 1fr);
     gap: 8px;
     flex-shrink: 0;
+}
+
+/* ── Favourite star ── */
+.fav-btn {
+    position: absolute;
+    top: -6px;
+    left: -6px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--bg-secondary, #1a1a20);
+    border: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: var(--text-dim);
+    opacity: 0.3;
+    cursor: pointer;
+    transition: opacity 0.15s, color 0.15s, transform 0.1s;
+    z-index: 2;
+    padding: 0;
+}
+.fav-btn:hover  { opacity: 0.8; transform: scale(1.15); }
+.fav-btn.is-fav { opacity: 1; color: #f5c518; }
+
+.account-card.is-favourite {
+    border-color: rgba(245, 197, 24, 0.2);
+    box-shadow: 0 0 0 1px rgba(245, 197, 24, 0.08);
+}
+
+/* ── Drag and drop ── */
+.account-card[draggable="true"] { cursor: grab; }
+.account-card[draggable="true"]:active { cursor: grabbing; }
+.account-card.dragging  { opacity: 0.35; }
+.account-card.drag-over {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(10, 200, 185, 0.25);
 }
 
 /* ── Icon buttons ── */

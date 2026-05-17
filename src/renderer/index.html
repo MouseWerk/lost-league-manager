@@ -85,6 +85,7 @@
                     </div>
                     <select id="accountSort" class="sort-select">
                         <option value="default">Sort: Default</option>
+                        <option value="favourite">Favourites First</option>
                         <option value="rank">By Rank</option>
                         <option value="name">A → Z</option>
                         <option value="region">By Region</option>
@@ -623,7 +624,21 @@
 
                 <div class="form-group">
                     <label>Notes</label>
-                    <textarea id="newNotes" rows="2"></textarea>
+                    <textarea id="newNotes" rows="3"></textarea>
+                </div>
+
+                <label class="checkbox-group">
+                    <input type="checkbox" id="isFavouriteToggle">
+                    Mark as Favourite
+                </label>
+
+                <div class="form-group">
+                    <label>Custom Rank Override <span style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to use API)</span></label>
+                    <input type="text" id="newCustomRank" placeholder="e.g. Gold II">
+                </div>
+                <div class="form-group">
+                    <label>Custom Avatar URL <span style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to use summoner icon)</span></label>
+                    <input type="text" id="newCustomAvatar" placeholder="https://...">
                 </div>
             </div>
 

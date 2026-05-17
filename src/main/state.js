@@ -24,7 +24,7 @@ const state = {
     config: {
         lolPath: 'C:\\Riot Games\\League of Legends\\LeagueClient.exe',
         autoAccept: false,
-        overlayEnabled: true,
+        overlayEnabled: false,
         overlayShowRanked: true,
         overlayShowBuilds: true,
         overlayOpacity: 1.0,

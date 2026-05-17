@@ -3,22 +3,22 @@
   <h1>Lost League Manager</h1>
   <p>A lightweight Windows utility for managing multiple League of Legends accounts</p>
 
-  <a href="https://github.com/mauricekleindienst/lost-league-manager/releases/latest">
-    <img src="https://img.shields.io/github/v/release/mauricekleindienst/lost-league-manager?style=for-the-badge&color=0ac8b9&label=Download" alt="Latest Release">
+  <a href="https://github.com/MouseWerk/lost-league-manager/releases/latest">
+    <img src="https://img.shields.io/github/v/release/MouseWerk/lost-league-manager?style=for-the-badge&color=0ac8b9&label=Download" alt="Latest Release">
   </a>
   &nbsp;
-  <a href="https://github.com/mauricekleindienst/lost-league-manager/releases">
-    <img src="https://img.shields.io/github/downloads/mauricekleindienst/lost-league-manager/total?style=for-the-badge&color=5865f2&label=Total%20Downloads" alt="Total Downloads">
+  <a href="https://github.com/MouseWerk/lost-league-manager/releases">
+    <img src="https://img.shields.io/github/downloads/MouseWerk/lost-league-manager/total?style=for-the-badge&color=5865f2&label=Total%20Downloads" alt="Total Downloads">
   </a>
   &nbsp;
-  <a href="https://github.com/mauricekleindienst/lost-league-manager/actions/workflows/release.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/mauricekleindienst/lost-league-manager/release.yml?style=for-the-badge&label=Build" alt="Build Status">
+  <a href="https://github.com/MouseWerk/lost-league-manager/actions/workflows/release.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/MouseWerk/lost-league-manager/release.yml?style=for-the-badge&label=Build" alt="Build Status">
   </a>
   &nbsp;
   <img src="https://img.shields.io/badge/platform-Windows-blue?style=for-the-badge" alt="Windows">
 
   <br><br>
-  <img src="docs/screenshot.jpg" alt="Lost League Manager" width="700" />
+  <img src="docs/screenshot.png" alt="Lost League Manager" width="700" />
 </div>
 
 ---
@@ -57,7 +57,7 @@
 
 ## Installation
 
-1. Download `Lost-League-Manager-Setup.exe` from the **[latest release](https://github.com/mauricekleindienst/lost-league-manager/releases/latest)**
+1. Download `Lost-League-Manager-Setup.exe` from the **[latest release](https://github.com/MouseWerk/lost-league-manager/releases/latest)**
 2. Run the installer
 3. Launch **Lost League Manager** from your desktop or Start Menu
 
@@ -86,7 +86,7 @@
 
 ```bash
 # Clone
-git clone https://github.com/mauricekleindienst/lost-league-manager.git
+git clone https://github.com/MouseWerk/lost-league-manager.git
 cd lost-league-manager
 
 # Install dependencies
