@@ -26,6 +26,9 @@ function register() {
             appearOffline:    data.appearOffline    || false,
             autoSkinRandom:   data.autoSkinRandom   || false,
             minimizeOnLaunch: data.minimizeOnLaunch || false,
+            isFavourite:      data.isFavourite      || false,
+            customRank:       data.customRank       || '',
+            customAvatar:     data.customAvatar     || '',
         });
 
         saveAccounts(accounts);
@@ -48,6 +51,9 @@ function register() {
             appearOffline:    data.appearOffline    !== undefined ? data.appearOffline    : old.appearOffline,
             autoSkinRandom:   data.autoSkinRandom   !== undefined ? data.autoSkinRandom   : old.autoSkinRandom,
             minimizeOnLaunch: data.minimizeOnLaunch !== undefined ? data.minimizeOnLaunch : (old.minimizeOnLaunch || false),
+            isFavourite:      data.isFavourite      !== undefined ? data.isFavourite      : (old.isFavourite     || false),
+            customRank:       data.customRank       !== undefined ? data.customRank       : (old.customRank      || ''),
+            customAvatar:     data.customAvatar     !== undefined ? data.customAvatar     : (old.customAvatar    || ''),
         };
 
         if (data.password) accounts[index].password = encrypt(data.password);
@@ -75,6 +81,18 @@ function register() {
         const acc = loadAccounts().find(a => a.username === username);
         if (!acc) return null;
         return decrypt(acc.password);
+    });
+
+    ipcMain.handle('reorder-accounts', (event, usernames) => {
+        const accounts = loadAccounts();
+        const map = new Map(accounts.map(a => [a.username, a]));
+        const ordered = usernames.map(u => map.get(u)).filter(Boolean);
+        // Append any accounts not present in the new order list (safety net)
+        const included = new Set(usernames);
+        accounts.filter(a => !included.has(a.username)).forEach(a => ordered.push(a));
+        saveAccounts(ordered);
+        broadcastAccountsUpdate();
+        return { success: true };
     });
 
     ipcMain.handle('export-accounts', async () => {
