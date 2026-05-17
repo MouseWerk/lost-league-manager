@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     clearClientCache: () => ipcRenderer.invoke('clear-client-cache'),
     openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
 
+    reorderAccounts: (usernames) => ipcRenderer.invoke('reorder-accounts', usernames),
     getAccountPassword: (username) => ipcRenderer.invoke('get-account-password', username),
     exportAccounts: () => ipcRenderer.invoke('export-accounts'),
     importAccounts: () => ipcRenderer.invoke('import-accounts'),
