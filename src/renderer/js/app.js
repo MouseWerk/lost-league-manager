@@ -49,6 +49,9 @@ function getFilteredSorted() {
         );
     }
     switch (currentSort) {
+        case 'favourite':
+            list.sort((a, b) => (b.isFavourite ? 1 : 0) - (a.isFavourite ? 1 : 0));
+            break;
         case 'name':
             list.sort((a, b) => (a.label || a.username).localeCompare(b.label || b.username));
             break;
@@ -114,6 +117,7 @@ function applyViewMode() {
 
 document.addEventListener('DOMContentLoaded', async () => {
     applyViewMode();
+    initDragAndDrop();
 
     document.getElementById('viewGridBtn')?.addEventListener('click', () => {
         compactView = false;
@@ -727,8 +731,10 @@ function renderAccounts() {
 }
 
 function applyStatsToCard(cardEl, stats) {
+    const acc = allAccounts.find(a => a.username === cardEl.dataset.username);
+
     const rankEl = cardEl.querySelector('.rank');
-    if (rankEl) {
+    if (rankEl && !acc?.customRank) {
         const tierName = (stats.tier || 'unranked').split(' ')[0].toLowerCase();
         const valid = ['iron','bronze','silver','gold','platinum','emerald','diamond','master','grandmaster','challenger'];
         const cls = valid.includes(tierName) ? `rank-${tierName}` : 'rank-unranked';
@@ -737,7 +743,7 @@ function applyStatsToCard(cardEl, stats) {
         rankEl.innerHTML = `<span>${tierDisplay}</span>${stats.lp ? ` • <span>${stats.lp}</span>` : ''}`;
     }
     const iconEl = cardEl.querySelector('.summoner-icon');
-    if (iconEl && stats.iconSrc) iconEl.src = stats.iconSrc;
+    if (iconEl && stats.iconSrc && !acc?.customAvatar) iconEl.src = stats.iconSrc;
 
     const levelEl = cardEl.querySelector('.level-badge');
     if (levelEl && stats.level) {
@@ -854,17 +860,22 @@ function closeProfileModal() {
 function createAccountCard(account) {
     const card = document.createElement('div');
     const isActive = account.username === activeAccountUsername;
-    card.className = `account-card${isActive ? ' is-active' : ''}`;
+    card.className = `account-card${isActive ? ' is-active' : ''}${account.isFavourite ? ' is-favourite' : ''}`;
+    card.dataset.username = account.username;
+    card.draggable = true;
 
     const defaultIcon = 'assets/logo.png';
+    const iconSrc = account.customAvatar || defaultIcon;
     const region = (account.region || '').toUpperCase();
     const lastUsedText = timeAgo(account.lastUsed);
+    const rankDisplay = account.customRank || (account.riotId && account.region ? 'Loading stats...' : '—');
 
     card.innerHTML = `
         <div class="account-info">
             <div class="summoner-icon-container">
-                <img src="${defaultIcon}" class="summoner-icon" onerror="this.src='${defaultIcon}'">
+                <img src="${iconSrc}" class="summoner-icon" onerror="this.src='${defaultIcon}'">
                 <span class="level-badge" style="display:none">1</span>
+                <button class="fav-btn${account.isFavourite ? ' is-fav' : ''}" title="${account.isFavourite ? 'Remove from Favourites' : 'Add to Favourites'}"><i class="fas fa-star"></i></button>
             </div>
             <div class="text-content">
                 <div class="card-title-row">
@@ -876,7 +887,7 @@ function createAccountCard(account) {
                     ${region ? `<span class="region-badge">${region}</span>` : ''}
                     ${lastUsedText ? `<span class="last-used">${lastUsedText}</span>` : ''}
                 </div>
-                <div class="rank">Loading stats...</div>
+                <div class="rank">${rankDisplay}</div>
                 ${account.notes ? '<div class="notes-preview card-notes"></div>' : ''}
             </div>
         </div>
@@ -893,6 +904,27 @@ function createAccountCard(account) {
     card.querySelector('.card-label').textContent = account.label || 'Account';
     card.querySelector('.card-username').textContent = account.username;
     if (account.notes) card.querySelector('.card-notes').textContent = account.notes;
+
+    card.querySelector('.fav-btn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const btn = e.currentTarget;
+        if (btn.dataset.saving) return;
+        btn.dataset.saving = '1';
+        const newFav = !account.isFavourite;
+        // Optimistic update — flip state immediately before the async call
+        account.isFavourite = newFav;
+        const idx = allAccounts.findIndex(a => a.username === account.username);
+        if (idx !== -1) allAccounts[idx].isFavourite = newFav;
+        btn.classList.toggle('is-fav', newFav);
+        btn.title = newFav ? 'Remove from Favourites' : 'Add to Favourites';
+        card.classList.toggle('is-favourite', newFav);
+        try {
+            await window.electronAPI.updateAccount({ username: account.username, isFavourite: newFav });
+        } finally {
+            delete btn.dataset.saving;
+        }
+        if (currentSort === 'favourite') renderAccounts();
+    });
 
     card.querySelector('.account-info').addEventListener('click', () => launchAccount(account.username));
     card.querySelector('.info-btn').addEventListener('click',   (e) => { e.stopPropagation(); showProfileModal(account.username); });
@@ -920,6 +952,61 @@ function createAccountCard(account) {
 
 
 
+
+function initDragAndDrop() {
+    const listEl = document.getElementById('accountsList');
+    let dragSrc = null;
+
+    listEl.addEventListener('dragstart', (e) => {
+        if (currentSort !== 'default' || currentQuery) return;
+        const card = e.target.closest('.account-card');
+        if (!card) return;
+        dragSrc = card;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', card.dataset.username);
+        requestAnimationFrame(() => card.classList.add('dragging'));
+    });
+
+    listEl.addEventListener('dragover', (e) => {
+        if (!dragSrc) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const card = e.target.closest('.account-card');
+        if (!card || card === dragSrc) return;
+        listEl.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        card.classList.add('drag-over');
+    });
+
+    listEl.addEventListener('dragleave', (e) => {
+        const card = e.target.closest('.account-card');
+        // Only clear the highlight when the mouse actually leaves the card,
+        // not when it enters a child element inside it.
+        if (card && !card.contains(e.relatedTarget)) card.classList.remove('drag-over');
+    });
+
+    listEl.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        if (!dragSrc || currentSort !== 'default' || currentQuery) return;
+        const card = e.target.closest('.account-card');
+        if (!card || card === dragSrc) return;
+
+        const srcIdx = allAccounts.findIndex(a => a.username === dragSrc.dataset.username);
+        const tgtIdx = allAccounts.findIndex(a => a.username === card.dataset.username);
+
+        if (srcIdx !== -1 && tgtIdx !== -1) {
+            const [moved] = allAccounts.splice(srcIdx, 1);
+            allAccounts.splice(tgtIdx, 0, moved);
+            await window.electronAPI.reorderAccounts(allAccounts.map(a => a.username));
+            renderAccounts();
+        }
+    });
+
+    listEl.addEventListener('dragend', () => {
+        if (dragSrc) dragSrc.classList.remove('dragging');
+        listEl.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+        dragSrc = null;
+    });
+}
 
 let _updateVersion = '';
 let _updateState   = ''; // 'downloading' | 'ready'
@@ -963,6 +1050,7 @@ function updateDownloadProgress(percent) {
 function openModal(account = null) {
     const modal = document.getElementById('addModal');
     modal.classList.add('active');
+    isEditing = false;
 
     if (account && account.username) {
         isEditing = true;
@@ -979,6 +1067,9 @@ function openModal(account = null) {
         document.getElementById('autoSkinToggle').checked = account.autoSkinRandom || false;
         document.getElementById('autoSpellsToggle').checked = false;
         document.getElementById('minimizeOnLaunchToggle').checked = account.minimizeOnLaunch || false;
+        document.getElementById('isFavouriteToggle').checked = account.isFavourite || false;
+        document.getElementById('newCustomRank').value = account.customRank || '';
+        document.getElementById('newCustomAvatar').value = account.customAvatar || '';
 
         document.getElementById('newUsername').disabled = true;
     } else {
@@ -996,6 +1087,9 @@ function openModal(account = null) {
         document.getElementById('autoSkinToggle').checked = false;
         document.getElementById('autoSpellsToggle').checked = false;
         document.getElementById('minimizeOnLaunchToggle').checked = false;
+        document.getElementById('isFavouriteToggle').checked = false;
+        document.getElementById('newCustomRank').value = '';
+        document.getElementById('newCustomAvatar').value = '';
 
         document.getElementById('newUsername').disabled = false;
     }
@@ -1033,6 +1127,9 @@ async function saveAccount() {
         appearOffline,
         autoSkinRandom: autoSkin,
         minimizeOnLaunch,
+        isFavourite:  document.getElementById('isFavouriteToggle').checked,
+        customRank:   document.getElementById('newCustomRank').value.trim(),
+        customAvatar: document.getElementById('newCustomAvatar').value.trim(),
     };
 
     let res;
