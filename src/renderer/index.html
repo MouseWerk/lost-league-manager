@@ -43,6 +43,14 @@
                 <button id="addAccountBtn" class="add-account-sidebar-btn">
                     <i class="fas fa-plus"></i> Add
                 </button>
+                <div class="sidebar-external-links">
+                    <a href="https://discord.gg/ZyfUMWTPFe" class="sidebar-link-btn" id="discordBtn" title="Discord">
+                        <i class="fab fa-discord"></i> Discord
+                    </a>
+                    <a href="https://www.lostleague.com/" class="sidebar-link-btn" id="websiteBtn" title="Website">
+                        <i class="fas fa-globe"></i> Website
+                    </a>
+                </div>
                 <div id="appVersion" class="version-info">v1.0.2</div>
             </div>
         </nav>
@@ -347,6 +355,16 @@
                         <div class="setting-info">
                             <h3>App Behavior</h3>
                             <p class="desc">Control how Lost League Manager starts and runs.</p>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h4>Start with Windows</h4>
+                                    <p>Automatically launch Lost League Manager when Windows starts</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="startWithWindowsToggle">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
                             <div class="setting-row">
                                 <div class="setting-row-info">
                                     <h4>Start minimized</h4>
