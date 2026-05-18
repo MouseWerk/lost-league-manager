@@ -187,6 +187,16 @@ function register() {
         return { success: true };
     });
 
+    const ALLOWED_EXTERNAL_URLS = [
+        'https://discord.gg/ZyfUMWTPFe',
+        'https://www.lostleague.com/',
+    ];
+    ipcMain.handle('open-external', async (event, url) => {
+        if (!ALLOWED_EXTERNAL_URLS.includes(url)) return { success: false };
+        await shell.openExternal(url);
+        return { success: true };
+    });
+
     ipcMain.handle('window-control', (event, action) => {
         if (!state.mainWindow) return;
         if (action === 'close')    state.mainWindow.close();

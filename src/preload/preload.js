@@ -64,6 +64,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Dodge info (queue type + active penalty) — call before confirming a dodge
     getDodgeInfo: () => ipcRenderer.invoke('get-dodge-info'),
 
+    openExternal: (url) => ipcRenderer.invoke('open-external', url),
+
     // Fired when LCU connect reveals which account is logged in externally
     onActiveAccountDetected: (cb) => ipcRenderer.on('active-account-detected', (_, username) => cb(username)),
 });

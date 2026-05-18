@@ -30,6 +30,7 @@ const state = {
         overlayOpacity: 1.0,
         overlayHotkey: 'Ctrl+Shift+H',
         overlayLocked: false,
+        startWithWindows: false,
         startMinimized: false,
         minimizeOnGameStart: false,
         checkUpdatesOnStartup: true,

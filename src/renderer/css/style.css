@@ -194,6 +194,48 @@ body {
     transform: translateY(0);
 }
 
+.sidebar-external-links {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.sidebar-link-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 7px 6px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    background: var(--surface-2, rgba(255,255,255,0.06));
+    color: var(--text-dim);
+    border: 1px solid rgba(255,255,255,0.07);
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s, border-color 0.18s;
+}
+
+.sidebar-link-btn:hover {
+    background: rgba(255,255,255,0.12);
+    color: var(--text);
+    border-color: rgba(255,255,255,0.15);
+}
+
+#discordBtn:hover {
+    background: rgba(88, 101, 242, 0.18);
+    color: #7289da;
+    border-color: rgba(88, 101, 242, 0.35);
+}
+
+#websiteBtn:hover {
+    background: rgba(10, 200, 185, 0.12);
+    color: var(--primary);
+    border-color: rgba(10, 200, 185, 0.3);
+}
+
 .version-info {
     font-size: 11px;
     color: var(--text-dim);
@@ -450,6 +492,7 @@ body {
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     border-radius: 18px;
+    max-width: 340px;
     padding: 16px 18px;
     display: flex;
     justify-content: space-between;
