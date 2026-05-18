@@ -11,7 +11,7 @@ function setLaunchCallback(fn) {
 function createMainWindow() {
     state.mainWindow = new BrowserWindow({
         width: 1100,
-        height: 620,
+        height: 680,
         frame: false,
         transparent: true,
         resizable: false,

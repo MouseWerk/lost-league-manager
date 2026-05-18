@@ -173,6 +173,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         bindSettingToggle('overlayShowRankedToggle',     'overlayShowRanked',       true);
         bindSettingToggle('overlayShowBuildsToggle',     'overlayShowBuilds',       true);
         bindSettingToggle('minimizeOnGameStartToggle',   'minimizeOnGameStart',     false);
+        bindSettingToggle('startWithWindowsToggle',      'startWithWindows',        false);
         bindSettingToggle('startMinimizedToggle',        'startMinimized',          false);
         bindSettingToggle('checkUpdatesOnStartupToggle', 'checkUpdatesOnStartup',   true);
         bindSettingToggle('toastOnQueuePopToggle',       'toastOnQueuePop',         true);
@@ -558,6 +559,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Add Account
     document.getElementById('addAccountBtn').addEventListener('click', openModal);
+
+    // External links
+    document.getElementById('discordBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        window.electronAPI.openExternal('https://discord.gg/ZyfUMWTPFe');
+    });
+    document.getElementById('websiteBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        window.electronAPI.openExternal('https://www.lostleague.com/');
+    });
 
     // Modal Controls
     document.getElementById('cancelAddBtn').addEventListener('click', closeModal);

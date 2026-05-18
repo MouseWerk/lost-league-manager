@@ -1,4 +1,4 @@
-const { ipcMain } = require('electron');
+const { ipcMain, app } = require('electron');
 const state = require('../state');
 const { saveConfig } = require('../services/storage');
 
@@ -13,7 +13,10 @@ function pushOverlaySettings() {
 }
 
 function register() {
-    ipcMain.handle('get-config', () => state.config);
+    ipcMain.handle('get-config', () => {
+        state.config.startWithWindows = app.getLoginItemSettings().openAtLogin;
+        return state.config;
+    });
 
     ipcMain.handle('set-config', (event, newConfig) => {
         const prev = { ...state.config };
@@ -35,6 +38,10 @@ function register() {
             if (panelKeys.some(k => newConfig[k] !== undefined && newConfig[k] !== prev[k])) {
                 pushOverlaySettings();
             }
+        }
+
+        if (newConfig.startWithWindows !== undefined && newConfig.startWithWindows !== prev.startWithWindows) {
+            app.setLoginItemSettings({ openAtLogin: !!newConfig.startWithWindows });
         }
 
         return { success: true };
