@@ -3,6 +3,8 @@ const path  = require('path');
 const lcu   = require('./lcu');
 const state = require('./state');
 
+let autoLockAttempted = false;
+
 function send(win, channel, ...args) {
     if (win && !win.isDestroyed()) win.webContents.send(channel, ...args);
 }
@@ -114,14 +116,46 @@ function registerLcuEvents() {
             if (event.uri === '/lol-champ-select/v1/session') {
                 if (event.eventType === 'Update' || event.eventType === 'Create') {
                     send(state.mainWindow, 'champ-select-update', event.data);
+                    if (event.eventType === 'Create') autoLockAttempted = false;
                 } else if (event.eventType === 'Delete') {
                     send(state.mainWindow, 'champ-select-end');
+                    autoLockAttempted = false;
                 }
             }
 
             // Auto skin (random) after champion lock — no gameplay decision, just cosmetic
             if (!state.currentAccount) return;
             if (event.uri !== '/lol-champ-select/v1/session' || event.eventType !== 'Update') return;
+
+            // Auto champ lock — lock configured champion when pick action becomes in-progress
+            if (state.currentAccount.autoChampLock && !autoLockAttempted) {
+                const session      = event.data;
+                const localCellId  = session.localPlayerCellId;
+                const myPickAction = session.actions.flat().find(
+                    a => a.actorCellId === localCellId && a.type === 'pick' && a.isInProgress && !a.completed
+                );
+                if (myPickAction) {
+                    autoLockAttempted = true;
+                    try {
+                        const champName = state.currentAccount.autoChampLock.trim().toLowerCase();
+                        const champions = await lcu.request('GET', '/lol-champ-select/v1/all-grid-champions');
+                        const champ     = champions?.find(c => c.name.toLowerCase() === champName);
+                        if (champ) {
+                            await lcu.request('PATCH', `/lol-champ-select/v1/session/actions/${myPickAction.id}`, {
+                                championId: champ.id,
+                                completed:  true,
+                            });
+                            console.log(`[LCU] Auto-locked ${champ.name}`);
+                        } else {
+                            console.warn(`[LCU] Auto-lock: champion "${state.currentAccount.autoChampLock}" not found`);
+                            autoLockAttempted = false;
+                        }
+                    } catch (e) {
+                        console.error('[LCU] Auto-lock error:', e.message);
+                        autoLockAttempted = false;
+                    }
+                }
+            }
 
             if (state.currentAccount.autoSkinRandom) {
                 const session     = event.data;
