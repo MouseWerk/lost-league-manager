@@ -1076,6 +1076,7 @@ function openModal(account = null) {
 
         document.getElementById('appearOfflineToggle').checked = account.appearOffline || false;
         document.getElementById('autoSkinToggle').checked = account.autoSkinRandom || false;
+        document.getElementById('autoChampLockInput').value = account.autoChampLock || '';
         document.getElementById('autoSpellsToggle').checked = false;
         document.getElementById('minimizeOnLaunchToggle').checked = account.minimizeOnLaunch || false;
         document.getElementById('isFavouriteToggle').checked = account.isFavourite || false;
@@ -1096,6 +1097,7 @@ function openModal(account = null) {
 
         document.getElementById('appearOfflineToggle').checked = false;
         document.getElementById('autoSkinToggle').checked = false;
+        document.getElementById('autoChampLockInput').value = '';
         document.getElementById('autoSpellsToggle').checked = false;
         document.getElementById('minimizeOnLaunchToggle').checked = false;
         document.getElementById('isFavouriteToggle').checked = false;
@@ -1118,8 +1120,9 @@ async function saveAccount() {
     const riotId = document.getElementById('newRiotId').value;
     const region = document.getElementById('newRegion').value;
 
-    const appearOffline = document.getElementById('appearOfflineToggle').checked;
-    const autoSkin = document.getElementById('autoSkinToggle').checked;
+    const appearOffline  = document.getElementById('appearOfflineToggle').checked;
+    const autoSkin       = document.getElementById('autoSkinToggle').checked;
+    const autoChampLock  = document.getElementById('autoChampLockInput').value.trim();
     const minimizeOnLaunch = document.getElementById('minimizeOnLaunchToggle').checked;
 
     if (!username) {
@@ -1137,6 +1140,7 @@ async function saveAccount() {
         region,
         appearOffline,
         autoSkinRandom: autoSkin,
+        autoChampLock,
         minimizeOnLaunch,
         isFavourite:  document.getElementById('isFavouriteToggle').checked,
         customRank:   document.getElementById('newCustomRank').value.trim(),
