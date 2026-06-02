@@ -1,6 +1,6 @@
 {
   "name": "leaguelogin",
-  "version": "1.5.7",
+  "version": "1.5.8",
   "description": "Lost League Manager",
   "main": "src/main/main.js",
   "scripts": {
