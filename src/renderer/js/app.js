@@ -1,5 +1,10 @@
 // --- State ---
 let isEditing = false;
+let currentView        = 'accountsView';
+let previousView       = 'accountsView';
+let selectedChampion   = null;  // { id, name, key, iconUrl } | null
+let currentAutoLockName = '';   // raw saved name, used as fallback before list loads
+let champListCache     = null;  // loaded once, reused
 let isLaunching = false;
 let lastLaunchedUsername = null;
 let allAccounts = [];
@@ -177,6 +182,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         bindSettingToggle('startMinimizedToggle',        'startMinimized',          false);
         bindSettingToggle('checkUpdatesOnStartupToggle', 'checkUpdatesOnStartup',   true);
         bindSettingToggle('toastOnQueuePopToggle',       'toastOnQueuePop',         true);
+
+        // UI Scale — only apply if non-default; let ow-electron manage native DPI at 1.0
+        const savedScale = config.uiScale ?? 1.0;
+        if (savedScale !== 1.0) applyUiScale(savedScale);
+        document.querySelectorAll('.scale-btn').forEach(btn => {
+            const s = parseFloat(btn.dataset.scale);
+            if (s === savedScale) btn.classList.add('active');
+            btn.addEventListener('click', async () => {
+                document.querySelectorAll('.scale-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                applyUiScale(s);
+                await window.electronAPI.setConfig({ uiScale: s });
+            });
+        });
 
         // Vault settings
         const vaultToggle  = document.getElementById('vaultEnabledToggle');
@@ -573,6 +592,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Modal Controls
     document.getElementById('cancelAddBtn').addEventListener('click', closeModal);
     document.getElementById('saveAccountBtn').addEventListener('click', saveAccount);
+    initChampionPicker();
 
     // Change League Client path
     document.getElementById('changePathBtn').addEventListener('click', async () => {
@@ -601,9 +621,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 });
 
+function applyUiScale(scale) {
+    window.electronAPI.setZoomFactor(scale);
+}
+
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById(viewId).classList.add('active');
+    currentView = viewId;
 }
 
 /**
@@ -1057,10 +1082,9 @@ function updateDownloadProgress(percent) {
     document.getElementById('updateProgressPct').textContent = `${percent}%`;
 }
 
-// Modal Functions
+// Account Form View Functions
 function openModal(account = null) {
-    const modal = document.getElementById('addModal');
-    modal.classList.add('active');
+    previousView = currentView;
     isEditing = false;
 
     if (account && account.username) {
@@ -1076,7 +1100,7 @@ function openModal(account = null) {
 
         document.getElementById('appearOfflineToggle').checked = account.appearOffline || false;
         document.getElementById('autoSkinToggle').checked = account.autoSkinRandom || false;
-        document.getElementById('autoChampLockInput').value = account.autoChampLock || '';
+        setSelectedChampionByName(account.autoChampLock || '');
         document.getElementById('autoSpellsToggle').checked = false;
         document.getElementById('minimizeOnLaunchToggle').checked = account.minimizeOnLaunch || false;
         document.getElementById('isFavouriteToggle').checked = account.isFavourite || false;
@@ -1097,7 +1121,7 @@ function openModal(account = null) {
 
         document.getElementById('appearOfflineToggle').checked = false;
         document.getElementById('autoSkinToggle').checked = false;
-        document.getElementById('autoChampLockInput').value = '';
+        setSelectedChampion(null);
         document.getElementById('autoSpellsToggle').checked = false;
         document.getElementById('minimizeOnLaunchToggle').checked = false;
         document.getElementById('isFavouriteToggle').checked = false;
@@ -1106,10 +1130,127 @@ function openModal(account = null) {
 
         document.getElementById('newUsername').disabled = false;
     }
+    showView('accountFormView');
 }
 
 function closeModal() {
-    document.getElementById('addModal').classList.remove('active');
+    closeChampionSearch();
+    showView(previousView || 'accountsView');
+    // Re-highlight the correct nav button
+    document.querySelectorAll('.nav-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.view === (previousView || 'accountsView'));
+    });
+}
+
+// ── Champion Picker ──────────────────────────────────────────────────────────
+
+function setSelectedChampion(champ) {
+    selectedChampion    = champ;
+    currentAutoLockName = champ ? champ.name : '';
+    const preview     = document.getElementById('champPickerPreview');
+    const placeholder = document.getElementById('champPickerPlaceholder');
+    preview.querySelectorAll('img, .champ-picker-name').forEach(el => el.remove());
+    if (champ) {
+        placeholder.style.display = 'none';
+        const img = document.createElement('img');
+        img.src = champ.iconUrl;
+        img.alt = champ.name;
+        img.onerror = () => { img.style.display = 'none'; };
+        const nameEl = document.createElement('span');
+        nameEl.className = 'champ-picker-name';
+        nameEl.textContent = champ.name;
+        preview.appendChild(img);
+        preview.appendChild(nameEl);
+    } else {
+        placeholder.style.display = '';
+    }
+}
+
+function setSelectedChampionByName(name) {
+    currentAutoLockName = name || '';
+    if (!name) { setSelectedChampion(null); return; }
+    if (champListCache) {
+        const found = champListCache.find(c => c.name.toLowerCase() === name.toLowerCase());
+        if (found) { setSelectedChampion(found); return; }
+    }
+    // List not yet loaded — show name text only, no icon
+    selectedChampion = null;
+    const preview     = document.getElementById('champPickerPreview');
+    const placeholder = document.getElementById('champPickerPlaceholder');
+    placeholder.style.display = 'none';
+    preview.querySelectorAll('img, .champ-picker-name').forEach(el => el.remove());
+    const nameEl = document.createElement('span');
+    nameEl.className = 'champ-picker-name';
+    nameEl.textContent = name;
+    preview.appendChild(nameEl);
+}
+
+function openChampionSearch() {
+    document.getElementById('champSearchOverlay').classList.add('open');
+    const input = document.getElementById('champSearchInput');
+    input.value = '';
+    renderChampionGrid('');
+    input.focus();
+}
+
+function closeChampionSearch() {
+    document.getElementById('champSearchOverlay')?.classList.remove('open');
+}
+
+function renderChampionGrid(query) {
+    const grid = document.getElementById('champSearchGrid');
+    if (!champListCache || champListCache.length === 0) {
+        grid.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:16px;grid-column:1/-1;text-align:center;">Loading champions…</div>';
+        return;
+    }
+    const q = query.toLowerCase().trim();
+    const list = q ? champListCache.filter(c => c.name.toLowerCase().includes(q)) : champListCache;
+    grid.innerHTML = '';
+    if (list.length === 0) {
+        grid.innerHTML = '<div style="color:var(--text-dim);font-size:12px;padding:16px;grid-column:1/-1;text-align:center;">No champions found</div>';
+        return;
+    }
+    list.forEach(champ => {
+        const item = document.createElement('div');
+        item.className = 'champ-search-item' + (selectedChampion?.id === champ.id ? ' selected' : '');
+        const img = document.createElement('img');
+        img.src = champ.iconUrl;
+        img.alt = champ.name;
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        img.onerror = () => { img.style.display = 'none'; };
+        const span = document.createElement('span');
+        span.textContent = champ.name;
+        item.appendChild(img);
+        item.appendChild(span);
+        item.addEventListener('click', () => { setSelectedChampion(champ); closeChampionSearch(); });
+        grid.appendChild(item);
+    });
+}
+
+function initChampionPicker() {
+    document.getElementById('champPickerOpenBtn').addEventListener('click', async () => {
+        if (!champListCache) {
+            document.getElementById('champSearchGrid').innerHTML =
+                '<div style="color:var(--text-dim);font-size:12px;padding:16px;grid-column:1/-1;text-align:center;">Loading champions…</div>';
+            document.getElementById('champSearchOverlay').classList.add('open');
+            champListCache = await window.electronAPI.getChampionList();
+            // Resolve pending name now that the list is available
+            if (currentAutoLockName && !selectedChampion) {
+                const found = champListCache.find(c => c.name.toLowerCase() === currentAutoLockName.toLowerCase());
+                if (found) setSelectedChampion(found);
+            }
+        }
+        openChampionSearch();
+    });
+    document.getElementById('champSearchBack').addEventListener('click', closeChampionSearch);
+    document.getElementById('champSearchClearSel').addEventListener('click', () => {
+        setSelectedChampion(null);
+        closeChampionSearch();
+    });
+    document.getElementById('champSearchInput').addEventListener('input', e => {
+        renderChampionGrid(e.target.value);
+    });
 }
 
 async function saveAccount() {
@@ -1122,7 +1263,7 @@ async function saveAccount() {
 
     const appearOffline  = document.getElementById('appearOfflineToggle').checked;
     const autoSkin       = document.getElementById('autoSkinToggle').checked;
-    const autoChampLock  = document.getElementById('autoChampLockInput').value.trim();
+    const autoChampLock  = selectedChampion ? selectedChampion.name : currentAutoLockName;
     const minimizeOnLaunch = document.getElementById('minimizeOnLaunchToggle').checked;
 
     if (!username) {
@@ -1147,16 +1288,21 @@ async function saveAccount() {
         customAvatar: document.getElementById('newCustomAvatar').value.trim(),
     };
 
+    if (!isEditing && !password) {
+        showToast("Password required for new account!", "error");
+        shakeModal();
+        return;
+    }
+
     let res;
-    if (isEditing) {
-        res = await window.electronAPI.updateAccount(data);
-    } else {
-        if (!password) {
-            showToast("Password required for new account!", "error");
-            shakeModal();
-            return;
-        }
-        res = await window.electronAPI.addAccount(data);
+    try {
+        res = isEditing
+            ? await window.electronAPI.updateAccount(data)
+            : await window.electronAPI.addAccount(data);
+    } catch (e) {
+        showToast("Error saving account: " + e.message, "error");
+        shakeModal();
+        return;
     }
 
     if (res.success) {
@@ -1182,9 +1328,9 @@ function flashCopied(btn) {
 }
 
 function shakeModal() {
-    const content = document.querySelector('#addModal .modal-content');
-    content.classList.add('shake');
-    setTimeout(() => content.classList.remove('shake'), 500);
+    const view = document.getElementById('accountFormView');
+    view.classList.add('shake');
+    setTimeout(() => view.classList.remove('shake'), 500);
 }
 
 async function deleteAccount(username) {
@@ -1298,7 +1444,7 @@ function tierClass(tier) {
 
 async function loadLiveView() {
     const data = await window.electronAPI.getLcuOverview();
-    if (!data.connected) { setLcuOffline(); return; }
+    if (!data?.connected) { setLcuOffline(); return; }
 
     document.getElementById('lcuOffline').style.display = 'none';
     document.getElementById('lcuOnline').style.display  = '';

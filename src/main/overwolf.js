@@ -70,6 +70,10 @@ function initOverwolf() {
 
         if (packageName === 'overlay') {
             const owOverlay = packages.overlay;
+            if (!owOverlay) {
+                console.warn('[OW] overlay package object unavailable on ready event — skipping');
+                return;
+            }
             state.owOverlayPackage = owOverlay;
 
             owOverlay.on('game-launched', (first, second) => {

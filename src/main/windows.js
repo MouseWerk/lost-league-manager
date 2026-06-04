@@ -9,9 +9,12 @@ function setLaunchCallback(fn) {
 }
 
 function createMainWindow() {
+    const scale  = state.config.uiScale || 1.0;
+    const width  = scale !== 1.0 ? Math.round(1100 * scale) : 1100;
+    const height = scale !== 1.0 ? Math.round(680  * scale) : 680;
     state.mainWindow = new BrowserWindow({
-        width: 1100,
-        height: 680,
+        width,
+        height,
         frame: false,
         transparent: true,
         resizable: false,
