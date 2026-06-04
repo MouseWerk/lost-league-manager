@@ -349,6 +349,21 @@
                         </div>
                     </div>
 
+                    <!-- Interface Scale -->
+                    <div class="setting-card">
+                        <div class="setting-icon"><i class="fas fa-expand-arrows-alt"></i></div>
+                        <div class="setting-info">
+                            <h3>Interface Scale</h3>
+                            <p class="desc">Adjust the size of the app UI to fit your display.</p>
+                            <div class="scale-btns" id="scaleBtns">
+                                <button class="scale-btn" data-scale="0.75">75%</button>
+                                <button class="scale-btn" data-scale="1">100%</button>
+                                <button class="scale-btn" data-scale="1.25">125%</button>
+                                <button class="scale-btn" data-scale="1.5">150%</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- App Behavior -->
                     <div class="setting-card">
                         <div class="setting-icon"><i class="fas fa-desktop"></i></div>
@@ -494,6 +509,126 @@
 
                 </div>
             </div>
+
+            <!-- Account Form View (Add / Edit) -->
+            <div id="accountFormView" class="view" style="position:relative;overflow:hidden">
+                <div class="view-header" style="flex-shrink:0">
+                    <div class="view-title-row">
+                        <button class="icon-btn" id="cancelAddBtn" style="margin-right:8px" title="Back">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <h2 id="modalTitle">New Account</h2>
+                    </div>
+                    <button id="saveAccountBtn" class="primary-btn">
+                        <i class="fas fa-check"></i>&nbsp; Save
+                    </button>
+                </div>
+
+                <div class="account-form-body">
+                    <!-- Left column: credentials -->
+                    <div class="account-form-section">
+                        <div class="acct-section-title">Account Info</div>
+                        <div class="form-group">
+                            <label>Username (Login)</label>
+                            <input type="text" id="newUsername">
+                        </div>
+                        <div class="form-group">
+                            <label>Password <span style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to keep)</span></label>
+                            <input type="password" id="newPassword">
+                        </div>
+                        <div class="form-group">
+                            <label>Riot ID <span style="opacity:0.5;font-size:11px;font-weight:400">(Name#Tag)</span></label>
+                            <input type="text" id="newRiotId" placeholder="Faker#KR1">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group half">
+                                <label>Region</label>
+                                <select id="newRegion">
+                                    <option value="euw">EUW</option>
+                                    <option value="eune">EUNE</option>
+                                    <option value="na">NA</option>
+                                    <option value="kr">KR</option>
+                                    <option value="jp">JP</option>
+                                    <option value="cn">CN</option>
+                                    <option value="br">BR</option>
+                                    <option value="tr">TR</option>
+                                    <option value="ru">RU</option>
+                                    <option value="lan">LAN</option>
+                                    <option value="las">LAS</option>
+                                    <option value="oce">OCE</option>
+                                    <option value="sea">SEA</option>
+                                </select>
+                            </div>
+                            <div class="form-group half">
+                                <label>Label</label>
+                                <input type="text" id="newLabel">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea id="newNotes" rows="4"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Right column: automation & display -->
+                    <div class="account-form-section">
+                        <div class="acct-section-title">Automation</div>
+                        <div class="form-group">
+                            <label>Auto Champ Lock <span style="opacity:0.5;font-size:11px;font-weight:400">(locks when pick turn starts)</span></label>
+                            <div class="champ-picker-trigger">
+                                <div class="champ-picker-preview" id="champPickerPreview">
+                                    <span class="champ-picker-placeholder" id="champPickerPlaceholder">Disabled</span>
+                                </div>
+                                <button type="button" class="champ-picker-btn" id="champPickerOpenBtn">Choose</button>
+                            </div>
+                        </div>
+                        <label class="checkbox-group">
+                            <input type="checkbox" id="autoSkinToggle">
+                            Auto Random Skin (picks random owned skin)
+                        </label>
+                        <label class="checkbox-group" style="opacity:0.45;cursor:not-allowed;" title="Not yet implemented">
+                            <input type="checkbox" id="autoSpellsToggle" disabled>
+                            Auto Spells (Coming Soon)
+                        </label>
+                        <label class="checkbox-group">
+                            <input type="checkbox" id="appearOfflineToggle">
+                            Appear Offline
+                        </label>
+
+                        <div class="acct-section-title" style="margin-top:22px">Display Overrides</div>
+                        <div class="form-group">
+                            <label>Custom Rank <span style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to use API)</span></label>
+                            <input type="text" id="newCustomRank" placeholder="e.g. Gold II">
+                        </div>
+                        <div class="form-group">
+                            <label>Custom Avatar URL <span style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to use summoner icon)</span></label>
+                            <input type="text" id="newCustomAvatar" placeholder="https://...">
+                        </div>
+
+                        <div class="acct-section-title" style="margin-top:22px">Preferences</div>
+                        <label class="checkbox-group">
+                            <input type="checkbox" id="minimizeOnLaunchToggle">
+                            Minimize app when launching this account
+                        </label>
+                        <label class="checkbox-group">
+                            <input type="checkbox" id="isFavouriteToggle">
+                            Mark as Favourite
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Champion search overlay — fills the view when open -->
+                <div class="champ-search-overlay" id="champSearchOverlay">
+                    <div class="champ-search-header">
+                        <button type="button" class="champ-search-back" id="champSearchBack">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <input type="text" class="champ-search-input" id="champSearchInput" placeholder="Search champion...">
+                        <button type="button" class="champ-search-clear-sel" id="champSearchClearSel">Clear</button>
+                    </div>
+                    <div class="champ-search-grid" id="champSearchGrid"></div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -576,98 +711,6 @@
                     <i class="fas fa-redo"></i> Try Again
                 </button>
                 <button id="cancelLaunchBtn" class="cancel-launch-btn">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add/Edit Account Modal -->
-    <div id="addModal" class="modal">
-        <div class="modal-content">
-            <h2 id="modalTitle">New Account</h2>
-            <div class="form-scroll-area">
-                <div class="form-group">
-                    <label>Username (Login)</label>
-                    <input type="text" id="newUsername">
-                </div>
-                <div class="form-group">
-                    <label>Password (Leave empty to keep)</label>
-                    <input type="password" id="newPassword">
-                </div>
-                <div class="form-group">
-                    <label>Riot ID (Name#Tag)</label>
-                    <input type="text" id="newRiotId" placeholder="Faker#KR1">
-                </div>
-                <div class="form-group">
-                    <label>Region</label>
-                    <select id="newRegion">
-                        <option value="euw">EUW</option>
-                        <option value="eune">EUNE</option>
-                        <option value="na">NA</option>
-                        <option value="kr">KR</option>
-                        <option value="jp">JP</option>
-                        <option value="cn">CN</option>
-                        <option value="br">BR</option>
-                        <option value="tr">TR</option>
-                        <option value="ru">RU</option>
-                        <option value="lan">LAN</option>
-                        <option value="las">LAS</option>
-                        <option value="oce">OCE</option>
-                        <option value="sea">SEA</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Label</label>
-                    <input type="text" id="newLabel">
-                </div>
-
-                <label class="checkbox-group">
-                    <input type="checkbox" id="autoSkinToggle">
-                    Auto Random Skin (Picks random skin)
-                </label>
-
-                <div class="form-group">
-                    <label>Auto Champ Lock <span style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to disable)</span></label>
-                    <input type="text" id="autoChampLockInput" placeholder="e.g. Jinx">
-                </div>
-
-                <label class="checkbox-group">
-                    <input type="checkbox" id="minimizeOnLaunchToggle">
-                    Minimize app when launching this account
-                </label>
-
-                <label class="checkbox-group" style="opacity:0.45; cursor:not-allowed;" title="Not yet implemented">
-                    <input type="checkbox" id="autoSpellsToggle" disabled>
-                    Auto Spells (Coming Soon)
-                </label>
-
-                <label class="checkbox-group">
-                    <input type="checkbox" id="appearOfflineToggle">
-                    Appear Offline
-                </label>
-
-                <div class="form-group">
-                    <label>Notes</label>
-                    <textarea id="newNotes" rows="3"></textarea>
-                </div>
-
-                <label class="checkbox-group">
-                    <input type="checkbox" id="isFavouriteToggle">
-                    Mark as Favourite
-                </label>
-
-                <div class="form-group">
-                    <label>Custom Rank Override <span style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to use API)</span></label>
-                    <input type="text" id="newCustomRank" placeholder="e.g. Gold II">
-                </div>
-                <div class="form-group">
-                    <label>Custom Avatar URL <span style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to use summoner icon)</span></label>
-                    <input type="text" id="newCustomAvatar" placeholder="https://...">
-                </div>
-            </div>
-
-            <div class="modal-actions">
-                <button id="cancelAddBtn" class="secondary-btn">Cancel</button>
-                <button id="saveAccountBtn" class="primary-btn">Save</button>
             </div>
         </div>
     </div>

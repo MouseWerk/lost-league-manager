@@ -65,6 +65,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getDodgeInfo: () => ipcRenderer.invoke('get-dodge-info'),
 
     openExternal: (url) => ipcRenderer.invoke('open-external', url),
+    getChampionList: () => ipcRenderer.invoke('get-champion-list'),
+    setZoomFactor: (factor) => ipcRenderer.invoke('set-zoom-factor', factor),
 
     // Fired when LCU connect reveals which account is logged in externally
     onActiveAccountDetected: (cb) => ipcRenderer.on('active-account-detected', (_, username) => cb(username)),

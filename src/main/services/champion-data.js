@@ -3,6 +3,7 @@ const axios = require('axios');
 let championMap  = {};   // name.toLowerCase() → champId (int)
 let idToNameMap  = {};   // champId (int)  → DDragon key string  (e.g. "Ahri")
 let idToImageMap = {};   // DDragon key    → champion icon URL
+let champList    = [];   // { id, name, key, iconUrl } sorted by name — for the UI picker
 let latestVersion = '14.1.1';
 
 async function fetchChampionData(attempt = 0) {
@@ -16,13 +17,17 @@ async function fetchChampionData(attempt = 0) {
         );
         const data = res.data.data;
 
+        champList = [];
         for (const key in data) {
-            const champ = data[key];
-            const id    = parseInt(champ.key);
+            const champ   = data[key];
+            const id      = parseInt(champ.key);
+            const iconUrl = `https://ddragon.leagueoflegends.com/cdn/${latestVersion}/img/champion/${champ.id}.png`;
             championMap[champ.name.toLowerCase()] = id;
-            idToImageMap[champ.key] = `https://ddragon.leagueoflegends.com/cdn/${latestVersion}/img/champion/${champ.id}.png`;
+            idToImageMap[champ.id] = iconUrl;
             idToNameMap[id] = champ.id;
+            champList.push({ id, name: champ.name, key: champ.id, iconUrl });
         }
+        champList.sort((a, b) => a.name.localeCompare(b.name));
 
         console.log(`[DDragon] Loaded ${Object.keys(championMap).length} champions (v${latestVersion})`);
     } catch (e) {
@@ -45,6 +50,7 @@ module.exports = {
     getChampionMap:    () => championMap,
     getIdToNameMap:    () => idToNameMap,
     getIdToImageMap:   () => idToImageMap,
+    getChampionList:   () => champList,
     getLatestVersion:  () => latestVersion,
     getChampionIdByKey,
 };

@@ -1,4 +1,4 @@
-const { ipcMain, dialog, shell } = require('electron');
+const { ipcMain, dialog, shell, screen } = require('electron');
 const os = require('os');
 const path  = require('path');
 const fs    = require('fs');
@@ -201,6 +201,31 @@ function register() {
         if (!state.mainWindow) return;
         if (action === 'close')    state.mainWindow.close();
         if (action === 'minimize') state.mainWindow.minimize();
+    });
+
+    ipcMain.handle('get-champion-list', () => {
+        const { getChampionList } = require('../services/champion-data');
+        return getChampionList();
+    });
+
+    ipcMain.handle('set-zoom-factor', (event, factor) => {
+        const win = state.mainWindow;
+        if (!win || win.isDestroyed()) return { success: false };
+
+        const scale  = Math.max(0.5, Math.min(2.0, Number(factor) || 1));
+        const width  = Math.round(1100 * scale);
+        const height = Math.round(680  * scale);
+        const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
+
+        win.setBounds({
+            x:      Math.round((sw - width)  / 2),
+            y:      Math.round((sh - height) / 2),
+            width,
+            height,
+        });
+        win.webContents.setZoomFactor(scale);
+        console.log(`[Scale] ${Math.round(scale * 100)}% → ${width}×${height}`);
+        return { success: true };
     });
 }
 

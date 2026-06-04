@@ -2,6 +2,7 @@ const { Notification } = require('electron');
 const path  = require('path');
 const lcu   = require('./lcu');
 const state = require('./state');
+const { getChampionMap } = require('./services/champion-data');
 
 let autoLockAttempted = false;
 
@@ -54,6 +55,7 @@ function registerLcuEvents() {
 
     lcu.onDisconnect(() => {
         send(state.mainWindow, 'lcu-disconnected');
+        autoLockAttempted = false;
     });
 
     lcu.onEvent(async (event) => {
@@ -123,31 +125,48 @@ function registerLcuEvents() {
                 }
             }
 
-            // Auto skin (random) after champion lock — no gameplay decision, just cosmetic
+            // Auto skin / auto lock — runs on both Create and Update
             if (!state.currentAccount) return;
-            if (event.uri !== '/lol-champ-select/v1/session' || event.eventType !== 'Update') return;
+            if (event.uri !== '/lol-champ-select/v1/session') return;
+            if (event.eventType !== 'Update' && event.eventType !== 'Create') return;
 
-            // Auto champ lock — lock configured champion when pick action becomes in-progress
+            // Auto champ lock — lock configured champion when it's the local player's pick turn
             if (state.currentAccount.autoChampLock && !autoLockAttempted) {
-                const session      = event.data;
-                const localCellId  = session.localPlayerCellId;
-                const myPickAction = session.actions.flat().find(
-                    a => a.actorCellId === localCellId && a.type === 'pick' && a.isInProgress && !a.completed
+                const session     = event.data;
+                const localCellId = session.localPlayerCellId;
+                const allActions  = Array.isArray(session.actions) ? session.actions.flat() : [];
+
+                // activeCellIds tells us whose timer is running.
+                // Empty/absent (practice tool, custom games) → treat as our turn.
+                const activeCells = session.activeCellIds;
+                const myTurnActive =
+                    !Array.isArray(activeCells) ||        // not present
+                    activeCells.length === 0    ||        // practice tool / empty
+                    activeCells.includes(localCellId) ||  // normal game, our turn
+                    allActions.some(a => a.actorCellId === localCellId && a.isInProgress); // fallback
+
+                const myPickAction = allActions.find(
+                    a => a.actorCellId === localCellId &&
+                         a.type === 'pick' &&
+                         !a.completed &&
+                         myTurnActive
                 );
+
+                console.log(`[AutoLock] session update — cellId=${localCellId} activeCells=${JSON.stringify(session.activeCellIds)} myTurn=${myTurnActive} action=${myPickAction?.id ?? 'none'}`);
+
                 if (myPickAction) {
                     autoLockAttempted = true;
                     try {
                         const champName = state.currentAccount.autoChampLock.trim().toLowerCase();
-                        const champions = await lcu.request('GET', '/lol-champ-select/v1/all-grid-champions');
-                        const champ     = champions?.find(c => c.name.toLowerCase() === champName);
-                        if (champ) {
+                        const champId   = getChampionMap()[champName];
+                        if (champId) {
                             await lcu.request('PATCH', `/lol-champ-select/v1/session/actions/${myPickAction.id}`, {
-                                championId: champ.id,
-                                completed:  true,
+                                championId: champId,
                             });
-                            console.log(`[LCU] Auto-locked ${champ.name}`);
+                            await lcu.request('POST', `/lol-champ-select/v1/session/actions/${myPickAction.id}/complete`);
+                            console.log(`[LCU] Auto-locked ${state.currentAccount.autoChampLock} (id=${champId})`);
                         } else {
-                            console.warn(`[LCU] Auto-lock: champion "${state.currentAccount.autoChampLock}" not found`);
+                            console.warn(`[LCU] Auto-lock: "${state.currentAccount.autoChampLock}" not in champion map`);
                             autoLockAttempted = false;
                         }
                     } catch (e) {
@@ -160,7 +179,8 @@ function registerLcuEvents() {
             if (state.currentAccount.autoSkinRandom) {
                 const session     = event.data;
                 const localCellId = session.localPlayerCellId;
-                const myPick      = session.actions.flat().find(
+                const allActions  = Array.isArray(session.actions) ? session.actions.flat() : [];
+                const myPick      = allActions.find(
                     a => a.actorCellId === localCellId && a.type === 'pick' && a.completed
                 );
                 if (myPick) {
