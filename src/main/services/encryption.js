@@ -8,13 +8,13 @@ let _machineKey  = null;
 function getMachineKey() {
     if (_machineKey) return _machineKey;
     try {
-        const out  = execSync('wmic csproduct get uuid /value 2>nul', { encoding: 'utf8', timeout: 5000 });
+        const out  = execSync('wmic csproduct get uuid /value', { encoding: 'utf8', timeout: 5000, windowsHide: true });
         const m    = out.match(/UUID=([^\r\n]+)/i);
         const uuid = (m ? m[1].trim().replace(/[{}]/g, '') : '') || 'unknown';
         const user = process.env.USERNAME || process.env.USER || 'user';
         _machineKey = crypto.scryptSync(`${uuid}|${user}|lostleague-v2`, 'salt-v2', 32);
-    } catch (e) {
-        console.error('[Auth] Machine key derivation failed, using legacy key:', e.message);
+    } catch {
+        console.warn('[Auth] Could not read machine UUID — using fallback key');
         _machineKey = LEGACY_KEY;
     }
     return _machineKey;
@@ -28,18 +28,28 @@ function encrypt(text) {
 }
 
 function decrypt(text) {
-    try {
-        const isV2  = text.startsWith('v2:');
-        const key   = isV2 ? getMachineKey() : LEGACY_KEY;
-        const raw   = isV2 ? text.slice(3) : text;
-        const parts = raw.split(':');
-        const iv    = Buffer.from(parts.shift(), 'hex');
-        const enc   = Buffer.from(parts.join(':'), 'hex');
-        const d     = crypto.createDecipheriv(ALGORITHM, key, iv);
-        return Buffer.concat([d.update(enc), d.final()]).toString();
-    } catch {
-        return null;
+    if (!text) return null;
+    const isV2 = text.startsWith('v2:');
+    const raw  = isV2 ? text.slice(3) : text;
+
+    const tryDecrypt = (key) => {
+        try {
+            const parts = raw.split(':');
+            const iv    = Buffer.from(parts.shift(), 'hex');
+            const enc   = Buffer.from(parts.join(':'), 'hex');
+            const d     = crypto.createDecipheriv(ALGORITHM, key, iv);
+            return Buffer.concat([d.update(enc), d.final()]).toString();
+        } catch {
+            return null;
+        }
+    };
+
+    if (isV2) {
+        // Try machine key first; fall back to LEGACY_KEY for passwords encrypted
+        // when machine key derivation previously failed (e.g. wmic unavailable)
+        return tryDecrypt(getMachineKey()) ?? tryDecrypt(LEGACY_KEY);
     }
+    return tryDecrypt(LEGACY_KEY);
 }
 
 function decryptLegacy(text) {

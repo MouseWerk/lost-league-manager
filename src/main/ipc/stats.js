@@ -77,11 +77,11 @@ function register() {
             }
         }
 
-        // ── Strategy 2: Cache (≤ 6 hours old) ─────────────────────────────────
+        // ── Strategy 2: Cache (≤ 30 minutes old) ─────────────────────────────────
         try {
             const acc    = loadAccounts().find(a => a.riotId === riotId);
             const cached = acc?._cachedStats;
-            if (cached && Date.now() - cached.ts < 6 * 3600 * 1000) {
+            if (cached && Date.now() - cached.ts < 30 * 60 * 1000) {
                 console.log(`[Stats] ${riotId}: serving ${Math.round((Date.now() - cached.ts) / 60000)}min-old cache`);
                 return { ...cached, source: 'cache' };
             }

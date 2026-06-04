@@ -165,11 +165,14 @@ function register() {
             // Mastery: try several endpoint variants; last resort fetches all and sorts
             let mastery = null;
             const masteryTries = [
-                '/lol-champion-mastery/v1/champion-masteries/top?count=8',
                 '/lol-champion-mastery/v1/local-player/top-champion-masteries?count=8',
                 summoner?.puuid
                     ? `/lol-champion-mastery/v1/champion-masteries/by-puuid/${summoner.puuid}/top?count=8`
                     : null,
+                summoner?.puuid
+                    ? `/lol-champion-mastery/v1/players/${summoner.puuid}/champion-mastery/top?count=8`
+                    : null,
+                '/lol-champion-mastery/v1/champion-masteries/top?count=8',
             ].filter(Boolean);
 
             for (const ep of masteryTries) {
