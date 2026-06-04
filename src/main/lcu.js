@@ -124,7 +124,12 @@ class LCUConnector {
             const response = await axios(config);
             return response.data;
         } catch (e) {
-            console.error(`LCU Request Error ${endpoint}:`, e.message);
+            const status = e.response?.status;
+            // 404/400/500 on LCU endpoints are expected during client startup or
+            // when an endpoint doesn't exist in the current client version — don't spam the log
+            if (status !== 404 && status !== 400 && status !== 500) {
+                console.error(`LCU Request Error ${endpoint}:`, e.message);
+            }
             return null;
         }
     }
