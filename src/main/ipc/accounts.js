@@ -64,7 +64,6 @@ function register() {
         broadcastAccountsUpdate();
 
         // Live-update active account settings without disrupting login state
-        const state = require('../state');
         if (state.currentAccount?.username === data.username) {
             state.currentAccount = { ...state.currentAccount, ...accounts[index], password: state.currentAccount.password };
         }
