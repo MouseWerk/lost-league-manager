@@ -187,6 +187,11 @@ function register() {
         return { success: true };
     });
 
+    ipcMain.handle('open-patch-notes', async () => {
+        await shell.openExternal('https://www.leagueoflegends.com/en-us/news/game-updates/');
+        return { success: true };
+    });
+
     const ALLOWED_EXTERNAL_URLS = [
         'https://discord.gg/ZyfUMWTPFe',
         'https://www.lostleague.com/',

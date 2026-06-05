@@ -140,6 +140,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const versionEl = document.getElementById('appVersion');
     if (versionEl) versionEl.innerText = `v${version}`;
 
+
     try {
         // Load config
         const config = await window.electronAPI.getConfig();
@@ -432,6 +433,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Retry Launch
     document.getElementById('retryLaunchBtn').addEventListener('click', () => {
         if (lastLaunchedUsername) launchAccount(lastLaunchedUsername);
+    });
+
+    document.getElementById('patchNotesBtn').addEventListener('click', (e) => {
+        e.preventDefault();
+        window.electronAPI.openPatchNotes();
     });
 
     // Tools

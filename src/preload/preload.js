@@ -64,7 +64,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Dodge info (queue type + active penalty) — call before confirming a dodge
     getDodgeInfo: () => ipcRenderer.invoke('get-dodge-info'),
 
-    openExternal: (url) => ipcRenderer.invoke('open-external', url),
+    openExternal:   (url) => ipcRenderer.invoke('open-external', url),
+    openPatchNotes: () => ipcRenderer.invoke('open-patch-notes'),
     getChampionList: () => ipcRenderer.invoke('get-champion-list'),
     setZoomFactor: (factor) => ipcRenderer.invoke('set-zoom-factor', factor),
 
