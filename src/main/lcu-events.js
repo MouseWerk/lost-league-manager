@@ -130,51 +130,29 @@ function registerLcuEvents() {
             if (event.uri !== '/lol-champ-select/v1/session') return;
             if (event.eventType !== 'Update' && event.eventType !== 'Create') return;
 
-            // Auto champ lock — lock configured champion when it's the local player's pick turn
-            if (state.currentAccount.autoChampLock && !autoLockAttempted) {
-                const session     = event.data;
-                const localCellId = session.localPlayerCellId;
-                const allActions  = Array.isArray(session.actions) ? session.actions.flat() : [];
-
-                // activeCellIds tells us whose timer is running.
-                // Empty/absent (practice tool, custom games) → treat as our turn.
-                const activeCells = session.activeCellIds;
-                const myTurnActive =
-                    !Array.isArray(activeCells) ||        // not present
-                    activeCells.length === 0    ||        // practice tool / empty
-                    activeCells.includes(localCellId) ||  // normal game, our turn
-                    allActions.some(a => a.actorCellId === localCellId && a.isInProgress); // fallback
-
-                const myPickAction = allActions.find(
-                    a => a.actorCellId === localCellId &&
-                         a.type === 'pick' &&
-                         !a.completed &&
-                         myTurnActive
-                );
-
-                console.log(`[AutoLock] session update — cellId=${localCellId} activeCells=${JSON.stringify(session.activeCellIds)} myTurn=${myTurnActive} action=${myPickAction?.id ?? 'none'}`);
-
-                if (myPickAction) {
-                    autoLockAttempted = true;
-                    try {
-                        const champName = state.currentAccount.autoChampLock.trim().toLowerCase();
-                        const champId   = getChampionMap()[champName];
-                        if (champId) {
-                            await lcu.request('PATCH', `/lol-champ-select/v1/session/actions/${myPickAction.id}`, {
-                                championId: champId,
-                            });
-                            await lcu.request('POST', `/lol-champ-select/v1/session/actions/${myPickAction.id}/complete`);
-                            console.log(`[LCU] Auto-locked ${state.currentAccount.autoChampLock} (id=${champId})`);
-                        } else {
-                            console.warn(`[LCU] Auto-lock: "${state.currentAccount.autoChampLock}" not in champion map`);
-                            autoLockAttempted = false;
-                        }
-                    } catch (e) {
-                        console.error('[LCU] Auto-lock error:', e.message);
-                        autoLockAttempted = false;
-                    }
-                }
-            }
+            // AUTO CHAMP LOCK — DISABLED (violates Riot ToS, insta-locking via API is not permitted)
+            // if (state.currentAccount.autoChampLock && !autoLockAttempted) {
+            //     const session     = event.data;
+            //     const localCellId = session.localPlayerCellId;
+            //     const allActions  = Array.isArray(session.actions) ? session.actions.flat() : [];
+            //     const activeCells = session.activeCellIds;
+            //     const myTurnActive =
+            //         !Array.isArray(activeCells) || activeCells.length === 0 ||
+            //         activeCells.includes(localCellId) ||
+            //         allActions.some(a => a.actorCellId === localCellId && a.isInProgress);
+            //     const myPickAction = allActions.find(
+            //         a => a.actorCellId === localCellId && a.type === 'pick' && !a.completed && myTurnActive
+            //     );
+            //     if (myPickAction) {
+            //         autoLockAttempted = true;
+            //         const champName = state.currentAccount.autoChampLock.trim().toLowerCase();
+            //         const champId   = getChampionMap()[champName];
+            //         if (champId) {
+            //             await lcu.request('PATCH', `/lol-champ-select/v1/session/actions/${myPickAction.id}`, { championId: champId });
+            //             await lcu.request('POST', `/lol-champ-select/v1/session/actions/${myPickAction.id}/complete`);
+            //         }
+            //     }
+            // }
 
             if (state.currentAccount.autoSkinRandom) {
                 const session     = event.data;
