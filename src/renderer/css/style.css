@@ -243,8 +243,20 @@ body {
     color: var(--text-dim);
     text-align: center;
     margin-top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     opacity: 0.45;
 }
+
+.patch-notes-link {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 11px;
+    transition: color 0.15s;
+    -webkit-app-region: no-drag;
+}
+.patch-notes-link:hover { color: var(--primary); }
 
 /* ── Main content ── */
 .main-content {
