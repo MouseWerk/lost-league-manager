@@ -218,9 +218,9 @@ function register() {
         if (!win || win.isDestroyed()) return { success: false };
 
         const scale  = Math.max(0.5, Math.min(2.0, Number(factor) || 1));
-        const width  = Math.round(1100 * scale);
-        const height = Math.round(680  * scale);
         const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
+        const width  = Math.min(Math.round(1100 * scale), sw);
+        const height = Math.min(Math.round(680  * scale), sh);
 
         win.setBounds({
             x:      Math.round((sw - width)  / 2),

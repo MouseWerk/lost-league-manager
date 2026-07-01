@@ -4,6 +4,7 @@ let championMap  = {};   // name.toLowerCase() → champId (int)
 let idToNameMap  = {};   // champId (int)  → DDragon key string  (e.g. "Ahri")
 let idToImageMap = {};   // DDragon key    → champion icon URL
 let champList    = [];   // { id, name, key, iconUrl } sorted by name — for the UI picker
+let champFullData = {};  // DDragon key    → { title, tags, partype, info, stats }
 let latestVersion = '14.1.1';
 
 async function fetchChampionData(attempt = 0) {
@@ -18,6 +19,7 @@ async function fetchChampionData(attempt = 0) {
         const data = res.data.data;
 
         champList = [];
+        champFullData = {};
         for (const key in data) {
             const champ   = data[key];
             const id      = parseInt(champ.key);
@@ -26,6 +28,14 @@ async function fetchChampionData(attempt = 0) {
             idToImageMap[champ.id] = iconUrl;
             idToNameMap[id] = champ.id;
             champList.push({ id, name: champ.name, key: champ.id, iconUrl });
+            champFullData[champ.id] = {
+                name: champ.name,
+                title: champ.title,
+                tags: champ.tags || [],
+                partype: champ.partype,
+                info: champ.info || {},
+                stats: champ.stats || {},
+            };
         }
         champList.sort((a, b) => a.name.localeCompare(b.name));
 
@@ -45,6 +55,17 @@ function getChampionIdByKey(champKey) {
     return entry ? parseInt(entry[0]) : null;
 }
 
+// Display name (lowercase) → authoritative DDragon key, e.g. "wukong" → "MonkeyKing",
+// "cho'gath" → "Chogath". Needed because several champion keys don't follow the
+// naive "strip spaces/punctuation from the display name" pattern.
+function getNameToKeyMap() {
+    const map = {};
+    for (const nameLower in championMap) {
+        map[nameLower] = idToNameMap[championMap[nameLower]];
+    }
+    return map;
+}
+
 module.exports = {
     fetchChampionData,
     getChampionMap:    () => championMap,
@@ -53,4 +74,6 @@ module.exports = {
     getChampionList:   () => champList,
     getLatestVersion:  () => latestVersion,
     getChampionIdByKey,
+    getNameToKeyMap,
+    getChampionFullData: (champKey) => champFullData[champKey] || null,
 };

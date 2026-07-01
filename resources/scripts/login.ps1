@@ -1,6 +1,5 @@
 param (
     [string]$Username,
-    [string]$Password,
     [string]$RiotClientPath = ""
 )
 
@@ -11,6 +10,11 @@ Start-Transcript -Path $logPath -Append
 
 Write-Host "Script Started at $(Get-Date)"
 Write-Host "Username: $Username"
+
+# Read the password from stdin rather than a command-line argument, so it
+# never appears in this process's argv (visible to other local processes via
+# Task Manager / WMI for the life of the process).
+$Password = [Console]::In.ReadLine()
 
 Add-Type -AssemblyName System.Windows.Forms
 
