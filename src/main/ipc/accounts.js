@@ -12,7 +12,13 @@ function register() {
 
     ipcMain.handle('add-account', (event, data) => {
         const accounts = loadAccounts();
-        if (accounts.find(a => a.username === data.username)) {
+        // Case-insensitive — session/active-account matching elsewhere (launch.js,
+        // lcu-events.js) is case-insensitive, so allowing "Player1" and "player1"
+        // as distinct accounts here would let LCU session detection misattribute
+        // state (appearOffline, auto-skin, "currently active" highlight) to the
+        // wrong one.
+        const usernameLower = (data.username || '').toLowerCase();
+        if (accounts.find(a => a.username.toLowerCase() === usernameLower)) {
             return { success: false, message: 'Account already exists' };
         }
 
@@ -78,7 +84,23 @@ function register() {
         return { success: true };
     });
 
+    ipcMain.handle('unlock-vault', (event, passwordHash) => {
+        if (!state.config.vaultEnabled || !state.config.vaultPasswordHash) {
+            state.vaultUnlocked = true;
+            return { success: true };
+        }
+        if (passwordHash && passwordHash === state.config.vaultPasswordHash) {
+            state.vaultUnlocked = true;
+            return { success: true };
+        }
+        return { success: false };
+    });
+
     ipcMain.handle('get-account-password', (event, username) => {
+        // The renderer's lock screen is only a UI gate — enforce the vault here too,
+        // otherwise anything that can call exposed IPC methods (e.g. devtools) could
+        // read every plaintext password without ever unlocking.
+        if (state.config.vaultEnabled && !state.vaultUnlocked) return null;
         const acc = loadAccounts().find(a => a.username === username);
         if (!acc) return null;
         return decrypt(acc.password);
@@ -97,6 +119,9 @@ function register() {
     });
 
     ipcMain.handle('export-accounts', async () => {
+        if (state.config.vaultEnabled && !state.vaultUnlocked) {
+            return { success: false, message: 'Vault is locked' };
+        }
         const result = await dialog.showSaveDialog(state.mainWindow, {
             title: 'Export Accounts',
             defaultPath: 'lost-league-accounts.llem',
@@ -132,7 +157,7 @@ function register() {
         let added = 0, skipped = 0;
         for (const acc of data.accounts) {
             if (!acc.username || !acc.password) { skipped++; continue; }
-            if (existing.find(e => e.username === acc.username)) { skipped++; continue; }
+            if (existing.find(e => e.username.toLowerCase() === acc.username.toLowerCase())) { skipped++; continue; }
             existing.push({ ...acc, password: encrypt(acc.password) });
             added++;
         }

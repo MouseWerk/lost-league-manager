@@ -5,6 +5,7 @@ const overlayHandlers = require('./overlay-handlers');
 const clientControls = require('./client-controls');
 const config         = require('./config');
 const updater        = require('./updater');
+const lolData        = require('./lol-data');
 
 function registerAll() {
     accounts.register();
@@ -14,6 +15,7 @@ function registerAll() {
     clientControls.register();
     config.register();
     updater.register();
+    lolData.register();
 }
 
 module.exports = { registerAll };

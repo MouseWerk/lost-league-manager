@@ -35,18 +35,14 @@ class LCUConnector {
     }
 
     async connect(leaguePath) {
-        if (this.connected) return;
+        // Also bail if a handshake is already in flight (this.ws set but not yet
+        // 'open'/'closed') — the 5s reconnect poll would otherwise terminate and
+        // replace an in-progress socket every tick during a slow LCU startup,
+        // preventing the handshake from ever completing.
+        if (this.connected || this.ws) return;
 
         const data = await this.getLockfileData(leaguePath);
         if (!data) return;
-
-        // Terminate any stale socket before creating a new one to prevent the
-        // old close event from nulling out the new socket reference.
-        if (this.ws) {
-            const stale = this.ws;
-            this.ws = null;
-            try { stale.terminate(); } catch {}
-        }
 
         this.credentials = data;
         const url = `wss://riot:${data.password}@127.0.0.1:${data.port}`;

@@ -10,8 +10,9 @@ function setLaunchCallback(fn) {
 
 function createMainWindow() {
     const scale  = state.config.uiScale || 1.0;
-    const width  = scale !== 1.0 ? Math.round(1100 * scale) : 1100;
-    const height = scale !== 1.0 ? Math.round(680  * scale) : 680;
+    const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
+    const width  = Math.min(scale !== 1.0 ? Math.round(1100 * scale) : 1100, sw);
+    const height = Math.min(scale !== 1.0 ? Math.round(680  * scale) : 680,  sh);
     state.mainWindow = new BrowserWindow({
         width,
         height,
@@ -91,6 +92,7 @@ function createOverlayWindow(owOverlay) {
             state.overlayWindow.setOpacity(opacity);
             state.overlayWindow.webContents.send('overlay-init', {
                 ddragonVersion: championData.getLatestVersion(),
+                champKeyMap: championData.getNameToKeyMap(),
                 showRanked:  state.config.overlayShowRanked  !== false,
                 showBuilds:  state.config.overlayShowBuilds  !== false,
                 opacity,

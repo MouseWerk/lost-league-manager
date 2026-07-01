@@ -7,6 +7,10 @@ let currentAutoLockName = '';   // raw saved name, used as fallback before list 
 let champListCache     = null;  // loaded once, reused
 let isLaunching = false;
 let lastLaunchedUsername = null;
+// Bumped on every launchAccount() call and on cancel — lets a stale in-flight
+// launch promise recognize it's been superseded (by Cancel, or by launching a
+// different account) and skip applying its result.
+let _launchToken = 0;
 let allAccounts = [];
 let activeAccountUsername = null;
 let currentQuery = '';
@@ -29,6 +33,20 @@ function rankToNumber(tierText) {
     if (tier === undefined) return -1;
     const div = parts[1] ? (5 - (parseInt(parts[1]) || 0)) : 0;
     return tier * 10 + div;
+}
+
+// Only allow http(s) URLs (or the app's own bundled assets) for a custom
+// avatar — blocks javascript:/data:/file: schemes that a crafted or imported
+// account record could otherwise use as an XSS/local-file-probing vector.
+function safeAvatarUrl(url) {
+    if (!url) return null;
+    if (url.startsWith('assets/')) return url;
+    try {
+        const parsed = new URL(url);
+        return (parsed.protocol === 'http:' || parsed.protocol === 'https:') ? url : null;
+    } catch {
+        return null;
+    }
 }
 
 function timeAgo(ts) {
@@ -79,7 +97,12 @@ async function sha256(str) {
 }
 
 async function initVault(config) {
-    if (!config.vaultEnabled || !config.vaultPasswordHash) return;
+    if (!config.vaultEnabled || !config.vaultPasswordHash) {
+        // Nothing to unlock, but the main process still needs to know this
+        // session is allowed to read passwords (it defaults to locked).
+        await window.electronAPI.unlockVault(null);
+        return;
+    }
     return new Promise((resolve) => {
         const lockEl  = document.getElementById('vaultLock');
         const input   = document.getElementById('vaultPasswordInput');
@@ -90,7 +113,10 @@ async function initVault(config) {
         async function tryUnlock() {
             if (!input.value) return;
             const hash = await sha256(input.value);
-            if (hash === config.vaultPasswordHash) {
+            // Verified server-side too — the main process gates get-account-password
+            // on this, so a DOM/JS-only bypass of this lock screen can't leak passwords.
+            const result = await window.electronAPI.unlockVault(hash);
+            if (result?.success) {
                 lockEl.classList.add('vault-unlocking');
                 setTimeout(() => { lockEl.style.display = 'none'; resolve(); }, 220);
             } else {
@@ -427,6 +453,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('launchOverlay').classList.remove('active');
         document.getElementById('retryLaunchBtn').style.display = 'none';
         isLaunching = false;
+        _launchToken++; // invalidate the in-flight launchAccount() call, if any
         await window.electronAPI.cancelLaunch();
     });
 
@@ -563,6 +590,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             btn.classList.add('active');
             showView(btn.dataset.view);
             if (btn.dataset.view === 'liveView') loadLiveView();
+            if (btn.dataset.view === 'statsView') initStatsView();
         });
     });
 
@@ -649,10 +677,13 @@ function showToast(message, type = 'info') {
     if (type === 'success') icon = '<i class="fas fa-check-circle"></i>';
     if (type === 'error') icon = '<i class="fas fa-exclamation-circle"></i>';
 
+    // icon is always one of the fixed strings above, but message can originate
+    // from IO (backend error text, etc.) — keep it out of innerHTML.
     toast.innerHTML = `
         <span class="toast-icon">${icon}</span>
-        <span class="toast-msg">${message}</span>
+        <span class="toast-msg"></span>
     `;
+    toast.querySelector('.toast-msg').textContent = message;
 
     container.appendChild(toast);
 
@@ -815,7 +846,10 @@ function fillProfileRank(tierEl, lpEl, recordEl, emblemEl, tierCls, tier, lp, wi
 
 function populateProfileModal(acc, stats) {
     const defaultIcon = 'assets/logo.png';
-    document.getElementById('profileIcon').src    = stats?.iconSrc || defaultIcon;
+    // Mirror applyStatsToCard()'s precedence — a custom avatar should win here too,
+    // otherwise the profile modal shows a different icon than the account card.
+    document.getElementById('profileIcon').src =
+        safeAvatarUrl(acc.customAvatar) || stats?.iconSrc || defaultIcon;
     document.getElementById('profileLabel').textContent = acc.label || acc.username;
     document.getElementById('profileLevel').textContent = stats?.level || '';
     document.getElementById('profileLevel').style.display = stats?.level ? 'block' : 'none';
@@ -907,15 +941,18 @@ function createAccountCard(account) {
     card.draggable = true;
 
     const defaultIcon = 'assets/logo.png';
-    const iconSrc = account.customAvatar || defaultIcon;
+    const iconSrc = safeAvatarUrl(account.customAvatar) || defaultIcon;
     const region = (account.region || '').toUpperCase();
     const lastUsedText = timeAgo(account.lastUsed);
     const rankDisplay = account.customRank || (account.riotId && account.region ? 'Loading stats...' : '—');
 
+    // customAvatar/customRank are free-text user input (and can arrive via an
+    // imported .llem backup) — never interpolate them into innerHTML directly.
+    // The icon src and rank text are set below via .src/.textContent instead.
     card.innerHTML = `
         <div class="account-info">
             <div class="summoner-icon-container">
-                <img src="${iconSrc}" class="summoner-icon" onerror="this.src='${defaultIcon}'">
+                <img class="summoner-icon">
                 <span class="level-badge" style="display:none">1</span>
                 <button class="fav-btn${account.isFavourite ? ' is-fav' : ''}" title="${account.isFavourite ? 'Remove from Favourites' : 'Add to Favourites'}"><i class="fas fa-star"></i></button>
             </div>
@@ -929,7 +966,7 @@ function createAccountCard(account) {
                     ${region ? `<span class="region-badge">${region}</span>` : ''}
                     ${lastUsedText ? `<span class="last-used">${lastUsedText}</span>` : ''}
                 </div>
-                <div class="rank">${rankDisplay}</div>
+                <div class="rank card-rank"></div>
                 ${account.notes ? '<div class="notes-preview card-notes"></div>' : ''}
             </div>
         </div>
@@ -943,6 +980,11 @@ function createAccountCard(account) {
         </div>
     `;
 
+    const iconEl = card.querySelector('.summoner-icon');
+    iconEl.src = iconSrc;
+    iconEl.addEventListener('error', () => { iconEl.src = defaultIcon; });
+
+    card.querySelector('.card-rank').textContent = rankDisplay;
     card.querySelector('.card-label').textContent = account.label || 'Account';
     card.querySelector('.card-username').textContent = account.username;
     if (account.notes) card.querySelector('.card-notes').textContent = account.notes;
@@ -1037,7 +1079,12 @@ function initDragAndDrop() {
 
         if (srcIdx !== -1 && tgtIdx !== -1) {
             const [moved] = allAccounts.splice(srcIdx, 1);
-            allAccounts.splice(tgtIdx, 0, moved);
+            // tgtIdx was computed before the removal above; once the source item
+            // is spliced out, everything after it shifts left by one, so when
+            // dragging forward (srcIdx < tgtIdx) the insertion point must shift
+            // back by one too, or the card lands one slot past the drop target.
+            const insertIdx = srcIdx < tgtIdx ? tgtIdx - 1 : tgtIdx;
+            allAccounts.splice(insertIdx, 0, moved);
             await window.electronAPI.reorderAccounts(allAccounts.map(a => a.username));
             renderAccounts();
         }
@@ -1102,7 +1149,7 @@ function openModal(account = null) {
         document.getElementById('newLabel').value = account.label || "";
         document.getElementById('newNotes').value = account.notes || "";
         document.getElementById('newRiotId').value = account.riotId || "";
-        document.getElementById('newRegion').value = account.region || "euw";
+        document.getElementById('newRegion').value = account.region || "";
 
         document.getElementById('appearOfflineToggle').checked = account.appearOffline || false;
         document.getElementById('autoSkinToggle').checked = account.autoSkinRandom || false;
@@ -1123,7 +1170,7 @@ function openModal(account = null) {
         document.getElementById('newLabel').value = "";
         document.getElementById('newNotes').value = "";
         document.getElementById('newRiotId').value = "";
-        document.getElementById('newRegion').value = "euw";
+        document.getElementById('newRegion').value = "";
 
         document.getElementById('appearOfflineToggle').checked = false;
         document.getElementById('autoSkinToggle').checked = false;
@@ -1278,6 +1325,12 @@ async function saveAccount() {
         return;
     }
 
+    if (riotId && !region) {
+        showToast("Select a region for this Riot ID!", "error");
+        shakeModal();
+        return;
+    }
+
     const data = {
         username,
         password,
@@ -1347,6 +1400,9 @@ async function deleteAccount(username) {
     );
     if (ok) {
         await window.electronAPI.deleteAccount(username);
+        // Otherwise a new account later reusing this username would briefly
+        // render with this deleted account's stale cached tier/icon/level.
+        delete statsCache[username];
         showToast("Account deleted", "success");
         loadAccounts();
     }
@@ -1364,9 +1420,14 @@ async function launchAccount(username) {
     if (isLaunching) return;
     isLaunching = true;
     lastLaunchedUsername = username;
+    const myToken = ++_launchToken;
     document.getElementById('retryLaunchBtn').style.display = 'none';
     try {
         const res = await window.electronAPI.launchAccount(username);
+        // If Cancel was clicked (or a different launch started) while this was
+        // in flight, _launchToken has moved on — applying this stale result
+        // would overwrite the newer launch's UI state.
+        if (myToken !== _launchToken) return;
         if (!res.success) {
             showToast(res.message || "Error launching account", "error");
             document.getElementById('launchStatus').textContent = res.message || 'Launch failed.';
@@ -1377,9 +1438,9 @@ async function launchAccount(username) {
         }
     } catch (e) {
         console.error(e);
-        document.getElementById('retryLaunchBtn').style.display = 'inline-flex';
+        if (myToken === _launchToken) document.getElementById('retryLaunchBtn').style.display = 'inline-flex';
     } finally {
-        isLaunching = false;
+        if (myToken === _launchToken) isLaunching = false;
     }
 }
 
@@ -1432,6 +1493,11 @@ function setLcuOffline() {
     document.getElementById('lcuOffline').style.display = '';
     document.getElementById('lcuOnline').style.display  = 'none';
     updateGameflowBadge(null);
+    // If the client disconnects mid-queue/game, loadLiveView()'s own cleanup
+    // branch (phase !== Matchmaking/InProgress) never runs — clear here too,
+    // otherwise these keep ticking forever after the client closes/crashes.
+    clearInterval(window._queueTimerInterval);
+    clearInterval(window._gameTimerInterval);
 }
 
 function formatDuration(seconds) {
@@ -1725,6 +1791,342 @@ async function loadLiveView() {
 function cap(str) {
     if (!str) return '';
     return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Stat Viewer — champion base stats (RPG-style sheet) & item gold efficiency
+// ═══════════════════════════════════════════════════════════════════════════
+let statsViewInitialized = false;
+let statsChampList = null;
+let statsItemList  = null;
+let currentStatsChamp  = null; // { champ, fullData }
+let currentStatsLevel  = 1;
+let currentStatsItemId = null;
+
+function initStatsView() {
+    if (statsViewInitialized) return;
+    statsViewInitialized = true;
+
+    document.querySelectorAll('.stats-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.stats-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            document.querySelectorAll('.stats-tab-panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(tab.dataset.statsTab).classList.add('active');
+        });
+    });
+
+    document.getElementById('statsChampSearch').addEventListener('input', (e) => {
+        renderStatsChampGrid(e.target.value);
+    });
+    document.getElementById('statsItemSearch').addEventListener('input', (e) => {
+        renderStatsItemGrid(e.target.value);
+    });
+
+    loadStatsChamps();
+    loadStatsItems();
+}
+
+// ── Champions ────────────────────────────────────────────────────────────────
+
+async function loadStatsChamps() {
+    if (!champListCache) champListCache = await window.electronAPI.getChampionList();
+    statsChampList = champListCache;
+    renderStatsChampGrid('');
+}
+
+function renderStatsChampGrid(query) {
+    const grid = document.getElementById('statsChampGrid');
+    if (!statsChampList) return;
+    grid.innerHTML = '';
+    const q = (query || '').trim().toLowerCase();
+    const list = q ? statsChampList.filter(c => c.name.toLowerCase().includes(q)) : statsChampList;
+
+    const count = document.getElementById('statsChampCount');
+    if (count) count.textContent = list.length;
+
+    list.forEach(champ => {
+        const item = document.createElement('div');
+        item.className = 'stats-grid-item' + (currentStatsChamp?.champ.key === champ.key ? ' selected' : '');
+        const img = document.createElement('img');
+        img.src = champ.iconUrl;
+        img.alt = champ.name;
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        img.onerror = () => { img.style.display = 'none'; };
+        const span = document.createElement('span');
+        span.textContent = champ.name;
+        item.appendChild(img);
+        item.appendChild(span);
+        item.addEventListener('click', () => selectStatsChampion(champ));
+        grid.appendChild(item);
+    });
+}
+
+async function selectStatsChampion(champ) {
+    currentStatsLevel = 1;
+    const detail = document.getElementById('statsChampDetail');
+    detail.innerHTML = `
+        <div class="stats-empty">
+            <div class="empty-icon"><i class="fas fa-spinner fa-spin"></i></div>
+            <p>Loading ${champ.name}…</p>
+        </div>`;
+
+    const fullData = await window.electronAPI.getChampionFullData(champ.key);
+    if (!fullData) {
+        detail.innerHTML = `
+            <div class="stats-empty">
+                <div class="empty-icon"><i class="fas fa-triangle-exclamation"></i></div>
+                <p>No stat data available for ${champ.name}.</p>
+            </div>`;
+        return;
+    }
+
+    currentStatsChamp = { champ, fullData };
+    renderStatsChampGrid(document.getElementById('statsChampSearch').value);
+    renderStatsChampDetail();
+}
+
+// Riot's standard non-linear per-level stat growth curve
+function statGrowthFactor(level) {
+    return 0.7025 + 0.0175 * (level - 1);
+}
+function growStat(base, perLevel, level) {
+    return base + perLevel * (level - 1) * statGrowthFactor(level);
+}
+
+const INFO_BARS = [
+    { key: 'attack',     label: 'Attack',     icon: 'fa-khanda' },
+    { key: 'defense',    label: 'Defense',    icon: 'fa-shield-halved' },
+    { key: 'magic',      label: 'Magic',      icon: 'fa-wand-sparkles' },
+    { key: 'difficulty', label: 'Difficulty', icon: 'fa-brain' },
+];
+
+// Stat cards are grouped under these headers to give the sheet a clearer
+// visual hierarchy than one flat grid of equally-weighted numbers.
+const STAT_GROUPS = [
+    { key: 'vitality', title: 'Vitality', icon: 'fa-heart' },
+    { key: 'offense',  title: 'Offense',  icon: 'fa-khanda' },
+    { key: 'defense',  title: 'Defense',  icon: 'fa-shield-halved' },
+    { key: 'mobility', title: 'Mobility', icon: 'fa-shoe-prints' },
+];
+
+function updateSliderFill(slider) {
+    const min = Number(slider.min), max = Number(slider.max), val = Number(slider.value);
+    slider.style.setProperty('--pct', `${((val - min) / (max - min)) * 100}%`);
+}
+
+function renderStatsChampDetail() {
+    const { champ, fullData } = currentStatsChamp;
+    const { title, tags, partype, info, stats } = fullData;
+    const level = currentStatsLevel;
+
+    const hp       = growStat(stats.hp, stats.hpperlevel, level);
+    const hpregen  = growStat(stats.hpregen, stats.hpregenperlevel, level);
+    const armor    = growStat(stats.armor, stats.armorperlevel, level);
+    const mr       = growStat(stats.spellblock, stats.spellblockperlevel, level);
+    const ad       = growStat(stats.attackdamage, stats.attackdamageperlevel, level);
+    const asBonus  = stats.attackspeedperlevel * (level - 1) * statGrowthFactor(level);
+    const as       = stats.attackspeed * (1 + asBonus / 100);
+
+    const hasResource = (stats.mp > 0 || stats.mpperlevel > 0) && partype && partype !== 'None';
+    const mp      = hasResource ? growStat(stats.mp, stats.mpperlevel, level) : 0;
+    const mpregen = hasResource ? growStat(stats.mpregen, stats.mpregenperlevel, level) : 0;
+
+    const statCards = [
+        { group: 'vitality', icon: 'fa-heart',          label: 'Health',         value: Math.round(hp), primary: true },
+        { group: 'vitality', icon: 'fa-heart-pulse',    label: 'HP Regen / 5s',  value: hpregen.toFixed(1) },
+        ...(hasResource ? [
+            { group: 'vitality', icon: 'fa-droplet',         label: partype,             value: Math.round(mp) },
+            { group: 'vitality', icon: 'fa-arrow-rotate-left', label: `${partype} Regen / 5s`, value: mpregen.toFixed(1) },
+        ] : []),
+        { group: 'offense', icon: 'fa-gavel',  label: 'Attack Damage',  value: ad.toFixed(1), primary: true },
+        { group: 'offense', icon: 'fa-bolt',   label: 'Attack Speed',   value: `${as.toFixed(3)} / sec` },
+        { group: 'offense', icon: 'fa-star',   label: 'Crit Chance',    value: `${Math.round((stats.crit || 0) + (stats.critperlevel || 0) * (level - 1))}%` },
+        { group: 'defense', icon: 'fa-shield-halved', label: 'Armor',        value: armor.toFixed(1), primary: true },
+        { group: 'defense', icon: 'fa-hat-wizard',    label: 'Magic Resist', value: mr.toFixed(1) },
+        { group: 'mobility', icon: 'fa-shoe-prints', label: 'Move Speed',   value: Math.round(stats.movespeed), primary: true },
+        { group: 'mobility', icon: 'fa-crosshairs',  label: 'Attack Range', value: Math.round(stats.attackrange) },
+    ];
+
+    const detail = document.getElementById('statsChampDetail');
+    detail.innerHTML = `
+        <div class="champ-detail-header">
+            <img class="champ-detail-icon" src="${champ.iconUrl}" onerror="this.style.display='none'">
+            <div class="champ-detail-info">
+                <div class="champ-detail-name">${champ.name}</div>
+                <div class="champ-detail-title">${title || ''}</div>
+                <div class="champ-tags">
+                    ${(tags || []).map(t => `<span class="champ-tag">${t}</span>`).join('')}
+                </div>
+            </div>
+        </div>
+
+        <div class="info-bars">
+            ${INFO_BARS.map(b => `
+                <div class="info-bar-row">
+                    <span class="info-bar-label"><i class="fas ${b.icon}"></i> ${b.label}</span>
+                    <div class="info-bar-track"><div class="info-bar-fill" style="width:${((info?.[b.key] || 0) / 10) * 100}%"></div></div>
+                    <span class="info-bar-val">${info?.[b.key] ?? '—'}/10</span>
+                </div>
+            `).join('')}
+        </div>
+
+        <div class="level-slider-row">
+            <label for="statsLevelSlider">Level</label>
+            <span class="level-slider-end">1</span>
+            <input type="range" id="statsLevelSlider" min="1" max="18" step="1" value="${level}">
+            <span class="level-slider-end">18</span>
+            <span class="level-slider-val">${level}</span>
+        </div>
+
+        ${STAT_GROUPS.map(g => {
+            const cards = statCards.filter(c => c.group === g.key);
+            if (!cards.length) return '';
+            return `
+                <div class="stat-group">
+                    <div class="stat-group-header ${g.key}"><i class="fas ${g.icon}"></i> ${g.title}</div>
+                    <div class="stat-cards-grid">
+                        ${cards.map(c => `
+                            <div class="stat-card ${g.key}${c.primary ? ' primary' : ''}">
+                                <div class="stat-card-icon"><i class="fas ${c.icon}"></i></div>
+                                <div class="stat-card-label">${c.label}</div>
+                                <div class="stat-card-value">${c.value}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }).join('')}
+    `;
+
+    const slider = document.getElementById('statsLevelSlider');
+    updateSliderFill(slider);
+    slider.addEventListener('input', (e) => {
+        currentStatsLevel = parseInt(e.target.value);
+        renderStatsChampDetail();
+    });
+}
+
+// ── Items ────────────────────────────────────────────────────────────────────
+
+async function loadStatsItems() {
+    statsItemList = await window.electronAPI.getItemList();
+    if (!statsItemList || statsItemList.length === 0) {
+        setTimeout(async () => {
+            statsItemList = await window.electronAPI.getItemList();
+            renderStatsItemGrid(document.getElementById('statsItemSearch').value);
+        }, 3000);
+    }
+    renderStatsItemGrid('');
+}
+
+function renderStatsItemGrid(query) {
+    const grid = document.getElementById('statsItemGrid');
+    const count = document.getElementById('statsItemCount');
+    if (!statsItemList) return;
+    if (statsItemList.length === 0) {
+        if (count) count.textContent = '';
+        grid.innerHTML = `<div class="stats-empty" style="padding:30px 0"><p>Loading items…</p></div>`;
+        return;
+    }
+    const q = (query || '').trim().toLowerCase();
+    const list = q ? statsItemList.filter(i => i.name.toLowerCase().includes(q)) : statsItemList;
+
+    if (count) count.textContent = list.length;
+
+    grid.innerHTML = '';
+    list.forEach(item => {
+        const el = document.createElement('div');
+        el.className = 'stats-grid-item' + (currentStatsItemId === item.id ? ' selected' : '');
+        const img = document.createElement('img');
+        img.src = item.icon;
+        img.alt = item.name;
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        img.onerror = () => { img.style.display = 'none'; };
+        const span = document.createElement('span');
+        span.textContent = item.name;
+        el.appendChild(img);
+        el.appendChild(span);
+        el.addEventListener('click', () => selectStatsItem(item));
+        grid.appendChild(el);
+    });
+}
+
+function effClass(pct) {
+    if (pct >= 100) return 'eff-good';
+    if (pct >= 70) return 'eff-ok';
+    return 'eff-low';
+}
+
+function selectStatsItem(item) {
+    currentStatsItemId = item.id;
+    renderStatsItemGrid(document.getElementById('statsItemSearch').value);
+
+    const detail = document.getElementById('statsItemDetail');
+    const pct = item.efficiency;
+
+    const statRows = item.stats.map(s => `
+        <div class="item-stat-row">
+            <span class="item-stat-label">${s.label}</span>
+            <span class="item-stat-value">+${s.value}${s.unit}</span>
+            <span class="item-stat-gold">${s.goldValue}g</span>
+        </div>
+    `).join('');
+
+    detail.innerHTML = `
+        <div class="item-detail-header">
+            <img class="item-detail-icon" src="${item.icon}" onerror="this.style.display='none'">
+            <div class="item-detail-info">
+                <div class="item-detail-name">${item.name}</div>
+                <div class="item-gold-row">
+                    <span class="gold-badge"><i class="fas fa-coins"></i> ${item.gold.total}</span>
+                    ${item.gold.sell ? `<span class="gold-badge sell"><i class="fas fa-arrow-right-arrow-left"></i> ${item.gold.sell}</span>` : ''}
+                </div>
+                ${item.tags.length ? `
+                    <div class="champ-tags item-tags">
+                        ${item.tags.map(t => `<span class="champ-tag">${t}</span>`).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+
+        <div class="efficiency-block">
+            <div class="efficiency-label-row">
+                <span>Gold Efficiency</span>
+                <span class="efficiency-pct ${effClass(pct)}">${pct}%</span>
+            </div>
+            <div class="efficiency-bar-track">
+                <div class="efficiency-bar-fill ${effClass(pct)}" style="width:${Math.min(pct, 100)}%"></div>
+            </div>
+            <div class="efficiency-note">Based on stat value (${item.statsGoldValue}g) vs. item cost (${item.gold.total}g). Active/passive effects add value beyond raw stats.</div>
+        </div>
+
+        ${item.stats.length ? `
+            <div class="item-stats-table">
+                ${statRows}
+            </div>
+        ` : ''}
+
+        ${item.descriptionLines.length ? `
+            <div class="item-description">
+                ${item.descriptionLines.map(l => {
+                    const isHeader = l.startsWith('@@') && l.endsWith('@@');
+                    return `<div class="${isHeader ? 'item-description-header' : 'item-description-line'}"></div>`;
+                }).join('')}
+            </div>
+        ` : ''}
+    `;
+
+    // Description lines are inserted as text content to avoid any markup injection
+    if (item.descriptionLines.length) {
+        const lines = detail.querySelectorAll('.item-description-header, .item-description-line');
+        item.descriptionLines.forEach((line, i) => {
+            const isHeader = line.startsWith('@@') && line.endsWith('@@');
+            lines[i].textContent = isHeader ? line.slice(2, -2) : line;
+        });
+    }
 }
 
 // Expose
