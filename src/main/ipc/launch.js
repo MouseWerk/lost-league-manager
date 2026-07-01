@@ -78,23 +78,39 @@ async function executeAccountLaunch(username) {
     send('login-status', { message: 'Launching Riot Client...', progress: 30 });
 
     const riotClientPath = discoverRiotClientPath();
-    const launchCmd = riotClientPath
-        ? `& "${riotClientPath}" --launch-product=league_of_legends --launch-patchline=live`
-        : `& "${state.config.lolPath}"`;
 
-    spawn('powershell.exe', ['-Command', launchCmd]);
+    // Launch the exe directly (no shell) instead of building a `powershell -Command`
+    // string — riotClientPath/lolPath are derived from user/config-supplied paths,
+    // and interpolating them into a shell command string is a command-injection
+    // vector (a path containing `"; ...` would execute arbitrary commands).
+    function launchClient() {
+        if (riotClientPath) {
+            spawn(riotClientPath, ['--launch-product=league_of_legends', '--launch-patchline=live'],
+                { detached: true, stdio: 'ignore' }).unref();
+        } else if (state.config.lolPath && fs.existsSync(state.config.lolPath)) {
+            spawn(state.config.lolPath, [], { detached: true, stdio: 'ignore' }).unref();
+        } else {
+            console.error('[Launch] No valid Riot Client / League path configured');
+        }
+    }
+    launchClient();
 
     send('login-status', { message: 'Waiting for client window...', progress: 50 });
 
     const loginScriptPath = path.join(state.RESOURCES_PATH, 'scripts', 'login.ps1');
 
+    // Password is sent over stdin rather than as a command-line argument —
+    // process argv is readable by other local processes/users for the life of
+    // the child (e.g. Task Manager's "Command line" column), which would leak
+    // the plaintext credential despite it being encrypted at rest.
     const child = spawn('powershell.exe', [
         '-ExecutionPolicy', 'Bypass',
         '-File', loginScriptPath,
         '-Username', account.username,
-        '-Password', password,
         '-RiotClientPath', riotClientPath || '',
-    ]);
+    ], { stdio: ['pipe', 'pipe', 'pipe'] });
+    child.stdin.write(password + '\n');
+    child.stdin.end();
     state.currentAccount.loginChild = child;
 
     child.stdout.on('data', (data) => {
@@ -139,7 +155,7 @@ async function executeAccountLaunch(username) {
         } catch { /* notifications may not be supported in this environment */ }
 
         // Re-trigger launch as safety net (harmless if League is already running)
-        spawn('powershell.exe', ['-Command', launchCmd]);
+        launchClient();
         setTimeout(() => send('login-status', null), 3000);
     });
 

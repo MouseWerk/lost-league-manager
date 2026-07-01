@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
 
     reorderAccounts: (usernames) => ipcRenderer.invoke('reorder-accounts', usernames),
+    unlockVault: (passwordHash) => ipcRenderer.invoke('unlock-vault', passwordHash),
     getAccountPassword: (username) => ipcRenderer.invoke('get-account-password', username),
     exportAccounts: () => ipcRenderer.invoke('export-accounts'),
     importAccounts: () => ipcRenderer.invoke('import-accounts'),
@@ -67,6 +68,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openExternal:   (url) => ipcRenderer.invoke('open-external', url),
     openPatchNotes: () => ipcRenderer.invoke('open-patch-notes'),
     getChampionList: () => ipcRenderer.invoke('get-champion-list'),
+    getChampionFullData: (champKey) => ipcRenderer.invoke('get-champion-full-data', champKey),
+    getItemList: () => ipcRenderer.invoke('get-item-list'),
     setZoomFactor: (factor) => ipcRenderer.invoke('set-zoom-factor', factor),
 
     // Fired when LCU connect reveals which account is logged in externally

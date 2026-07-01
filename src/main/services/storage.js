@@ -16,8 +16,13 @@ function loadAccounts() {
 
 function saveAccounts(accounts) {
     const tmp = state.paths.accounts + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(accounts, null, 4));
-    fs.renameSync(tmp, state.paths.accounts);
+    try {
+        fs.writeFileSync(tmp, JSON.stringify(accounts, null, 4));
+        fs.renameSync(tmp, state.paths.accounts);
+    } catch (e) {
+        console.error('Failed to save accounts:', e.message);
+        throw e;
+    }
 }
 
 function loadConfig() {
@@ -32,8 +37,13 @@ function loadConfig() {
 
 function saveConfig() {
     const tmp = state.paths.config + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(state.config, null, 4));
-    fs.renameSync(tmp, state.paths.config);
+    try {
+        fs.writeFileSync(tmp, JSON.stringify(state.config, null, 4));
+        fs.renameSync(tmp, state.paths.config);
+    } catch (e) {
+        console.error('Failed to save config:', e.message);
+        throw e;
+    }
 }
 
 function migratePasswords() {

@@ -1,4 +1,4 @@
-const { app, globalShortcut } = require('electron');
+const { app, globalShortcut, dialog } = require('electron');
 const lcu = require('./lcu');
 
 // ── Shared state must be required before anything that imports it ────────────
@@ -7,6 +7,7 @@ const state = require('./state');
 // ── Core modules ─────────────────────────────────────────────────────────────
 const { loadConfig, migratePasswords } = require('./services/storage');
 const { fetchChampionData }            = require('./services/champion-data');
+const { fetchItemData }                = require('./services/item-data');
 const { registerLcuEvents }            = require('./lcu-events');
 const { initAutoUpdater }              = require('./ipc/updater');
 const { registerAll: registerIpc }     = require('./ipc/index');
@@ -35,20 +36,45 @@ if (!gotLock) {
 
 // ── App ready ─────────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
-    loadConfig();
-    migratePasswords();
-    await fetchChampionData();
+    // These touch disk (config/accounts.json) or the network (Data Dragon) and
+    // can throw — previously an unhandled rejection here (e.g. accounts.json
+    // locked by AV/OneDrive, or a full disk) would silently kill the entire
+    // boot sequence with no window, no tray, and no visible error.
+    try {
+        loadConfig();
+        migratePasswords();
+    } catch (e) {
+        console.error('[Boot] Failed to load/migrate account data:', e.message);
+        dialog.showErrorBox('Lost League Manager',
+            `Failed to read your saved accounts/settings:\n${e.message}\n\n` +
+            'The app will still start, but your data may not load or save correctly ' +
+            'until this is resolved (check that accounts.json/config.json aren\'t locked ' +
+            'by another program).');
+    }
+    try {
+        await fetchChampionData();
+    } catch (e) {
+        console.error('[Boot] fetchChampionData failed:', e.message);
+    }
+    fetchItemData(); // non-blocking: item list populates shortly after startup
 
-    windows.createMainWindow();
-    windows.createTray();
-    windows.setLaunchCallback(executeAccountLaunch);
-    windows.updateJumpList();
+    try {
+        windows.createMainWindow();
+        windows.createTray();
+        windows.setLaunchCallback(executeAccountLaunch);
+        windows.updateJumpList();
 
-    registerIpc();
-    registerLcuEvents();
-    initAutoUpdater();
-    initOverwolf();
-    registerOverlayHotkey(state.config.overlayHotkey);
+        registerIpc();
+        registerLcuEvents();
+        initAutoUpdater();
+        initOverwolf();
+        registerOverlayHotkey(state.config.overlayHotkey);
+    } catch (e) {
+        console.error('[Boot] Failed to initialize application window:', e.message);
+        dialog.showErrorBox('Lost League Manager', `Failed to start:\n${e.message}`);
+        app.quit();
+        return;
+    }
 
     // Handle --launch= argument on first run
     const launchArg = process.argv.find(a => a.startsWith('--launch='));

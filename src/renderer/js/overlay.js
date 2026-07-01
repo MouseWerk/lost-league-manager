@@ -12,9 +12,16 @@ let settingsPanelOpen = false;
 let overlayLocked = false;
 
 // Ranked data fetched from LCU
-let rankedData = {};    // { [playerName]: { tier, lp, winLose, ratio } }
+let rankedData = {};    // { [riotIdKey]: { tier, lp, winLose, ratio } }
 let rankedLoading = false;
 let rankedFetched = false;
+let rankedRetryCount = 0;
+const MAX_RANKED_RETRIES = 2;
+
+// Display name (lowercase) → authoritative DDragon champion key, sent from main
+// on init. Covers champions whose key doesn't match a stripped display name
+// (Wukong→MonkeyKing, Cho'Gath→Chogath, Nunu & Willump→Nunu, etc.)
+let champKeyMap = {};
 
 // Build data fetched from OP.GG
 let buildData = null;   // { champKey, starting:[], core:[], optional:[] }
@@ -82,17 +89,38 @@ function tryParse(val) {
     try { return JSON.parse(val); } catch { return null; }
 }
 
-function champDDKey(rawName) {
-    if (!rawName) return null;
-    return rawName.startsWith('game_character_displayname_')
-        ? rawName.slice('game_character_displayname_'.length)
-        : rawName.replace(/[\s'.]/g, '');
+function champDDKey(rawChampionName, championName) {
+    if (rawChampionName && rawChampionName.startsWith('game_character_displayname_')) {
+        return rawChampionName.slice('game_character_displayname_'.length);
+    }
+    const displayName = championName || rawChampionName;
+    if (!displayName) return null;
+    // Prefer the authoritative Data Dragon key over guessing from the display
+    // name — casing/punctuation don't follow a consistent pattern (Cho'Gath→
+    // Chogath, Bel'Veth→Belveth, Renata Glasc→Renata, LeBlanc→Leblanc, ...).
+    const mapped = champKeyMap[displayName.toLowerCase()];
+    if (mapped) return mapped;
+    return displayName.replace(/[\s'.&]/g, '');
 }
 
-function champIconUrl(rawName) {
-    const key = champDDKey(rawName);
+function champIconUrl(rawChampionName, championName) {
+    const key = champDDKey(rawChampionName, championName);
     if (!key) return 'assets/logo.png';
     return `https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/champion/${key}.png`;
+}
+
+// For call sites that already hold a resolved DDragon key (e.g. myChampKey).
+function champIconUrlFromKey(key) {
+    if (!key) return 'assets/logo.png';
+    return `https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/champion/${key}.png`;
+}
+
+// Composite key matching how the main process keys overlay-get-ranked-bulk
+// results — full Riot ID (name#tag) when available, so two players sharing a
+// game name but different taglines don't collide in rankedData.
+function playerRiotKey(p) {
+    const name = p.riotIdGameName || p.summonerName || '?';
+    return p.riotIdTagLine ? `${name}#${p.riotIdTagLine}` : name;
 }
 
 function itemIconUrl(id) {
@@ -204,6 +232,7 @@ function resetAll() {
     rankedData = {};
     rankedFetched = false;
     rankedLoading = false;
+    rankedRetryCount = 0;
     buildData = null;
     buildFetched = false;
     buildLoading = false;
@@ -268,7 +297,7 @@ function renderBuildPanel() {
         return;
     }
 
-    const champIcon = champIconUrl(myChampKey);
+    const champIcon = champIconUrlFromKey(myChampKey);
     const rows = [];
 
     if (buildData.starting?.length) rows.push(buildRow('START', buildData.starting));
@@ -336,8 +365,8 @@ function buildTeamCol(players, isBlue) {
         const a     = p.scores?.assists ?? 0;
         const dead  = p.isDead === true;
         const isMe  = myName && (p.summonerName === myName || p.riotIdGameName === myName);
-        const icon  = champIconUrl(p.rawChampionName || p.championName);
-        const rd    = rankedData[name];
+        const icon  = champIconUrl(p.rawChampionName, p.championName);
+        const rd    = rankedData[playerRiotKey(p)];
         const tier  = rd?.tier || '';
         const abbr  = rd ? tierAbbr(tier) : '?';
         const cls   = tierClass(tier);
@@ -372,12 +401,15 @@ function togglePanel(force) {
     window.overlayAPI.resize(480, COMPACT_H + (panelOpen ? Math.round(panelH) : 0));
 }
 
-function triggerRankedFetch() {
-    if (rankedFetched) return;
-    rankedFetched = true;
+function triggerRankedFetch(retryPlayers) {
+    if (!retryPlayers) {
+        if (rankedFetched) return;
+        rankedFetched = true;
+    }
     rankedLoading = true;
 
-    const playerList = allPlayers.map(p => ({
+    const source = retryPlayers || allPlayers;
+    const playerList = source.map(p => ({
         gameName: p.riotIdGameName || null,
         tagLine:  p.riotIdTagLine  || null,
         summonerName: p.summonerName || null
@@ -385,12 +417,28 @@ function triggerRankedFetch() {
 
     window.overlayAPI.fetchRanked(playerList)
         .then(data => {
-            rankedData = data || {};
+            rankedData = { ...rankedData, ...(data || {}) };
             rankedLoading = false;
             if (panelOpen) renderRankedPanel();
+
+            // Players whose lookup outright failed (LCU hadn't cached them yet,
+            // or a transient API error) get a couple of automatic retries
+            // instead of being stuck showing "Unranked" for the rest of the game.
+            if (rankedRetryCount < MAX_RANKED_RETRIES) {
+                const failedKeys = new Set(
+                    Object.entries(data || {}).filter(([, v]) => v?.failed).map(([k]) => k)
+                );
+                if (failedKeys.size > 0) {
+                    const retrySet = allPlayers.filter(p => failedKeys.has(playerRiotKey(p)));
+                    if (retrySet.length > 0) {
+                        rankedRetryCount++;
+                        setTimeout(() => triggerRankedFetch(retrySet), 3000);
+                    }
+                }
+            }
         })
         .catch(() => {
-            rankedFetched = false;  // allow retry on next trigger
+            if (!retryPlayers) rankedFetched = false;  // allow full retry on next trigger
             rankedLoading = false;
             if (panelOpen) renderRankedPanel();
         });
@@ -547,11 +595,11 @@ window.overlayAPI.onGepInfoUpdate((data) => {
                             assists = me.scores?.assists ?? assists;
                             level   = me.level ?? level;
                             cs      = me.scores?.creepScore ?? cs;
-                            const iconUrl = champIconUrl(me.rawChampionName || me.championName);
+                            const iconUrl = champIconUrl(me.rawChampionName, me.championName);
                             if (ovChamp.src !== iconUrl) ovChamp.src = iconUrl;
 
                             // Detect champion and position, kick off build fetch
-                            const key = champDDKey(me.rawChampionName || me.championName);
+                            const key = champDDKey(me.rawChampionName, me.championName);
                             const pos = me.position || me.role || null;
                             if (pos && pos !== 'NONE' && pos !== myPosition) {
                                 myPosition = pos;
@@ -593,6 +641,7 @@ window.overlayAPI.onGepInfoUpdate((data) => {
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.overlayAPI.onInit((initData) => {
     if (initData?.ddragonVersion) ddragonVersion = initData.ddragonVersion;
+    if (initData?.champKeyMap) champKeyMap = initData.champKeyMap;
 
     // Populate settings panel from saved config and apply opacity via CSS
     const opacity = typeof initData?.opacity === 'number' ? initData.opacity : 1.0;

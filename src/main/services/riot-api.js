@@ -45,11 +45,29 @@ function headers() {
     return { 'X-Riot-Token': state.config.riotApiKey };
 }
 
+// Module-wide cooldown after a 429 — the API key's rate limit is shared across
+// every caller (account cards + overlay's per-lobby fan-out), so once we're
+// limited, every other in-flight/queued call should back off too instead of
+// immediately retrying and getting 429'd again.
+let rateLimitedUntil = 0;
+
+function assertNotRateLimited() {
+    const remaining = rateLimitedUntil - Date.now();
+    if (remaining > 0) {
+        throw new Error(`Riot API rate limit hit — retrying in ${Math.ceil(remaining / 1000)}s`);
+    }
+}
+
 function handleAxiosError(e, context) {
     const status = e.response?.status;
     if (status === 401 || status === 403) throw new Error('Invalid or expired Riot API key — update it in Settings');
     if (status === 404)                   throw new Error(`Not found (${context})`);
-    if (status === 429)                   throw new Error('Riot API rate limit hit — try again in a moment');
+    if (status === 429) {
+        const retryAfterSecs = parseInt(e.response?.headers?.['retry-after'], 10);
+        const cooldownMs = (Number.isFinite(retryAfterSecs) ? retryAfterSecs : 30) * 1000;
+        rateLimitedUntil = Date.now() + cooldownMs;
+        throw new Error(`Riot API rate limit hit — try again in ${Math.ceil(cooldownMs / 1000)}s`);
+    }
     throw e;
 }
 
@@ -106,6 +124,8 @@ async function getStats(gameName, tagLine, region) {
     if ((region || '').toLowerCase() === 'cn') {
         throw new Error('CN server stats require the League client to be running (Tencent servers are not on the Riot API)');
     }
+
+    assertNotRateLimited();
 
     const { account, platform } = await getAccountByRiotId(gameName, tagLine, region);
     const summoner = await getSummonerByPuuid(account.puuid, platform);
