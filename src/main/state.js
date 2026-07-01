@@ -20,6 +20,11 @@ const state = {
     tray: null,
     currentAccount: null,
     owOverlayPackage: null,
+    // Session-only (not persisted) — true once the vault password has been
+    // verified by the main process for this app run. Gates get-account-password
+    // server-side; the renderer's lock-screen overlay alone is not a trust
+    // boundary (devtools/console can call exposed IPC methods directly).
+    vaultUnlocked: false,
 
     config: {
         lolPath: 'C:\\Riot Games\\League of Legends\\LeagueClient.exe',

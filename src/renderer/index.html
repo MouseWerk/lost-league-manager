@@ -34,6 +34,9 @@
                 <button class="nav-btn" data-view="toolsView">
                     <span class="nav-icon"><i class="fas fa-tools"></i></span> Tools
                 </button>
+                <button class="nav-btn" data-view="statsView">
+                    <span class="nav-icon"><i class="fas fa-chart-bar"></i></span> Stat Viewer
+                </button>
                 <button class="nav-btn" data-view="settingsView">
                     <span class="nav-icon"><i class="fas fa-cog"></i></span> Settings
                 </button>
@@ -257,6 +260,72 @@
                             <h3>App Data</h3>
                             <p class="desc">Opens the folder where Lost League Manager stores account data and settings.</p>
                             <button id="openDataFolderBtn" class="action-btn">Open Folder</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stat Viewer View -->
+            <div id="statsView" class="view">
+                <div class="view-header">
+                    <h2>Stat Viewer</h2>
+                </div>
+
+                <div class="stats-tab-bar">
+                    <button class="stats-tab active" data-stats-tab="championsStatsTab">
+                        <i class="fas fa-shield-halved"></i> Champions
+                    </button>
+                    <button class="stats-tab" data-stats-tab="itemsStatsTab">
+                        <i class="fas fa-flask"></i> Item Gold Efficiency
+                    </button>
+                </div>
+
+                <!-- Champions tab -->
+                <div class="stats-tab-panel active" id="championsStatsTab">
+                    <div class="stats-layout">
+                        <div class="stats-sidebar">
+                            <div class="stats-sidebar-header">
+                                <span>Champions</span>
+                                <span class="stats-sidebar-count" id="statsChampCount"></span>
+                            </div>
+                            <div class="search-box">
+                                <i class="fas fa-search search-icon"></i>
+                                <input type="text" id="statsChampSearch" class="search-input" placeholder="Search champion...">
+                            </div>
+                            <div class="stats-grid" id="statsChampGrid">
+                                <!-- Champion icons injected here -->
+                            </div>
+                        </div>
+                        <div class="stats-detail" id="statsChampDetail">
+                            <div class="stats-empty">
+                                <div class="empty-icon"><i class="fas fa-shield-halved"></i></div>
+                                <p>Select a champion to view its stats</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Items tab -->
+                <div class="stats-tab-panel" id="itemsStatsTab">
+                    <div class="stats-layout">
+                        <div class="stats-sidebar">
+                            <div class="stats-sidebar-header">
+                                <span>Items</span>
+                                <span class="stats-sidebar-count" id="statsItemCount"></span>
+                            </div>
+                            <div class="search-box">
+                                <i class="fas fa-search search-icon"></i>
+                                <input type="text" id="statsItemSearch" class="search-input" placeholder="Search item...">
+                            </div>
+                            <div class="stats-grid" id="statsItemGrid">
+                                <!-- Item icons injected here -->
+                            </div>
+                        </div>
+                        <div class="stats-detail" id="statsItemDetail">
+                            <div class="stats-empty">
+                                <div class="empty-icon"><i class="fas fa-flask"></i></div>
+                                <p>Select an item to view its gold efficiency</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -549,6 +618,7 @@
                             <div class="form-group half">
                                 <label>Region</label>
                                 <select id="newRegion">
+                                    <option value="" disabled>Select region…</option>
                                     <option value="euw">EUW</option>
                                     <option value="eune">EUNE</option>
                                     <option value="na">NA</option>

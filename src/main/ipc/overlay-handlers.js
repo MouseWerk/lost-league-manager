@@ -2,8 +2,25 @@ const { ipcMain, screen } = require('electron');
 const lcu = require('../lcu');
 const state = require('../state');
 const championData = require('../services/champion-data');
+const riotApi = require('../services/riot-api');
 const { getBuilds } = require('../services/builds-api');
 const { saveConfig } = require('../services/storage');
+
+// Cached for the lifetime of the LCU connection — cheap local lookup, no need
+// to re-query it for every bulk ranked fetch.
+let cachedLcuRegion = null;
+lcu.onDisconnect(() => { cachedLcuRegion = null; });
+
+async function getLcuRegion() {
+    if (cachedLcuRegion) return cachedLcuRegion;
+    try {
+        const info = await lcu.request('GET', '/riotclient/region-locale');
+        cachedLcuRegion = (info?.region || '').toLowerCase() || null;
+    } catch {
+        cachedLcuRegion = null;
+    }
+    return cachedLcuRegion;
+}
 
 function capFirst(s) {
     return s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : '';
@@ -104,10 +121,16 @@ function register() {
         if (!lcu.connected || !Array.isArray(players)) return results;
 
         const EMPTY = { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
+        // Marks a lookup that couldn't be resolved (as opposed to a resolved-but-
+        // actually-unranked player) so the overlay knows it's worth retrying.
+        const FAILED = { ...EMPTY, failed: true };
 
         await Promise.allSettled(players.map(async (p) => {
-            const key = p.gameName || p.summonerName;
-            if (!key) return;
+            const name = p.gameName || p.summonerName;
+            if (!name) return;
+            // Key by full Riot ID (name#tag) so two players sharing a game name but
+            // different taglines don't clobber each other's cached ranked data.
+            const key = p.tagLine ? `${name}#${p.tagLine}` : name;
             try {
                 let summoner = null;
 
@@ -132,12 +155,35 @@ function register() {
                     const ranked   = await lcu.request('GET', `/lol-ranked/v1/ranked-stats/${summoner.puuid}`);
                     const soloData = ranked?.RANKED_SOLO_5x5;
                     results[key]   = formatLcuRanked(soloData) || EMPTY;
-                } else {
-                    results[key] = EMPTY;
+                    return;
                 }
+
+                // The LCU hasn't cached this Riot ID locally yet (common for
+                // lobby/champ-select opponents it hasn't looked up before). Fall
+                // back to the Riot Developer API, same as the account-manager's
+                // own stats lookup, instead of silently reporting "Unranked".
+                if (p.gameName && p.tagLine && state.config.riotApiKey) {
+                    try {
+                        const region = await getLcuRegion();
+                        const apiResult = await riotApi.getStats(p.gameName, p.tagLine, region);
+                        results[key] = {
+                            tier:    apiResult.tier,
+                            lp:      apiResult.lp,
+                            winLose: apiResult.winLose,
+                            ratio:   apiResult.ratio,
+                        };
+                        return;
+                    } catch (e) {
+                        console.log(`[Overlay Ranked] ${key} API fallback failed:`, e.message);
+                        results[key] = FAILED;
+                        return;
+                    }
+                }
+
+                results[key] = FAILED;
             } catch (e) {
                 console.log(`[Overlay Ranked] ${key}:`, e.message);
-                results[key] = EMPTY;
+                results[key] = FAILED;
             }
         }));
 
