@@ -2,7 +2,12 @@
   <img src="src/renderer/assets/logo.png" alt="Lost League Manager" width="80" />
   <h1>Lost League Manager</h1>
   <p>A lightweight Windows utility for managing multiple League of Legends accounts</p>
-  <p><a href="https://www.lostleague.com/">www.lostleague.com</a></p>
+
+  <!-- Replaced plain text link with a badge button -->
+  <a href="https://www.lostleague.com/">
+    <img src="https://img.shields.io/badge/Official%20Website-lostleague.com-0ac8b9?style=for-the-badge" alt="Official Website">
+  </a>
+  <br><br>
 
   <a href="https://github.com/MouseWerk/lost-league-manager/releases/latest">
     <img src="https://img.shields.io/github/v/release/MouseWerk/lost-league-manager?style=for-the-badge&color=0ac8b9&label=Download" alt="Latest Release">
