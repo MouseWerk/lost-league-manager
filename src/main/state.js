@@ -41,6 +41,7 @@ const state = {
         minimizeOnGameStart: false,
         checkUpdatesOnStartup: true,
         toastOnQueuePop: true,
+        discordRpcEnabled: true,
         riotApiKey: '',
         vaultEnabled: false,
         vaultPasswordHash: '',

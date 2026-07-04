@@ -1,6 +1,7 @@
 const { ipcMain, app } = require('electron');
 const state = require('../state');
 const { saveConfig } = require('../services/storage');
+const discordRpc = require('../services/discord-rpc');
 
 // Whitelist of keys the renderer is allowed to set, with a type check for
 // each — set-config used to Object.assign() the raw payload straight into
@@ -10,6 +11,7 @@ const { saveConfig } = require('../services/storage');
 const ALLOWED_CONFIG_KEYS = {
     autoAccept:            v => typeof v === 'boolean',
     checkUpdatesOnStartup: v => typeof v === 'boolean',
+    discordRpcEnabled:     v => typeof v === 'boolean',
     lolPath:               v => typeof v === 'string',
     minimizeOnGameStart:   v => typeof v === 'boolean',
     overlayEnabled:        v => typeof v === 'boolean',
@@ -75,6 +77,10 @@ function register() {
 
         if (state.config.startWithWindows !== prev.startWithWindows) {
             app.setLoginItemSettings({ openAtLogin: !!state.config.startWithWindows });
+        }
+
+        if (state.config.discordRpcEnabled !== prev.discordRpcEnabled) {
+            discordRpc.setEnabled(state.config.discordRpcEnabled);
         }
 
         // Setting the vault password/toggle from Settings requires already being
