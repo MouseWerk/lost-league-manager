@@ -15,6 +15,7 @@ const { executeAccountLaunch } = require('./ipc/launch');
 const windows = require('./windows');
 const { initOverwolf } = require('./overwolf');
 const { registerOverlayHotkey } = require('./overlay-hotkey');
+const discordRpc = require('./services/discord-rpc');
 
 // ── Single-instance lock ──────────────────────────────────────────────────────
 app.isQuiting = false;
@@ -69,6 +70,7 @@ app.whenReady().then(async () => {
         initAutoUpdater();
         initOverwolf();
         registerOverlayHotkey(state.config.overlayHotkey);
+        discordRpc.init();
     } catch (e) {
         console.error('[Boot] Failed to initialize application window:', e.message);
         dialog.showErrorBox('Lost League Manager', `Failed to start:\n${e.message}`);
@@ -92,4 +94,8 @@ app.on('window-all-closed', () => {
     lcu.stop();
     globalShortcut.unregisterAll();
     if (app.isQuiting && process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+    discordRpc.shutdown();
 });
