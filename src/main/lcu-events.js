@@ -3,6 +3,7 @@ const path  = require('path');
 const lcu   = require('./lcu');
 const state = require('./state');
 const { getChampionMap } = require('./services/champion-data');
+const discordRpc = require('./services/discord-rpc');
 
 let autoLockAttempted = false;
 
@@ -46,6 +47,7 @@ function registerLcuEvents() {
             const phase = await lcu.request('GET', '/lol-gameflow/v1/gameflow-phase');
             if (phase) {
                 send(state.mainWindow, 'lcu-gameflow', phase);
+                discordRpc.setGameflowPhase(phase);
                 if (phase === 'InProgress' && state.config.overlayEnabled && state.overlayWindow && !state.overlayWindow.isDestroyed()) {
                     state.overlayWindow.show();
                 }
@@ -56,6 +58,7 @@ function registerLcuEvents() {
     lcu.onDisconnect(() => {
         send(state.mainWindow, 'lcu-disconnected');
         autoLockAttempted = false;
+        discordRpc.setIdle();
     });
 
     lcu.onEvent(async (event) => {
@@ -64,6 +67,7 @@ function registerLcuEvents() {
             if (event.uri === '/lol-gameflow/v1/gameflow-phase' && event.eventType === 'Update') {
                 const phase = event.data;
                 send(state.mainWindow, 'lcu-gameflow', phase);
+                discordRpc.setGameflowPhase(phase);
 
                 // Queue-pop toast notification
                 if (phase === 'ReadyCheck' && state.config.toastOnQueuePop !== false) {
