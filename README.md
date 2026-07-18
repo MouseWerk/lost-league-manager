@@ -8,7 +8,11 @@
     <img src="https://img.shields.io/badge/Official%20Website-lostleague.com-0ac8b9?style=for-the-badge" alt="Official Website">
   </a>
   <br><br>
-
+  
+  <a href="https://www.buymeacoffee.com/mousewerk">
+    <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me A Coffee">
+  </a>
+  &nbsp;
   <a href="https://github.com/MouseWerk/lost-league-manager/releases/latest">
     <img src="https://img.shields.io/github/v/release/MouseWerk/lost-league-manager?style=for-the-badge&color=0ac8b9&label=Download" alt="Latest Release">
   </a>
@@ -92,7 +96,7 @@
 
 ```bash
 # Clone
-git clone https://github.com/MouseWerk/lost-league-manager.git
+git clone [https://github.com/MouseWerk/lost-league-manager.git](https://github.com/MouseWerk/lost-league-manager.git)
 cd lost-league-manager
 
 # Install dependencies
@@ -103,24 +107,3 @@ npm start
 
 # Build installer
 npm run build
-```
-
-Requires **Node.js 20+** and **Windows** (the app uses Windows-only APIs for credential injection).
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Shell | [Overwolf Electron](https://overwolf.github.io/ow-electron/) |
-| Auto-update | electron-updater |
-| LCU API | WebSocket + REST over localhost |
-| Encryption | Node.js `crypto` — AES-256-CBC, machine-bound key |
-| HTTP | axios |
-
----
-
-## Disclaimer
-
-Lost League Manager is an unofficial fan-made utility and is **not affiliated with or endorsed by Riot Games**. League of Legends is a trademark of Riot Games, Inc. Use at your own risk and in accordance with Riot's Terms of Service.
