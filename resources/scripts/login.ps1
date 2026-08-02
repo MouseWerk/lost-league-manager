@@ -25,6 +25,24 @@ try {
 }
 catch { }
 
+# Window-activation helpers. WScript.Shell's AppActivate (the old approach) is
+# unreliable against a window that just finished loading — Windows' foreground-
+# lock protection can silently reject it, and the old code never checked the
+# return value before typing, so credentials sometimes went to whatever window
+# actually had focus instead of the Riot Client.
+try {
+    $winApiDef = @'
+[DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+[DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+[DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+[DllImport("user32.dll")] public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+[DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+'@
+    $winApi = Add-Type -MemberDefinition $winApiDef -Name 'WinApi' -Namespace Win32 -PassThru
+}
+catch { $winApi = $null }
+
 function Escape-SendKeys ($text) {
     $sb = New-Object System.Text.StringBuilder
     foreach ($char in $text.ToCharArray()) {
@@ -38,10 +56,47 @@ function Escape-SendKeys ($text) {
     return $sb.ToString()
 }
 
+function Force-Foreground {
+    param ($hwnd)
+    if (-not $winApi -or $hwnd -eq [IntPtr]::Zero) { return $false }
+    try {
+        $curFg = [Win32.WinApi]::GetForegroundWindow()
+        if ($curFg -eq $hwnd) { return $true }
+
+        [uint32]$dummy = 0
+        $fgThread  = [Win32.WinApi]::GetWindowThreadProcessId($curFg, [ref]$dummy)
+        $curThread = [Win32.WinApi]::GetCurrentThreadId()
+
+        # A background process normally can't steal foreground focus; briefly
+        # attaching input state to the current foreground thread lets it.
+        [void][Win32.WinApi]::AttachThreadInput($curThread, $fgThread, $true)
+        [void][Win32.WinApi]::ShowWindowAsync($hwnd, 9)  # SW_RESTORE
+        [void][Win32.WinApi]::SetForegroundWindow($hwnd)
+        [void][Win32.WinApi]::AttachThreadInput($curThread, $fgThread, $false)
+
+        return ([Win32.WinApi]::GetForegroundWindow() -eq $hwnd)
+    }
+    catch { return $false }
+}
+
 function Ensure-Focus {
-    param ($procId)
-    $wshell = New-Object -ComObject WScript.Shell
-    if ($wshell) { $wshell.AppActivate($procId) }
+    param ($procId, $hwnd)
+    if (Force-Foreground -hwnd $hwnd) { return $true }
+    # Fallback to the older COM-based activation, best-effort.
+    try {
+        $wshell = New-Object -ComObject WScript.Shell
+        return [bool]$wshell.AppActivate($procId)
+    }
+    catch { return $false }
+}
+
+function Wait-ForFocus {
+    param ($procId, $hwnd, [int]$maxAttempts = 6, [int]$delayMs = 400)
+    for ($i = 0; $i -lt $maxAttempts; $i++) {
+        if (Ensure-Focus -procId $procId -hwnd $hwnd) { return $true }
+        Start-Sleep -Milliseconds $delayMs
+    }
+    return $false
 }
 
 # Wait for Riot Client login window
@@ -62,39 +117,50 @@ if (-not $proc) {
 }
 
 Write-Host "Found window: '$($proc.MainWindowTitle)' - waiting for UI to load..."
-Ensure-Focus -procId $proc.Id
 Start-Sleep -Seconds 5
+
+$hwnd = $proc.MainWindowHandle
+if (-not (Wait-ForFocus -procId $proc.Id -hwnd $hwnd)) {
+    Write-Host "ERROR: Could not bring the Riot Client window to the foreground after retries - aborting rather than typing into the wrong window"
+    Stop-Transcript
+    exit 2
+}
+Write-Host "Riot Client window focused"
 
 # Enter credentials
 $canBlock = ("Win32.InputBlocker" -as [type])
 try {
     if ($canBlock) {
-        try { [Win32.InputBlocker]::BlockInput($true) }
+        try { [void][Win32.InputBlocker]::BlockInput($true) }
         catch { Write-Host "BlockInput failed (admin required)" }
     }
 
-    Ensure-Focus -procId $proc.Id
     $escapedUser = Escape-SendKeys -text $Username
     [System.Windows.Forms.SendKeys]::SendWait($escapedUser)
     Start-Sleep -Milliseconds 300
 
-    Ensure-Focus -procId $proc.Id
     [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
     Start-Sleep -Milliseconds 300
 
-    Ensure-Focus -procId $proc.Id
+    # Re-verify focus right before the password specifically — typing a
+    # plaintext password into whatever window stole focus in the meantime
+    # (a notification, another app) would be worse than just stopping.
+    if (-not (Wait-ForFocus -procId $proc.Id -hwnd $hwnd -maxAttempts 3 -delayMs 300)) {
+        Write-Host "ERROR: Lost focus on the Riot Client window before entering the password - aborting"
+        Stop-Transcript
+        exit 2
+    }
     $escapedPwd = Escape-SendKeys -text $Password
     [System.Windows.Forms.SendKeys]::SendWait($escapedPwd)
     Start-Sleep -Milliseconds 300
 
-    Ensure-Focus -procId $proc.Id
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
     Write-Host "Credentials submitted"
 }
 finally {
     # Unlock input immediately; never leave user locked out.
     if ($canBlock) {
-        try { [Win32.InputBlocker]::BlockInput($false) }
+        try { [void][Win32.InputBlocker]::BlockInput($false) }
         catch { }
     }
 }
