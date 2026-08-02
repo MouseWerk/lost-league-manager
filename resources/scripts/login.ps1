@@ -165,55 +165,61 @@ finally {
     }
 }
 
-# Wait for League to start
-# After pressing Enter, Riot Client authenticates and should start League
-# automatically when launched with --launch-product=league_of_legends.
+# Wait for League to start. After pressing Enter, Riot Client authenticates
+# and is *supposed* to start League automatically since it was launched with
+# --launch-product=league_of_legends — but in practice that auto-launch signal
+# is unreliable on its own (auth timing, patchline checks, etc.), and the old
+# code only ever re-triggered it once, after sitting silently for 90 seconds,
+# then gave up without telling anyone. Re-issue the trigger periodically while
+# polling instead of waiting for one long silent timeout.
 Write-Host "Polling for League client launch..."
-$leagueStarted = $false
-for ($k = 0; $k -lt 180; $k++) {
-    Start-Sleep -Milliseconds 500
 
-    $lc = Get-Process -Name "LeagueClient" -ErrorAction SilentlyContinue
-    if ($lc) {
+$rcExe = $RiotClientPath
+if (-not ($rcExe -and (Test-Path $rcExe))) {
+    $rcProc = Get-Process -Name "RiotClientServices" -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($rcProc) {
+        try { $rcExe = $rcProc.MainModule.FileName }
+        catch { }
+    }
+}
+
+function Trigger-LeagueLaunch {
+    if ($rcExe -and (Test-Path $rcExe)) {
+        Write-Host "Launch triggered - retrying via RiotClientServices..."
+        try { Start-Process -FilePath $rcExe -ArgumentList "--launch-product=league_of_legends", "--launch-patchline=live" }
+        catch { Write-Host "Launch trigger failed: $_" }
+    }
+}
+
+$leagueStarted   = $false
+$maxWaitSeconds  = 150
+$retriggerEvery  = 15
+$elapsedSeconds  = 0
+$nextTrigger     = $retriggerEvery
+
+while ($elapsedSeconds -lt $maxWaitSeconds) {
+    Start-Sleep -Milliseconds 500
+    $elapsedSeconds += 0.5
+
+    if (Get-Process -Name "LeagueClient" -ErrorAction SilentlyContinue) {
         Write-Host "League client detected - done!"
         $leagueStarted = $true
         break
     }
-}
 
-# Fallback: trigger League via RiotClientServices if it did not auto-start.
-if (-not $leagueStarted) {
-    Write-Host "League did not auto-start; triggering via RiotClientServices..."
-
-    # Try the path passed in as a parameter first.
-    $rcExe = $RiotClientPath
-    if (-not ($rcExe -and (Test-Path $rcExe))) {
-        # Discover from running process.
-        $rcProc = Get-Process -Name "RiotClientServices" -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($rcProc) {
-            try { $rcExe = $rcProc.MainModule.FileName }
-            catch { }
-        }
-    }
-
-    if ($rcExe -and (Test-Path $rcExe)) {
-        Write-Host "Launching: $rcExe"
-        Start-Process -FilePath $rcExe -ArgumentList "--launch-product=league_of_legends", "--launch-patchline=live"
-        Write-Host "Launch triggered - waiting for League..."
-
-        # Give it another 30 seconds.
-        for ($m = 0; $m -lt 60; $m++) {
-            Start-Sleep -Milliseconds 500
-            if (Get-Process -Name "LeagueClient" -ErrorAction SilentlyContinue) {
-                Write-Host "League client is now running"
-                break
-            }
-        }
-    }
-    else {
-        Write-Host "Could not find RiotClientServices.exe path - manual click may be required"
+    if ($elapsedSeconds -ge $nextTrigger) {
+        Trigger-LeagueLaunch
+        $nextTrigger += $retriggerEvery
     }
 }
 
-Write-Host "Login script complete"
-Stop-Transcript
+if ($leagueStarted) {
+    Write-Host "Login script complete"
+    Stop-Transcript
+    exit 0
+}
+else {
+    Write-Host "League did not auto-start after $maxWaitSeconds seconds - manual launch required"
+    Stop-Transcript
+    exit 3
+}
