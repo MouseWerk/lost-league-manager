@@ -143,6 +143,17 @@ async function executeAccountLaunch(username) {
 
     child.on('close', (code) => {
         state.currentAccount.loginChild = null;
+
+        // Credentials went in fine, but League never came up on its own —
+        // not a failure of the login itself, so this isn't styled as an error
+        // (no retry button, no red toast), just an accurate heads-up instead
+        // of the old silent "Done!" that lied about League having started.
+        if (code === 3) {
+            send('login-status', { message: 'Logged in — click Launch in the Riot Client to start League', progress: 90 });
+            setTimeout(() => send('login-status', null), 6000);
+            return;
+        }
+
         if (code !== 0 && code !== null) {
             const message = code === 2
                 ? 'Could not bring the Riot Client window to the front — click it and try again'
