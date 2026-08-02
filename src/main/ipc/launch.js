@@ -46,7 +46,13 @@ async function executeAccountLaunch(username) {
     send('login-status', { message: 'Preparing...', progress: 5 });
 
     const password = decrypt(account.password);
-    if (!password) return { success: false, message: 'Password decryption failed' };
+    if (!password) {
+        // Usually means this password was encrypted under a key tied to
+        // machine state that's since changed (e.g. a Windows update removing
+        // wmic) — the ciphertext can't be recovered, but re-saving the
+        // password re-encrypts it under the current key.
+        return { success: false, message: 'Saved password could not be read (often after a Windows update) — edit this account and re-enter its password, then try again' };
+    }
 
     // Kill any in-progress login before overwriting state
     const oldChild = state.currentAccount?.loginChild;
@@ -137,7 +143,14 @@ async function executeAccountLaunch(username) {
 
     child.on('close', (code) => {
         state.currentAccount.loginChild = null;
-        if (code !== 0 && code !== null) return;
+        if (code !== 0 && code !== null) {
+            const message = code === 2
+                ? 'Could not bring the Riot Client window to the front — click it and try again'
+                : 'Login failed — check the login window and try again';
+            send('login-status', { message, progress: 0, error: true });
+            setTimeout(() => send('login-status', null), 5000);
+            return;
+        }
 
         send('login-status', { message: 'Done!', progress: 100 });
 
