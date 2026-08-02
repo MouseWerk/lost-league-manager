@@ -417,12 +417,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         let msg = "";
         let pct = 0;
+        let isError = false;
 
         if (typeof data === 'string') {
             msg = data;
         } else if (data && typeof data === 'object') {
             msg = data.message;
             pct = data.progress || 0;
+            isError = !!data.error;
         }
 
         if (msg) {
@@ -430,6 +432,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             overlay.classList.add('active');
             if (pct > 0) progressEl.style.width = pct + '%';
             if (pct === 100) showToast('League launched successfully!', 'success');
+            if (isError) {
+                showToast(msg, 'error');
+                document.getElementById('retryLaunchBtn').style.display = 'inline-flex';
+                isLaunching = false;
+            }
         } else {
             overlay.classList.remove('active');
             setTimeout(() => { progressEl.style.width = '0%'; }, 500);
