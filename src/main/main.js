@@ -5,7 +5,8 @@ const lcu = require('./lcu');
 const state = require('./state');
 
 // ── Core modules ─────────────────────────────────────────────────────────────
-const { loadConfig, migratePasswords } = require('./services/storage');
+const { loadConfig, saveConfig, migratePasswords } = require('./services/storage');
+const { resolveLolPath }               = require('./services/league-path');
 const { fetchChampionData }            = require('./services/champion-data');
 const { fetchItemData }                = require('./services/item-data');
 const { registerLcuEvents }            = require('./lcu-events');
@@ -52,6 +53,16 @@ app.whenReady().then(async () => {
             'until this is resolved (check that accounts.json/config.json aren\'t locked ' +
             'by another program).');
     }
+
+    // Heal a stale/wrong lolPath (moved drive, reinstalled, first run) before
+    // anything starts polling for the LCU connection.
+    const resolvedLolPath = resolveLolPath(state.config.lolPath);
+    if (resolvedLolPath && resolvedLolPath !== state.config.lolPath) {
+        console.log(`[Boot] League install auto-detected at ${resolvedLolPath}`);
+        state.config.lolPath = resolvedLolPath;
+        saveConfig();
+    }
+
     try {
         await fetchChampionData();
     } catch (e) {

@@ -57,6 +57,7 @@ async function executeAccountLaunch(username) {
     // Kill any in-progress login before overwriting state
     const oldChild = state.currentAccount?.loginChild;
     if (oldChild) {
+        oldChild._cancelled = true;
         try { oldChild.kill(); } catch { /* already dead */ }
     }
     state.currentAccount = { ...account };
@@ -142,6 +143,14 @@ async function executeAccountLaunch(username) {
     });
 
     child.on('close', (code) => {
+        // Killed via Cancel, or superseded by a newer launch replacing this
+        // child (see oldChild above) — a killed process reports code === null
+        // on Windows, indistinguishable from a clean exit by code alone, so
+        // without this the close handler fell through to the success path:
+        // "Done!" toast, a "League Launched!" notification, and relaunching
+        // the client, all right after the user asked to cancel.
+        if (child._cancelled) return;
+
         state.currentAccount.loginChild = null;
 
         // Credentials went in fine, but League never came up on its own —
@@ -189,9 +198,27 @@ async function executeAccountLaunch(username) {
 function register() {
     ipcMain.handle('launch-account', (event, username) => executeAccountLaunch(username));
 
+    // Plain "open the client" for the Live page's empty state — no account
+    // login, just gets League/Riot Client running so the LCU can connect.
+    ipcMain.handle('launch-league-client', () => {
+        const riotClientPath = discoverRiotClientPath();
+        if (riotClientPath) {
+            spawn(riotClientPath, ['--launch-product=league_of_legends', '--launch-patchline=live'],
+                { detached: true, stdio: 'ignore' }).unref();
+            return { success: true };
+        }
+        if (state.config.lolPath && fs.existsSync(state.config.lolPath)) {
+            spawn(state.config.lolPath, [], { detached: true, stdio: 'ignore' }).unref();
+            return { success: true };
+        }
+        return { success: false, message: 'Could not find Riot Client or League of Legends — set the path in Settings' };
+    });
+
     ipcMain.handle('cancel-launch', () => {
-        if (state.currentAccount?.loginChild) {
-            try { state.currentAccount.loginChild.kill(); } catch { /* ok */ }
+        const child = state.currentAccount?.loginChild;
+        if (child) {
+            child._cancelled = true;
+            try { child.kill(); } catch { /* ok */ }
             state.currentAccount.loginChild = null;
             return { success: true };
         }
