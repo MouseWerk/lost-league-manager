@@ -438,8 +438,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 isLaunching = false;
             }
         } else {
+            // The null/empty "clear" message is sent exactly once, after every
+            // terminal outcome (success, code=3 heads-up, or error) — the real
+            // end of the flow, as opposed to the IPC call resolving early.
             overlay.classList.remove('active');
             setTimeout(() => { progressEl.style.width = '0%'; }, 500);
+            isLaunching = false;
         }
     });
 
@@ -473,6 +477,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('patchNotesBtn').addEventListener('click', (e) => {
         e.preventDefault();
         window.electronAPI.openPatchNotes();
+    });
+
+    document.getElementById('launchLeagueBtn').addEventListener('click', async (e) => {
+        const btn = e.target.closest('button');
+        btn.disabled = true;
+        const res = await window.electronAPI.launchLeagueClient();
+        btn.disabled = false;
+        if (!res.success) showToast(res.message || 'Failed to launch League', 'error');
     });
 
     // Tools
@@ -1437,18 +1449,25 @@ async function launchAccount(username) {
         // would overwrite the newer launch's UI state.
         if (myToken !== _launchToken) return;
         if (!res.success) {
+            // Immediate failure (bad account/password) — no login-status stream
+            // follows, so this is the only place that clears isLaunching.
             showToast(res.message || "Error launching account", "error");
             document.getElementById('launchStatus').textContent = res.message || 'Launch failed.';
             document.getElementById('retryLaunchBtn').style.display = 'inline-flex';
+            isLaunching = false;
         } else {
             activeAccountUsername = username;
             renderAccounts();
+            // isLaunching stays true here — the actual login script can run for
+            // up to ~150s after this IPC call already resolved. The login-status
+            // stream (onLoginStatus below) owns clearing it once the flow truly
+            // finishes; clearing it here let a second click re-trigger the whole
+            // launch mid-flight and kill the in-progress login script.
         }
     } catch (e) {
         console.error(e);
         if (myToken === _launchToken) document.getElementById('retryLaunchBtn').style.display = 'inline-flex';
-    } finally {
-        if (myToken === _launchToken) isLaunching = false;
+        isLaunching = false;
     }
 }
 

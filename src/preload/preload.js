@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setConfig: (config) => ipcRenderer.invoke('set-config', config),
 
     launchAccount: (username) => ipcRenderer.invoke('launch-account', username),
+    launchLeagueClient: () => ipcRenderer.invoke('launch-league-client'),
     cancelLaunch: () => ipcRenderer.invoke('cancel-launch'),
     getStats: (region, riotId) => ipcRenderer.invoke('get-stats', { region, riotId }),
 
