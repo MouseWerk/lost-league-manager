@@ -858,6 +858,12 @@
                 <svg id="profileRankSparkline" class="profile-rank-sparkline" viewBox="0 0 300 60" preserveAspectRatio="none"></svg>
             </div>
 
+            <!-- Match history -->
+            <div id="profileMatchHistoryWrap" class="profile-match-history-wrap" style="display:none">
+                <div class="profile-match-history-label">Last 5 Games</div>
+                <div id="profileMatchHistoryStrip" class="match-history-strip"></div>
+            </div>
+
             <!-- Notes -->
             <div id="profileNotesWrap" class="profile-notes-wrap" style="display:none">
                 <div class="profile-notes-label">Notes</div>
@@ -872,6 +878,27 @@
                 <button id="profileEditBtn" class="secondary-btn">
                     <i class="fas fa-pen"></i>
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Patch Notes Modal (shown once on first launch after an update) -->
+    <div id="patchNotesModal" class="modal">
+        <div class="modal-content patch-notes-content">
+            <button id="closePatchNotesBtn" class="modal-close-x" data-tooltip="Close"><i class="fas fa-times"></i></button>
+            <div class="patch-notes-header">
+                <div class="patch-notes-badge"><i class="fas fa-bullhorn"></i></div>
+                <div>
+                    <h2>What's New</h2>
+                    <div id="patchNotesVersion" class="patch-notes-version"></div>
+                </div>
+            </div>
+            <ul id="patchNotesList" class="patch-notes-list"></ul>
+            <div class="modal-actions">
+                <button id="patchNotesDiscordBtn" class="secondary-btn" data-tooltip="Join our Discord">
+                    <i class="fab fa-discord"></i> Discord
+                </button>
+                <button id="patchNotesGotItBtn" class="primary-btn" style="flex:1">Got it</button>
             </div>
         </div>
     </div>

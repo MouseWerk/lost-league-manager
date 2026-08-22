@@ -46,26 +46,25 @@ body {
    themeless). Add data-tooltip="..." to any element instead of title="...".
    Defaults to centered above; add data-tooltip-pos="left"/"right"/"bottom"
    on elements close enough to a viewport/container edge that the centered
-   default would clip off-screen. */
-[data-tooltip] {
-    position: relative;
-}
+   default would clip off-screen.
 
-[data-tooltip]::after,
-[data-tooltip]::before {
-    position: absolute;
-    left: 50%;
+   Rendered as a single element on <body> (see initTooltips() in app.js) rather
+   than a ::after/::before pseudo-element anchored to the hovered node. A
+   pseudo-element is still a normal descendant box of its container, so a
+   tooltip on a card near the top of .accounts-grid (which scrolls via
+   overflow-y: auto) got sliced off by the grid's own edge no matter the
+   z-index — z-index only wins stacking fights, it can't escape an ancestor's
+   overflow clip. position: fixed + JS-computed coordinates escapes that. */
+.js-tooltip {
+    position: fixed;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transition: opacity 0.12s ease 0.25s, transform 0.12s ease 0.25s, visibility 0.12s ease 0.25s;
-    z-index: 1000;
-}
-
-[data-tooltip]::after {
-    content: attr(data-tooltip);
-    bottom: calc(100% + 9px);
-    transform: translate(-50%, 4px);
+    transition: opacity 0.12s ease, visibility 0.12s ease;
+    /* Above every other z-index in this stylesheet (highest currently used is
+       the install-update overlay at 99999) so a tooltip is never hidden
+       behind a modal, toast, or overlay it happens to render alongside. */
+    z-index: 1000000;
     background: #15151A;
     color: var(--text-main);
     border: 1px solid var(--glass-border);
@@ -73,52 +72,50 @@ body {
     border-radius: 8px;
     font-size: 11px;
     font-weight: 600;
-    white-space: nowrap;
+    /* Capped + wrapping rather than nowrap: a couple of these tooltips (the
+       account-warning badges) are full sentences. */
+    max-width: 220px;
+    width: max-content;
+    white-space: normal;
+    text-align: center;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
 }
 
-[data-tooltip]::before {
-    content: '';
-    bottom: 100%;
-    margin-bottom: -1px;
-    transform: translate(-50%, 4px);
-    border: 5px solid transparent;
-    border-top-color: #15151A;
-}
-
-[data-tooltip]:hover::after,
-[data-tooltip]:hover::before {
+.js-tooltip.is-visible {
     opacity: 1;
     visibility: visible;
-    transform: translate(-50%, 0);
 }
 
-[data-tooltip-pos="left"]::after  { left: auto; right: 0;    transform: translate(0, 4px); }
-[data-tooltip-pos="left"]::before { left: auto; right: 10px; transform: translate(0, 4px); }
-[data-tooltip-pos="left"]:hover::after,
-[data-tooltip-pos="left"]:hover::before { transform: translate(0, 0); }
-
-[data-tooltip-pos="right"]::after  { left: 0;    transform: translate(0, 4px); }
-[data-tooltip-pos="right"]::before { left: 10px; transform: translate(0, 4px); }
-[data-tooltip-pos="right"]:hover::after,
-[data-tooltip-pos="right"]:hover::before { transform: translate(0, 0); }
-
-[data-tooltip-pos="bottom"]::after {
-    bottom: auto;
-    top: calc(100% + 9px);
-    transform: translate(-50%, -4px);
+.js-tooltip::after {
+    content: '';
+    position: absolute;
+    border: 5px solid transparent;
 }
-[data-tooltip-pos="bottom"]::before {
-    bottom: auto;
+
+.js-tooltip[data-pos="top"]::after {
     top: 100%;
-    margin-bottom: 0;
-    margin-top: -1px;
-    transform: translate(-50%, -4px);
-    border-top-color: transparent;
+    left: var(--tip-arrow-offset, 50%);
+    margin-left: -5px;
+    border-top-color: #15151A;
+}
+.js-tooltip[data-pos="bottom"]::after {
+    bottom: 100%;
+    left: var(--tip-arrow-offset, 50%);
+    margin-left: -5px;
     border-bottom-color: #15151A;
 }
-[data-tooltip-pos="bottom"]:hover::after,
-[data-tooltip-pos="bottom"]:hover::before { transform: translate(-50%, 0); }
+.js-tooltip[data-pos="left"]::after {
+    left: 100%;
+    top: var(--tip-arrow-offset, 50%);
+    margin-top: -5px;
+    border-left-color: #15151A;
+}
+.js-tooltip[data-pos="right"]::after {
+    right: 100%;
+    top: var(--tip-arrow-offset, 50%);
+    margin-top: -5px;
+    border-right-color: #15151A;
+}
 
 /* ── Background glows ── */
 .bg-glow {
@@ -577,6 +574,7 @@ body {
     padding-bottom: 40px;
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     min-height: 0;
     padding-right: 8px;
 }
@@ -603,8 +601,10 @@ body {
 .accounts-grid.compact .rank { font-size: 12px; }
 .accounts-grid.compact .last-used    { display: none; }
 .accounts-grid.compact .notes-preview { -webkit-line-clamp: 1; margin-top: 2px; }
+.accounts-grid.compact .mastery-badges { margin-top: 2px; }
+.accounts-grid.compact .mastery-badge  { width: 16px; height: 16px; border-radius: 4px; }
 .accounts-grid.compact .icon-btn { width: 26px; height: 26px; font-size: 10px; border-radius: 7px; }
-.accounts-grid.compact .card-actions { gap: 4px; }
+.accounts-grid.compact .card-actions { gap: 4px; width: 86px; /* 3 × 26px icon-btn + 2 × 4px gap */ }
 
 .account-card {
     background: var(--glass-bg);
@@ -775,9 +775,39 @@ body {
     overflow: hidden;
 }
 
+/* ── Mastery badges (account card) ── */
+.mastery-badges {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+}
+.mastery-badges:empty { display: none; }
+
+.mastery-badge {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.04);
+    flex-shrink: 0;
+}
+.mastery-badge img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
 .card-actions {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    /* flex-wrap (not a 3-col grid) so an odd 7th button (OP.GG, only shown
+       when the account has a Riot ID) wraps to its own row without a lone
+       grid `1fr` cell stretching to fill the full row width. Explicit width
+       keeps wrapping at 3-per-row regardless of button count. */
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    width: 112px; /* 3 × 32px icon-btn + 2 × 8px gap */
     gap: 8px;
     flex-shrink: 0;
 }
@@ -1002,6 +1032,7 @@ body {
     flex-direction: column;
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     min-height: 0;
     padding-right: 8px;
     padding-top: 14px;
@@ -1333,6 +1364,7 @@ body {
     gap: 16px;
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     min-height: 0;
     padding-right: 8px;
 }
@@ -1611,6 +1643,7 @@ select.form-control option {
 .form-scroll-area {
     max-height: 420px;
     overflow-y: auto;
+    overflow-x: hidden;
     padding-right: 8px;
     margin-right: -8px;
 }
@@ -1620,6 +1653,93 @@ select.form-control option {
     gap: 10px;
     margin-top: 22px;
     justify-content: flex-end;
+}
+
+/* ── Patch notes modal ── */
+.patch-notes-content {
+    width: 440px;
+    position: relative;
+    padding-top: 34px;
+}
+
+.modal-close-x {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.modal-close-x:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+
+.patch-notes-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+}
+.patch-notes-badge {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(10, 200, 185, 0.12);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+.patch-notes-header h2 { margin: 0; font-size: 18px; }
+.patch-notes-version {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
+
+.patch-notes-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: 340px;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+.patch-notes-list li {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+.patch-notes-list li i {
+    color: var(--primary);
+    font-size: 13px;
+    margin-top: 3px;
+    flex-shrink: 0;
+    width: 16px;
+    text-align: center;
+}
+.patch-notes-item-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 2px;
+}
+.patch-notes-item-body {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
 }
 
 /* ── Confirm modal ── */
@@ -2703,6 +2823,47 @@ select.form-control option {
     display: block;
 }
 
+/* ── Match history ── */
+.profile-match-history-wrap {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+}
+
+.profile-match-history-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+}
+
+.match-history-strip {
+    display: flex;
+    gap: 8px;
+}
+
+.match-pill {
+    width: 38px;
+    height: 38px;
+    border-radius: 9px;
+    overflow: hidden;
+    border: 2px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.04);
+    flex-shrink: 0;
+}
+.match-pill img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.match-pill.win  { border-color: var(--primary); }
+.match-pill.loss { border-color: var(--danger); }
+
 /* ── Notes ── */
 .profile-notes-wrap {
     background: rgba(255, 255, 255, 0.03);
@@ -2979,6 +3140,7 @@ select.form-control option {
     gap: 32px;
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     padding-right: 6px;
     align-content: start;
 }
@@ -3098,6 +3260,7 @@ select.form-control option {
 .champ-search-grid {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
     gap: 8px;
@@ -3207,6 +3370,7 @@ select.form-control option {
 .stats-grid {
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
     gap: 6px;
@@ -3252,6 +3416,7 @@ select.form-control option {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    overflow-x: hidden;
     background: var(--glass-bg);
     border: 1px solid var(--glass-border);
     border-radius: 16px;

@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     launchLeagueClient: () => ipcRenderer.invoke('launch-league-client'),
     cancelLaunch: () => ipcRenderer.invoke('cancel-launch'),
     getStats: (region, riotId) => ipcRenderer.invoke('get-stats', { region, riotId }),
+    getMatchHistory: (region, riotId) => ipcRenderer.invoke('get-match-history', { region, riotId }),
     getRankHistory: (riotId) => ipcRenderer.invoke('get-rank-history', riotId),
 
     acceptMatch: () => ipcRenderer.invoke('accept-match'),
@@ -68,6 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getDodgeInfo: () => ipcRenderer.invoke('get-dodge-info'),
 
     openExternal:   (url) => ipcRenderer.invoke('open-external', url),
+    openOpgg:       (region, riotId) => ipcRenderer.invoke('open-opgg', region, riotId),
     openPatchNotes: () => ipcRenderer.invoke('open-patch-notes'),
     getChampionList: () => ipcRenderer.invoke('get-champion-list'),
     getChampionFullData: (champKey) => ipcRenderer.invoke('get-champion-full-data', champKey),
