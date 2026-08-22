@@ -48,8 +48,10 @@ const state = {
     },
 
     paths: {
-        accounts: path.join(APP_DATA_PATH, 'accounts.json'),
-        config:   path.join(APP_DATA_PATH, 'config.json'),
+        accounts:    path.join(APP_DATA_PATH, 'accounts.json'),
+        config:      path.join(APP_DATA_PATH, 'config.json'),
+        rankHistory: path.join(APP_DATA_PATH, 'rank-history.json'),
+        honorWatch:  path.join(APP_DATA_PATH, 'honor-watch.json'),
     },
 
     RESOURCES_PATH,

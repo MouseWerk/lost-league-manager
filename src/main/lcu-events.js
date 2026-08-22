@@ -103,10 +103,13 @@ function registerLcuEvents() {
                 const data = event.data;
                 if (data?.state === 'InProgress' && data?.playerResponse === 'None') {
                     console.log('[LCU] Auto-accepting match...');
-                    try {
-                        await lcu.request('POST', '/lol-matchmaking/v1/ready-check/accept');
-                    } catch (e) {
-                        console.error('[LCU] Auto-accept failed:', e.message);
+                    // lcu.request() never throws (it catches internally and returns
+                    // null on failure) — the try/catch this replaced could never
+                    // actually catch anything, so a failed auto-accept (e.g. the
+                    // ready check already expired) went completely unlogged.
+                    const result = await lcu.request('POST', '/lol-matchmaking/v1/ready-check/accept', null, { verbose: true });
+                    if (result === null) {
+                        console.error('[LCU] Auto-accept failed — ready check may have already expired');
                     }
                 }
             }

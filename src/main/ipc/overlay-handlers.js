@@ -5,6 +5,7 @@ const championData = require('../services/champion-data');
 const riotApi = require('../services/riot-api');
 const { getBuilds } = require('../services/builds-api');
 const { saveConfig } = require('../services/storage');
+const { recordHonorLevel } = require('../services/honor-watch');
 
 // Cached for the lifetime of the LCU connection — cheap local lookup, no need
 // to re-query it for every bulk ranked fetch.
@@ -208,8 +209,22 @@ function register() {
                 lcu.request('GET', '/lol-honor-v2/v1/profiles'),
             ]);
 
-            // Mastery: try several endpoint variants; last resort fetches all and sorts
-            let mastery = null;
+            // Mastery: try several endpoint variants (they differ by LCU/client
+            // version — see git history for this file); last resort fetches
+            // everything and sorts client-side. Candidates within each group are
+            // fetched concurrently (order of `endpoints` still decides which
+            // result wins if more than one succeeds) rather than one at a time,
+            // since they're independent GETs to the same local server and only
+            // the first valid one is used.
+            const isMasteryList = (res) =>
+                Array.isArray(res) && res.length > 0 && res.every(m => m && typeof m.championId === 'number');
+
+            async function firstValidMasteryList(endpoints) {
+                if (endpoints.length === 0) return null;
+                const results = await Promise.all(endpoints.map(ep => lcu.request('GET', ep)));
+                return results.find(isMasteryList) || null;
+            }
+
             const masteryTries = [
                 '/lol-champion-mastery/v1/local-player/top-champion-masteries?count=8',
                 summoner?.puuid
@@ -221,21 +236,27 @@ function register() {
                 '/lol-champion-mastery/v1/champion-masteries/top?count=8',
             ].filter(Boolean);
 
-            for (const ep of masteryTries) {
-                const res = await lcu.request('GET', ep);
-                if (Array.isArray(res) && res.length > 0) { mastery = res; break; }
-            }
+            let mastery = await firstValidMasteryList(masteryTries);
 
-            // Last resort: fetch all masteries and sort manually
-            if (!mastery || mastery.length === 0) {
-                const all = await lcu.request('GET', '/lol-champion-mastery/v1/champion-masteries');
-                if (Array.isArray(all) && all.length > 0) {
-                    mastery = all
-                        .sort((a, b) => (b.championPoints || 0) - (a.championPoints || 0))
-                        .slice(0, 8);
+            // Last resort: these two return everything for the current summoner
+            // (unsorted, unfiltered), so there's no path-shape to get wrong —
+            // just sort client-side and take the top 8.
+            if (!mastery) {
+                const all = await firstValidMasteryList([
+                    '/lol-champion-mastery/v1/local-player/champion-mastery',
+                    '/lol-champion-mastery/v1/champion-masteries',
+                ]);
+                if (all) {
+                    mastery = [...all].sort((a, b) => (b.championPoints || 0) - (a.championPoints || 0)).slice(0, 8);
                 }
             }
 
+            // Every candidate above is a guess at the real endpoint for this
+            // client version — individual 404s are expected and not logged, but
+            // if every single one failed that's worth knowing about.
+            if (!mastery) {
+                console.warn('[Mastery] all candidate endpoints failed or returned no usable data for this client version');
+            }
             console.log(`[Mastery] fetched ${mastery?.length ?? 0} champions`);
 
             // Context data — depends on current phase
@@ -251,6 +272,21 @@ function register() {
                     const r = await axios.get('http://127.0.0.1:2999/liveclientdata/activeplayer', { timeout: 2000 });
                     liveGame = r.data;
                 } catch { /* client data not available yet */ }
+            }
+
+            // state.currentAccount is only ever set by launching an account
+            // through this app and is never corrected afterward — if the user
+            // manually switches to a different account directly in the Riot
+            // Client, it silently goes stale. Verify it against the summoner we
+            // actually just fetched before trusting it, so a stale value can't
+            // attribute one account's honor data to a different account's record.
+            const loggedInRiotId = summoner?.gameName && summoner?.tagLine
+                ? `${summoner.gameName}#${summoner.tagLine}`.toLowerCase()
+                : null;
+            const isCurrentAccountReallyLoggedIn = loggedInRiotId
+                && state.currentAccount?.riotId?.toLowerCase() === loggedInRiotId;
+            if (typeof honor?.honorLevel === 'number' && isCurrentAccountReallyLoggedIn) {
+                recordHonorLevel(state.currentAccount.username, honor.honorLevel);
             }
 
             return {

@@ -96,15 +96,18 @@ class LCUConnector {
         this.disconnectHandlers = [];
     }
 
-    // API Call helper
-    async request(method, endpoint, body = null) {
+    // API Call helper. opts.verbose logs the status even for 404/400/500 —
+    // for probing multiple candidate endpoints (e.g. mastery) where those
+    // codes are the actual signal needed to tell which one is wrong, instead
+    // of silently discarding it like the default suppression does.
+    async request(method, endpoint, body = null, opts = {}) {
         if (!this.credentials) return null;
-        
+
         try {
             const agent = new https.Agent({ rejectUnauthorized: false });
             const url = `https://127.0.0.1:${this.credentials.port}${endpoint}`;
             const auth = Buffer.from(`riot:${this.credentials.password}`).toString('base64');
-            
+
             const config = {
                 method,
                 url,
@@ -114,7 +117,7 @@ class LCUConnector {
                 },
                 httpsAgent: agent
             };
-            
+
             if (body) config.data = body;
 
             const response = await axios(config);
@@ -123,8 +126,8 @@ class LCUConnector {
             const status = e.response?.status;
             // 404/400/500 on LCU endpoints are expected during client startup or
             // when an endpoint doesn't exist in the current client version — don't spam the log
-            if (status !== 404 && status !== 400 && status !== 500) {
-                console.error(`LCU Request Error ${endpoint}:`, e.message);
+            if (opts.verbose || (status !== 404 && status !== 400 && status !== 500)) {
+                console.error(`LCU Request Error ${endpoint}:`, status, e.message);
             }
             return null;
         }

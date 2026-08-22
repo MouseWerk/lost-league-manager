@@ -1,49 +1,21 @@
-const fs = require('fs');
 const state = require('../state');
 const { encrypt, decryptLegacy } = require('./encryption');
+const { loadJson, saveJson } = require('./json-store');
 
 function loadAccounts() {
-    if (fs.existsSync(state.paths.accounts)) {
-        try {
-            const parsed = JSON.parse(fs.readFileSync(state.paths.accounts));
-            return Array.isArray(parsed) ? parsed : [];
-        } catch (e) {
-            console.error('Failed to load accounts:', e.message);
-        }
-    }
-    return [];
+    return loadJson(state.paths.accounts, [], 'accounts', Array.isArray);
 }
 
 function saveAccounts(accounts) {
-    const tmp = state.paths.accounts + '.tmp';
-    try {
-        fs.writeFileSync(tmp, JSON.stringify(accounts, null, 4));
-        fs.renameSync(tmp, state.paths.accounts);
-    } catch (e) {
-        console.error('Failed to save accounts:', e.message);
-        throw e;
-    }
+    saveJson(state.paths.accounts, accounts, 'accounts');
 }
 
 function loadConfig() {
-    if (fs.existsSync(state.paths.config)) {
-        try {
-            Object.assign(state.config, JSON.parse(fs.readFileSync(state.paths.config)));
-        } catch (e) {
-            console.error('Failed to load config:', e.message);
-        }
-    }
+    Object.assign(state.config, loadJson(state.paths.config, {}, 'config'));
 }
 
 function saveConfig() {
-    const tmp = state.paths.config + '.tmp';
-    try {
-        fs.writeFileSync(tmp, JSON.stringify(state.config, null, 4));
-        fs.renameSync(tmp, state.paths.config);
-    } catch (e) {
-        console.error('Failed to save config:', e.message);
-        throw e;
-    }
+    saveJson(state.paths.config, state.config, 'config');
 }
 
 function migratePasswords() {

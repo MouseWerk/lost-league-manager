@@ -19,8 +19,23 @@ const RANKED_QUEUE_IDS = new Set([420, 440]);
 
 function register() {
     ipcMain.handle('accept-match', async () => {
+        // Checked separately from the request's own null-on-failure return so a
+        // dropped LCU connection (client crashed/closed) gets its own message
+        // instead of being reported as "ready check expired", which points the
+        // user at the wrong fix.
+        if (!lcu.connected) {
+            return { success: false, message: 'Not connected to the League client' };
+        }
         try {
-            await lcu.request('POST', '/lol-matchmaking/v1/ready-check/accept');
+            // lcu.request() never throws (see lcu.js) — it returns null specifically
+            // on failure, while a genuine success on this 204-No-Content endpoint
+            // returns '' (also falsy). This used to always report success because
+            // the try/catch here never had anything to catch, so a failed/expired
+            // ready check still told the user "Match accepted!" and they got dodged.
+            const result = await lcu.request('POST', '/lol-matchmaking/v1/ready-check/accept');
+            if (result === null) {
+                return { success: false, message: 'Ready check may have already expired — accept in the League client' };
+            }
             return { success: true };
         } catch (e) {
             return { success: false, message: e.message };
