@@ -321,7 +321,7 @@ function renderBuildPanel() {
 
 function buildRow(label, ids, isBoot) {
     const imgs = ids.map(id =>
-        `<img class="ov-build-item${isBoot ? ' ov-build-item--boot' : ''}" src="${itemIconUrl(id)}" title="${id}" onerror="this.style.display='none'">`
+        `<img class="ov-build-item${isBoot ? ' ov-build-item--boot' : ''}" src="${itemIconUrl(id)}" data-tooltip="${id}" onerror="this.style.display='none'">`
     ).join('');
     return `<div class="ov-build-row"><span class="ov-build-label">${label}</span><div class="ov-build-items">${imgs}</div></div>`;
 }

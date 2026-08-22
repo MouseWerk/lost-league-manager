@@ -1053,14 +1053,14 @@ function createAccountCard(account) {
             <div class="summoner-icon-container">
                 <img class="summoner-icon">
                 <span class="level-badge" style="display:none">1</span>
-                <button class="fav-btn${account.isFavourite ? ' is-fav' : ''}" title="${account.isFavourite ? 'Remove from Favourites' : 'Add to Favourites'}"><i class="fas fa-star"></i></button>
+                <button class="fav-btn${account.isFavourite ? ' is-fav' : ''}" data-tooltip="${account.isFavourite ? 'Remove from Favourites' : 'Add to Favourites'}"><i class="fas fa-star"></i></button>
             </div>
             <div class="text-content">
                 <div class="card-title-row">
                     <h3 class="card-label"></h3>
-                    ${isActive ? '<span class="active-dot" title="Active account"></span>' : ''}
-                    ${account.passwordOk === false ? '<span class="account-warning-badge" title="Saved password could not be read (often after a Windows update) — click Edit and re-enter it"><i class="fas fa-triangle-exclamation"></i></span>' : ''}
-                    ${account.honorFlagged ? '<span class="account-warning-badge" title="Honor level has dropped since it was last observed"><i class="fas fa-arrow-trend-down"></i></span>' : ''}
+                    ${isActive ? '<span class="active-dot" data-tooltip="Active account"></span>' : ''}
+                    ${account.passwordOk === false ? '<span class="account-warning-badge" data-tooltip="Saved password could not be read (often after a Windows update) — click Edit and re-enter it"><i class="fas fa-triangle-exclamation"></i></span>' : ''}
+                    ${account.honorFlagged ? '<span class="account-warning-badge" data-tooltip="Honor level has dropped since it was last observed"><i class="fas fa-arrow-trend-down"></i></span>' : ''}
                 </div>
                 <div class="card-meta">
                     <span class="username card-username"></span>
@@ -1072,12 +1072,12 @@ function createAccountCard(account) {
             </div>
         </div>
         <div class="card-actions">
-            <button class="icon-btn info-btn"      title="View Profile"><i class="fas fa-chart-bar"></i></button>
-            <button class="icon-btn copy-user-btn" title="Copy Username"><i class="fas fa-user"></i></button>
-            <button class="icon-btn copy-pass-btn" title="Copy Password"><i class="fas fa-key"></i></button>
-            <button class="icon-btn play-btn"      title="Launch"><i class="fas fa-play"></i></button>
-            <button class="icon-btn edit-btn"      title="Edit"><i class="fas fa-pen"></i></button>
-            <button class="icon-btn delete-btn"    title="Delete"><i class="fas fa-trash"></i></button>
+            <button class="icon-btn info-btn"      data-tooltip="View Profile"><i class="fas fa-chart-bar"></i></button>
+            <button class="icon-btn copy-user-btn" data-tooltip="Copy Username"><i class="fas fa-user"></i></button>
+            <button class="icon-btn copy-pass-btn" data-tooltip="Copy Password"><i class="fas fa-key"></i></button>
+            <button class="icon-btn play-btn"      data-tooltip="Launch"><i class="fas fa-play"></i></button>
+            <button class="icon-btn edit-btn"      data-tooltip="Edit"><i class="fas fa-pen"></i></button>
+            <button class="icon-btn delete-btn"    data-tooltip="Delete" data-tooltip-pos="left"><i class="fas fa-trash"></i></button>
         </div>
     `;
 

@@ -18,6 +18,68 @@ body {
     -webkit-app-region: no-drag;
 }
 
+/* ── Tooltips ── (see style.css for the main-window version of this) */
+[data-tooltip] { position: relative; }
+
+[data-tooltip]::after,
+[data-tooltip]::before {
+    position: absolute;
+    left: 50%;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.12s ease 0.25s, transform 0.12s ease 0.25s, visibility 0.12s ease 0.25s;
+    z-index: 1000;
+}
+
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    bottom: calc(100% + 8px);
+    transform: translate(-50%, 4px);
+    background: var(--ov-bg);
+    color: #fff;
+    border: 1px solid var(--ov-border);
+    padding: 5px 9px;
+    border-radius: 7px;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+
+[data-tooltip]::before {
+    content: '';
+    bottom: 100%;
+    margin-bottom: -1px;
+    transform: translate(-50%, 4px);
+    border: 4px solid transparent;
+    border-top-color: var(--ov-bg);
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:hover::before {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, 0);
+}
+
+[data-tooltip-pos="bottom"]::after {
+    bottom: auto;
+    top: calc(100% + 8px);
+    transform: translate(-50%, -4px);
+}
+[data-tooltip-pos="bottom"]::before {
+    bottom: auto;
+    top: 100%;
+    margin-bottom: 0;
+    margin-top: -1px;
+    transform: translate(-50%, -4px);
+    border-top-color: transparent;
+    border-bottom-color: var(--ov-bg);
+}
+[data-tooltip-pos="bottom"]:hover::after,
+[data-tooltip-pos="bottom"]:hover::before { transform: translate(-50%, 0); }
+
 /* ── Root container ── */
 .ov-root {
     background: var(--ov-bg);

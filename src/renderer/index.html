@@ -47,16 +47,16 @@
                     <i class="fas fa-plus"></i> Add
                 </button>
                 <div class="sidebar-external-links">
-                    <a href="https://discord.gg/ZyfUMWTPFe" class="sidebar-link-btn" id="discordBtn" title="Discord">
+                    <a href="https://discord.gg/ZyfUMWTPFe" class="sidebar-link-btn" id="discordBtn" data-tooltip="Discord">
                         <i class="fab fa-discord"></i> Discord
                     </a>
-                    <a href="https://www.lostleague.com/" class="sidebar-link-btn" id="websiteBtn" title="Website">
+                    <a href="https://www.lostleague.com/" class="sidebar-link-btn" id="websiteBtn" data-tooltip="Website">
                         <i class="fas fa-globe"></i> Website
                     </a>
                 </div>
                 <div class="version-info">
                     <span id="appVersion">v1.0.2</span>
-                    <a href="#" id="patchNotesBtn" class="patch-notes-link" title="Patch Notes">
+                    <a href="#" id="patchNotesBtn" class="patch-notes-link" data-tooltip="Patch Notes">
                         <i class="fas fa-newspaper"></i> Patch Notes
                     </a>
                 </div>
@@ -69,8 +69,8 @@
             <div class="window-control-bar">
                 <div class="drag-handle"></div>
                 <div class="window-controls">
-                    <button id="minimizeAppBtn" class="icon-btn"><i class="fas fa-minus"></i></button>
-                    <button id="closeAppBtn" class="icon-btn close-btn"><i class="fas fa-times"></i></button>
+                    <button id="minimizeAppBtn" class="icon-btn" data-tooltip="Minimize" data-tooltip-pos="bottom"><i class="fas fa-minus"></i></button>
+                    <button id="closeAppBtn" class="icon-btn close-btn" data-tooltip="Close" data-tooltip-pos="bottom"><i class="fas fa-times"></i></button>
                 </div>
             </div>
 
@@ -88,8 +88,8 @@
                             <span class="label-text">Auto-Accept</span>
                         </label>
                         <div class="view-toggle-btns">
-                            <button id="viewGridBtn" class="view-toggle-btn active" title="Grid view"><i class="fas fa-th-large"></i></button>
-                            <button id="viewListBtn" class="view-toggle-btn" title="Compact list"><i class="fas fa-list"></i></button>
+                            <button id="viewGridBtn" class="view-toggle-btn active" data-tooltip="Grid view"><i class="fas fa-th-large"></i></button>
+                            <button id="viewListBtn" class="view-toggle-btn" data-tooltip="Compact list"><i class="fas fa-list"></i></button>
                         </div>
                     </div>
                 </div>
@@ -608,7 +608,7 @@
             <div id="accountFormView" class="view" style="position:relative;overflow:hidden">
                 <div class="view-header" style="flex-shrink:0">
                     <div class="view-title-row">
-                        <button class="icon-btn" id="cancelAddBtn" style="margin-right:8px" title="Back">
+                        <button class="icon-btn" id="cancelAddBtn" style="margin-right:8px" data-tooltip="Back">
                             <i class="fas fa-arrow-left"></i>
                         </button>
                         <h2 id="modalTitle">New Account</h2>
@@ -668,9 +668,9 @@
                     <!-- Right column: automation & display -->
                     <div class="account-form-section">
                         <div class="acct-section-title">Automation</div>
-                        <div class="form-group" style="opacity:0.4;pointer-events:none" title="Disabled — not permitted under Riot ToS">
+                        <div class="form-group" style="opacity:0.4" data-tooltip="Disabled — not permitted under Riot ToS">
                             <label>Auto Champ Lock <span style="font-size:11px;font-weight:600;color:#e87a7a">(disabled — against Riot ToS)</span></label>
-                            <div class="champ-picker-trigger">
+                            <div class="champ-picker-trigger" style="pointer-events:none">
                                 <div class="champ-picker-preview" id="champPickerPreview">
                                     <span class="champ-picker-placeholder" id="champPickerPlaceholder">Not available</span>
                                 </div>
@@ -681,7 +681,7 @@
                             <input type="checkbox" id="autoSkinToggle">
                             Auto Random Skin (picks random owned skin)
                         </label>
-                        <label class="checkbox-group" style="opacity:0.45;cursor:not-allowed;" title="Not yet implemented">
+                        <label class="checkbox-group" style="opacity:0.45;cursor:not-allowed;" data-tooltip="Not yet implemented">
                             <input type="checkbox" id="autoSpellsToggle" disabled>
                             Auto Spells (Coming Soon)
                         </label>
@@ -756,7 +756,7 @@
                 <div class="update-card-label">Update Available</div>
                 <div id="updateCardVersion" class="update-card-version">v—</div>
             </div>
-            <button id="closeUpdateCard" class="update-card-close" title="Remind me later">
+            <button id="closeUpdateCard" class="update-card-close" data-tooltip="Remind me later">
                 <i class="fas fa-times"></i>
             </button>
         </div>
