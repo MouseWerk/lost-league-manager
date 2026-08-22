@@ -113,6 +113,12 @@ function formatEntry(entry) {
         lp:      `${entry.leaguePoints ?? 0} LP`,
         winLose: `${w}W ${l}L`,
         ratio:   w + l > 0 ? `${Math.round(w / (w + l) * 100)}%` : '',
+        // Unformatted values for rank-history tracking — Riot's ranked-entries
+        // API uses `rank` for the division letter (e.g. "II"), unlike the LCU's
+        // `division` field for the same concept.
+        rawTier:     entry.tier,
+        rawDivision: entry.rank,
+        rawLp:       entry.leaguePoints,
     };
 }
 

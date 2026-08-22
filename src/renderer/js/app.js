@@ -391,12 +391,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         const ok = await showConfirm('Dodge Queue?', warningMsg, 'danger');
         if (!ok) return;
-        await window.electronAPI.dodgeQueue();
-        showToast('Queue dodged', 'info');
+        const res = await window.electronAPI.dodgeQueue();
+        if (res?.success) {
+            showToast('Queue dodged', 'info');
+        } else {
+            showToast(res?.message || 'Failed to dodge queue', 'error');
+        }
     });
-    document.getElementById('ovAcceptBtn').addEventListener('click', async () => {
-        await window.electronAPI.acceptMatch();
-        showToast('Match accepted!', 'success');
+    document.getElementById('ovAcceptBtn').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+            const res = await window.electronAPI.acceptMatch();
+            // The "Match accepted!" toast used to show unconditionally, even when
+            // the LCU request failed (e.g. ready check already expired) — telling
+            // the user it worked while League still dodged them.
+            if (res.success) {
+                showToast('Match accepted!', 'success');
+            } else {
+                showToast(res.message || 'Failed to accept match', 'error');
+            }
+        } finally {
+            btn.disabled = false;
+        }
     });
 
     // Live view tab switching
@@ -657,9 +674,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         if (!result.canceled && result.filePaths.length > 0) {
             const newPath = result.filePaths[0];
-            await window.electronAPI.setConfig({ lolPath: newPath });
-            document.getElementById('lolPathDisplay').innerText = newPath;
-            showToast('League path updated!', 'success');
+            const res = await window.electronAPI.setConfig({ lolPath: newPath });
+            if (res.success) {
+                document.getElementById('lolPathDisplay').innerText = newPath;
+                showToast('League path updated!', 'success');
+            } else {
+                showToast(res.message || 'Failed to update League path', 'error');
+            }
         }
     });
 
@@ -905,6 +926,55 @@ function populateProfileModal(acc, stats) {
     }
 }
 
+function formatRankHistoryLabel(entry) {
+    // Matches capFirst() in the main process (stats.js/riot-api.js) — tier is
+    // always uppercase when stored (see rank-history.js), so .toUpperCase()
+    // here is a no-op today, but kept so this doesn't silently mis-format if
+    // that ever changes or this helper gets reused elsewhere.
+    const cap = s => s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : '';
+    return entry.division ? `${cap(entry.tier)} ${entry.division}` : cap(entry.tier);
+}
+
+// history entries are { ts, tier, division, lp, score }, oldest first, already
+// deduped server-side (see rank-history.js) so each point is a real change.
+function renderRankSparkline(history) {
+    const wrap = document.getElementById('profileRankHistoryWrap');
+    const svg  = document.getElementById('profileRankSparkline');
+    const rangeEl = document.getElementById('profileRankHistoryRange');
+
+    if (!Array.isArray(history) || history.length < 2) {
+        wrap.style.display = 'none';
+        svg.innerHTML = '';
+        return;
+    }
+    wrap.style.display = 'block';
+
+    const scores = history.map(h => h.score);
+    const min = Math.min(...scores);
+    const max = Math.max(...scores);
+    const range = max - min || 1;
+    const w = 300, h = 44, pad = 3;
+
+    const points = history.map((entry, i) => ({
+        x: pad + (history.length === 1 ? 0 : (i / (history.length - 1)) * (w - pad * 2)),
+        y: h - pad - ((entry.score - min) / range) * (h - pad * 2),
+    }));
+
+    const first = history[0];
+    const last  = history[history.length - 1];
+    const rising = last.score >= first.score;
+    const strokeColor = rising ? 'var(--primary)' : 'var(--danger)';
+    const lastPoint = points[points.length - 1];
+    const pointsAttr = points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+    svg.innerHTML = `
+        <polyline points="${pointsAttr}" style="fill:none;stroke:${strokeColor};stroke-width:2;stroke-linejoin:round;stroke-linecap:round" />
+        <circle cx="${lastPoint.x.toFixed(1)}" cy="${lastPoint.y.toFixed(1)}" r="2.5" style="fill:${strokeColor}" />
+    `;
+
+    rangeEl.textContent = `${formatRankHistoryLabel(first)} → ${formatRankHistoryLabel(last)}`;
+}
+
 async function showProfileModal(username) {
     _profileUsername = username;
     const acc = allAccounts.find(a => a.username === username);
@@ -912,6 +982,15 @@ async function showProfileModal(username) {
 
     const modal = document.getElementById('profileModal');
     modal.classList.add('active');
+
+    // Rank history is a cheap local read (no rate limit / network concerns),
+    // so it's always fetched fresh rather than reusing statsCache below.
+    document.getElementById('profileRankHistoryWrap').style.display = 'none';
+    if (acc.riotId) {
+        window.electronAPI.getRankHistory(acc.riotId).then(history => {
+            if (_profileUsername === username) renderRankSparkline(history);
+        });
+    }
 
     const cached = statsCache[username];
     if (cached) {
@@ -980,6 +1059,8 @@ function createAccountCard(account) {
                 <div class="card-title-row">
                     <h3 class="card-label"></h3>
                     ${isActive ? '<span class="active-dot" title="Active account"></span>' : ''}
+                    ${account.passwordOk === false ? '<span class="account-warning-badge" title="Saved password could not be read (often after a Windows update) — click Edit and re-enter it"><i class="fas fa-triangle-exclamation"></i></span>' : ''}
+                    ${account.honorFlagged ? '<span class="account-warning-badge" title="Honor level has dropped since it was last observed"><i class="fas fa-arrow-trend-down"></i></span>' : ''}
                 </div>
                 <div class="card-meta">
                     <span class="username card-username"></span>

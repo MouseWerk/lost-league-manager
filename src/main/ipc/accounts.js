@@ -3,11 +3,28 @@ const fs = require('fs');
 const { loadAccounts, saveAccounts } = require('../services/storage');
 const { encrypt, decrypt, encryptExport, decryptExport } = require('../services/encryption');
 const { broadcastAccountsUpdate } = require('../windows');
+const { loadHonorWatch, isFlaggedRecord } = require('../services/honor-watch');
 const state = require('../state');
 
 function register() {
     ipcMain.handle('get-accounts', () => {
-        return loadAccounts().map(a => ({ ...a, password: '' }));
+        // passwordOk lets the renderer flag accounts whose stored password can't
+        // be decrypted under the current key (e.g. after a Windows update broke
+        // the old wmic-derived key) *before* the user tries to launch and hits
+        // the failure mid-flow — never the plaintext itself, just whether it's
+        // readable. honorFlagged is true once this account's honor level has
+        // dropped below its previously observed peak (see honor-watch.js).
+        //
+        // honor-watch is loaded once here rather than per-account (isHonorFlagged
+        // would otherwise re-read and re-parse the whole file once per account,
+        // O(N) sync disk reads on every get-accounts call).
+        const honorWatch = loadHonorWatch();
+        return loadAccounts().map(a => ({
+            ...a,
+            password: '',
+            passwordOk: decrypt(a.password) !== null,
+            honorFlagged: isFlaggedRecord(honorWatch[a.username]),
+        }));
     });
 
     ipcMain.handle('add-account', (event, data) => {

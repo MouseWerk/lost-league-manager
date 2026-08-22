@@ -4,6 +4,7 @@ const state = require('../state');
 const { loadAccounts, saveAccounts } = require('../services/storage');
 const riotApi = require('../services/riot-api');
 const championData = require('../services/champion-data');
+const { recordRankSnapshot, getRankHistory } = require('../services/rank-history');
 
 function capFirst(s) {
     return s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : '';
@@ -20,6 +21,10 @@ function formatLcuRanked(q) {
         lp:      `${q.leaguePoints ?? 0} LP`,
         winLose: `${w}W ${l}L`,
         ratio:   w + l > 0 ? `${Math.round(w / (w + l) * 100)}%` : '',
+        // Unformatted values for rank-history tracking.
+        rawTier:     q.tier,
+        rawDivision: q.division,
+        rawLp:       q.leaguePoints,
     };
 }
 
@@ -70,6 +75,7 @@ function register() {
                         }
                     } catch { /* non-critical */ }
 
+                    recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp);
                     return result;
                 }
             } catch (e) {
@@ -102,6 +108,7 @@ function register() {
                 }
             } catch { /* non-critical */ }
 
+            recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp);
             return result;
         } catch (e) {
             console.error('[Stats] Riot API error:', e.message);
@@ -109,6 +116,8 @@ function register() {
             return { tier: 'N/A', lp: '', winLose: '', ratio: '', iconSrc: defaultIcon(), level: '', error: e.message };
         }
     });
+
+    ipcMain.handle('get-rank-history', (event, riotId) => getRankHistory(riotId));
 }
 
 module.exports = { register };

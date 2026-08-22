@@ -48,10 +48,11 @@ function register() {
         if (!newConfig || typeof newConfig !== 'object') return { success: false, message: 'Invalid config payload' };
 
         const prev = { ...state.config };
+        const rejected = [];
         for (const [key, value] of Object.entries(newConfig)) {
             const isValid = ALLOWED_CONFIG_KEYS[key];
-            if (!isValid) { console.warn(`[Config] Rejected unknown config key: ${key}`); continue; }
-            if (!isValid(value)) { console.warn(`[Config] Rejected invalid value for config key: ${key}`); continue; }
+            if (!isValid) { console.warn(`[Config] Rejected unknown config key: ${key}`); rejected.push(key); continue; }
+            if (!isValid(value)) { console.warn(`[Config] Rejected invalid value for config key: ${key}`); rejected.push(key); continue; }
             state.config[key] = value;
         }
         saveConfig();
@@ -90,6 +91,14 @@ function register() {
             state.vaultUnlocked = true;
         }
 
+        // Previously always returned success even when every key in the payload
+        // was silently dropped (unknown key, or wrong type) — callers had no way
+        // to tell "applied" from "quietly ignored" short of grepping main-process
+        // logs, so the renderer would show "updated!" for a change that never
+        // actually took effect.
+        if (rejected.length > 0) {
+            return { success: false, message: `Rejected invalid config key(s): ${rejected.join(', ')}`, rejected };
+        }
         return { success: true };
     });
 }
