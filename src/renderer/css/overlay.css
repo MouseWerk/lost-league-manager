@@ -29,7 +29,9 @@ body {
     visibility: hidden;
     pointer-events: none;
     transition: opacity 0.12s ease 0.25s, transform 0.12s ease 0.25s, visibility 0.12s ease 0.25s;
-    z-index: 1000;
+    /* Above everything else in the overlay window, same reasoning as the
+       main-window version of this rule in style.css. */
+    z-index: 1000000;
 }
 
 [data-tooltip]::after {
@@ -43,7 +45,13 @@ body {
     border-radius: 7px;
     font-size: 10px;
     font-weight: 600;
-    white-space: nowrap;
+    /* Capped + wrapping, not nowrap — see style.css's version of this rule for
+       why: an invisible-but-unclipped wide tooltip can still inflate a
+       scrolling ancestor's scrollWidth and produce a phantom scrollbar. */
+    max-width: 180px;
+    width: max-content;
+    white-space: normal;
+    text-align: center;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
 }
 

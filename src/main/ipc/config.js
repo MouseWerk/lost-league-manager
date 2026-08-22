@@ -12,6 +12,7 @@ const ALLOWED_CONFIG_KEYS = {
     autoAccept:            v => typeof v === 'boolean',
     checkUpdatesOnStartup: v => typeof v === 'boolean',
     discordRpcEnabled:     v => typeof v === 'boolean',
+    lastSeenPatchNotesVersion: v => typeof v === 'string',
     lolPath:               v => typeof v === 'string',
     minimizeOnGameStart:   v => typeof v === 'boolean',
     overlayEnabled:        v => typeof v === 'boolean',

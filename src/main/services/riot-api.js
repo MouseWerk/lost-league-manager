@@ -98,6 +98,48 @@ async function getRankedEntriesByPuuid(puuid, platform) {
     } catch (e) { handleAxiosError(e, `puuid ${puuid.slice(0, 8)}…`); }
 }
 
+async function getTopMastery(puuid, platform, count = 3) {
+    const url = `https://${platform}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}/top?count=${count}`;
+    try {
+        const res = await axios.get(url, { headers: headers(), timeout: 8000 });
+        return res.data;
+    } catch (e) { handleAxiosError(e, `mastery for puuid ${puuid.slice(0, 8)}…`); }
+}
+
+// count is capped by Riot at match-v5 (start/count both required); 5 keeps this
+// to 6 total requests (1 id list + 5 match details) per profile-modal open.
+async function getMatchHistory(puuid, platform, count = 5) {
+    const regional = getRegional(platform);
+    const idsUrl = `https://${regional}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?start=0&count=${count}`;
+    let ids;
+    try {
+        ids = (await axios.get(idsUrl, { headers: headers(), timeout: 8000 })).data;
+    } catch (e) { handleAxiosError(e, `match ids for puuid ${puuid.slice(0, 8)}…`); }
+
+    const matches = await Promise.all(ids.map(async (matchId) => {
+        try {
+            const res = await axios.get(
+                `https://${regional}.api.riotgames.com/lol/match/v5/matches/${matchId}`,
+                { headers: headers(), timeout: 8000 }
+            );
+            const p = res.data.info.participants.find(pp => pp.puuid === puuid);
+            if (!p) return null;
+            return {
+                matchId,
+                win: !!p.win,
+                championName: p.championName, // DDragon key, e.g. "MonkeyKing"
+                kda: `${p.kills}/${p.deaths}/${p.assists}`,
+            };
+        } catch (e) {
+            // One bad match (e.g. a remake the API still lists) shouldn't sink
+            // the whole strip — skip it rather than failing the batch.
+            console.log('[MatchHistory]', matchId, e.message);
+            return null;
+        }
+    }));
+    return matches.filter(Boolean);
+}
+
 function capFirst(s) {
     return s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : '';
 }
@@ -142,6 +184,26 @@ async function getStats(gameName, tagLine, region) {
     const flex   = formatEntry(entries.find(e => e.queueType === 'RANKED_FLEX_SR'))  || EMPTY;
     const version = championData.getLatestVersion();
 
+    // Best-effort — a mastery hiccup shouldn't fail the whole card's stats.
+    let masteryChampions = [];
+    try {
+        const top = await getTopMastery(account.puuid, platform, 3);
+        const idToName  = championData.getIdToNameMap();
+        const idToImage = championData.getIdToImageMap();
+        masteryChampions = (top || []).map(c => {
+            const key  = idToName[c.championId];
+            const full = key ? championData.getChampionFullData(key) : null;
+            return {
+                name:   full?.name || key || `Champion ${c.championId}`,
+                icon:   key ? idToImage[key] : null,
+                points: c.championPoints,
+                level:  c.championLevel,
+            };
+        });
+    } catch (e) {
+        console.log('[Stats] mastery lookup failed:', e.message);
+    }
+
     return {
         success: true,
         ...solo,
@@ -149,6 +211,7 @@ async function getStats(gameName, tagLine, region) {
         flexLp:      flex.lp,
         flexWinLose: flex.winLose,
         flexRatio:   flex.ratio,
+        masteryChampions,
         iconSrc: summoner.profileIconId
             ? `https://ddragon.leagueoflegends.com/cdn/${version}/img/profileicon/${summoner.profileIconId}.png`
             : `https://ddragon.leagueoflegends.com/cdn/${version}/img/profileicon/29.png`,
@@ -157,4 +220,4 @@ async function getStats(gameName, tagLine, region) {
     };
 }
 
-module.exports = { getStats, getPlatform };
+module.exports = { getStats, getPlatform, getMatchHistory, getAccountByRiotId };

@@ -217,6 +217,42 @@ function register() {
         return { success: true };
     });
 
+    // Maps the app's user-facing region strings (see REGION_TO_PLATFORM in
+    // riot-api.js) to op.gg's URL region slugs. op.gg doesn't cover CN (Tencent
+    // operates it separately, same reason it's excluded from stats lookups).
+    // The PH/SG/TH/TW/VN split is op.gg's SEA consolidation — best-effort 'sg'.
+    const REGION_TO_OPGG = {
+        na: 'na', na1: 'na',
+        euw: 'euw', euw1: 'euw',
+        eune: 'eune', eun1: 'eune',
+        kr: 'kr',
+        jp: 'jp', jp1: 'jp',
+        br: 'br', br1: 'br',
+        las: 'las', la1: 'las',
+        lan: 'lan', la2: 'lan',
+        oce: 'oce', oc1: 'oce',
+        tr: 'tr', tr1: 'tr',
+        ru: 'ru',
+        sea: 'sg',
+        ph: 'sg', ph2: 'sg',
+        sg: 'sg', sg2: 'sg',
+        th: 'sg', th2: 'sg',
+        tw: 'sg', tw2: 'sg',
+        vn: 'sg', vn2: 'sg',
+    };
+    // Builds the op.gg URL itself here rather than trusting a URL string from
+    // the renderer — region and riotId are validated/encoded, so the result
+    // can only ever point at an op.gg summoner page.
+    ipcMain.handle('open-opgg', async (event, region, riotId) => {
+        const slug = REGION_TO_OPGG[(region || '').toLowerCase()];
+        if (!slug || typeof riotId !== 'string' || !riotId.includes('#')) return { success: false };
+        const [name, tag] = riotId.trim().split('#');
+        if (!name || !tag) return { success: false };
+        const url = `https://www.op.gg/lol/summoners/${slug}/${encodeURIComponent(name)}-${encodeURIComponent(tag)}`;
+        await shell.openExternal(url);
+        return { success: true };
+    });
+
     ipcMain.handle('window-control', (event, action) => {
         if (!state.mainWindow) return;
         if (action === 'close')    state.mainWindow.close();

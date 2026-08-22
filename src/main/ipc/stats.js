@@ -58,6 +58,11 @@ function register() {
                         flexLp:      flex.lp,
                         flexWinLose: flex.winLose,
                         flexRatio:   flex.ratio,
+                        // Not fetched here — LCU mastery endpoints only reliably cover
+                        // the currently logged-in summoner, and this branch already
+                        // only runs for that one account. It'll pick up mastery from
+                        // the Riot-API strategy the next time this card's cache expires.
+                        masteryChampions: [],
                         iconSrc: summoner.profileIconId
                             ? `https://ddragon.leagueoflegends.com/cdn/${v}/img/profileicon/${summoner.profileIconId}.png`
                             : defaultIcon(),
@@ -118,6 +123,29 @@ function register() {
     });
 
     ipcMain.handle('get-rank-history', (event, riotId) => getRankHistory(riotId));
+
+    // On-demand only (profile modal), not per-card — 6 Riot API requests per
+    // call (1 match-id list + 5 match details), too heavy to run for every
+    // account on every render like get-stats does.
+    ipcMain.handle('get-match-history', async (event, { region, riotId }) => {
+        if (!state.config.riotApiKey) return { error: 'No Riot API key set — add one in Settings → Riot API Key' };
+        if (!riotId?.includes('#')) return { matches: [] };
+        const [name, tag] = riotId.trim().split('#');
+        try {
+            const { account, platform } = await riotApi.getAccountByRiotId(name, tag, region);
+            const matches = await riotApi.getMatchHistory(account.puuid, platform, 5);
+            const idToImage = championData.getIdToImageMap();
+            return {
+                matches: matches.map(m => ({
+                    win: m.win,
+                    kda: m.kda,
+                    championIcon: idToImage[m.championName] || null,
+                })),
+            };
+        } catch (e) {
+            return { error: e.message };
+        }
+    });
 }
 
 module.exports = { register };
