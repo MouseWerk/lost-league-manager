@@ -129,17 +129,14 @@ function decryptLegacy(text) {
     return tryDecryptWith(text, LEGACY_KEY);
 }
 
+// ── Backups (.llem) ───────────────────────────────────────────────────────────
+
+// Version 1 backups used a key derived from a constant in this repository,
+// so anyone with the file could read every password. They can still be
+// imported; new exports always use version 2.
 const EXPORT_KEY = crypto.scryptSync('lost-league-export-v1', 'export-salt-ll', 32);
 
-function encryptExport(obj) {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(ALGORITHM, EXPORT_KEY, iv);
-    const payload = Buffer.from(JSON.stringify(obj));
-    const enc = Buffer.concat([cipher.update(payload), cipher.final()]);
-    return 'llem:' + iv.toString('hex') + ':' + enc.toString('hex');
-}
-
-function decryptExport(text) {
+function decryptExportV1(text) {
     try {
         if (!text.startsWith('llem:')) return null;
         const raw = text.slice(5);
@@ -153,6 +150,92 @@ function decryptExport(text) {
     }
 }
 
+// Version 2: the key comes from a passphrase the user enters at export
+// (scrypt with a random salt), the data is sealed with AES-256-GCM so a wrong
+// passphrase or a modified file is detected instead of decrypting to garbage.
+const BACKUP_FORMAT  = 'lost-league-backup';
+const BACKUP_AAD     = Buffer.from(`${BACKUP_FORMAT}:2`);
+const BACKUP_SCRYPT  = { N: 32768, r: 8, p: 1 };
+const SCRYPT_MAXMEM  = 128 * 1024 * 1024;
+
+function scryptAsync(passphrase, salt, params) {
+    return new Promise((resolve, reject) => {
+        crypto.scrypt(passphrase, salt, 32, { ...params, maxmem: SCRYPT_MAXMEM }, (err, key) => {
+            if (err) reject(err); else resolve(key);
+        });
+    });
+}
+
+async function encryptExport(obj, passphrase) {
+    if (typeof passphrase !== 'string' || !passphrase) throw new Error('A passphrase is required');
+    const salt   = crypto.randomBytes(16);
+    const iv     = crypto.randomBytes(12);
+    const key    = await scryptAsync(passphrase, salt, BACKUP_SCRYPT);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    cipher.setAAD(BACKUP_AAD);
+    const enc = Buffer.concat([cipher.update(JSON.stringify(obj), 'utf8'), cipher.final()]);
+    return JSON.stringify({
+        format:  BACKUP_FORMAT,
+        version: 2,
+        kdf:     { name: 'scrypt', ...BACKUP_SCRYPT, salt: salt.toString('base64') },
+        cipher:  { name: 'aes-256-gcm', iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64') },
+        data:    enc.toString('base64'),
+    });
+}
+
+// 'v1' | 'v2' | null for anything else.
+function backupVersion(text) {
+    if (typeof text !== 'string') return null;
+    if (text.startsWith('llem:')) return 'v1';
+    try {
+        const o = JSON.parse(text);
+        if (o && o.format === BACKUP_FORMAT && o.version === 2) return 'v2';
+    } catch { /* not JSON */ }
+    return null;
+}
+
+function validScryptParams(kdf) {
+    // Bounded so a crafted file cannot make the import burn gigabytes of memory.
+    const { N, r, p } = kdf || {};
+    return Number.isInteger(N) && N >= 16384 && N <= 1048576 && (N & (N - 1)) === 0 &&
+        Number.isInteger(r) && r >= 1 && r <= 16 &&
+        Number.isInteger(p) && p >= 1 && p <= 4 &&
+        128 * N * r * p <= SCRYPT_MAXMEM / 2;
+}
+
+// Resolves { ok: true, data } or { ok: false, reason: 'invalid' | 'wrong-passphrase' }.
+async function decryptExport(text, passphrase) {
+    let o;
+    try { o = JSON.parse(text); } catch { return { ok: false, reason: 'invalid' }; }
+    if (!o || o.format !== BACKUP_FORMAT || o.version !== 2 || o.kdf?.name !== 'scrypt' ||
+        o.cipher?.name !== 'aes-256-gcm' || !validScryptParams(o.kdf) ||
+        typeof o.kdf.salt !== 'string' || typeof o.cipher.iv !== 'string' ||
+        typeof o.cipher.tag !== 'string' || typeof o.data !== 'string') {
+        return { ok: false, reason: 'invalid' };
+    }
+    const salt = Buffer.from(o.kdf.salt, 'base64');
+    const iv   = Buffer.from(o.cipher.iv, 'base64');
+    const tag  = Buffer.from(o.cipher.tag, 'base64');
+    if (salt.length < 16 || iv.length !== 12 || tag.length !== 16) return { ok: false, reason: 'invalid' };
+
+    const key = await scryptAsync(String(passphrase ?? ''), salt, { N: o.kdf.N, r: o.kdf.r, p: o.kdf.p });
+    let plain;
+    try {
+        const d = crypto.createDecipheriv('aes-256-gcm', key, iv);
+        d.setAAD(BACKUP_AAD);
+        d.setAuthTag(tag);
+        plain = Buffer.concat([d.update(Buffer.from(o.data, 'base64')), d.final()]).toString('utf8');
+    } catch {
+        // GCM cannot tell a wrong passphrase from a modified file.
+        return { ok: false, reason: 'wrong-passphrase' };
+    }
+    try {
+        return { ok: true, data: JSON.parse(plain) };
+    } catch {
+        return { ok: false, reason: 'invalid' };
+    }
+}
+
 // Test hook: forget cached keys so a test can change what execSync returns.
 function _resetKeyCache() {
     _machineKey = null;
@@ -163,6 +246,6 @@ function _resetKeyCache() {
 
 module.exports = {
     encrypt, decrypt, decryptLegacy, isCurrentEncryption, hasMachineKey,
-    encryptExport, decryptExport,
+    encryptExport, decryptExport, decryptExportV1, backupVersion,
     _resetKeyCache,
 };

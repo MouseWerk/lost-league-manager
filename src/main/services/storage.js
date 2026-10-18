@@ -2,6 +2,7 @@ const path = require('path');
 const state = require('../state');
 const { encrypt, decrypt, isCurrentEncryption, hasMachineKey } = require('./encryption');
 const { loadJson, saveJson, takeCorruptNotices } = require('./json-store');
+const secrets = require('./secrets');
 
 function loadAccounts() {
     return loadJson(state.paths.accounts, [], 'accounts', Array.isArray);
@@ -24,8 +25,15 @@ function updateAccounts(fn) {
     return true;
 }
 
+// Usernames are compared case-insensitively everywhere (Riot logins are).
+function sameUser(a, b) {
+    return typeof a === 'string' && typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
+}
+
 function loadConfig() {
     Object.assign(state.config, loadJson(state.paths.config, {}, 'config', (v) => v !== null && typeof v === 'object' && !Array.isArray(v)));
+    // Moves a plaintext Riot API key from older versions into safeStorage.
+    if (secrets.loadSecrets(state.config)) saveConfig();
 }
 
 function saveConfig() {
@@ -65,4 +73,4 @@ function migratePasswords() {
     }
 }
 
-module.exports = { loadAccounts, saveAccounts, updateAccounts, loadConfig, saveConfig, migratePasswords };
+module.exports = { loadAccounts, saveAccounts, updateAccounts, sameUser, loadConfig, saveConfig, migratePasswords };

@@ -21,9 +21,9 @@ const state = {
     currentAccount: null,
     owOverlayPackage: null,
     // Session-only (not persisted) — true once the vault password has been
-    // verified by the main process for this app run. Gates get-account-password
-    // server-side; the renderer's lock-screen overlay alone is not a trust
-    // boundary (devtools/console can call exposed IPC methods directly).
+    // verified by the main process for this app run. Every account IPC checks
+    // it through services/vault.js; the renderer's lock-screen overlay alone is
+    // not a trust boundary (devtools/console can call exposed IPC methods directly).
     vaultUnlocked: false,
 
     config: {
@@ -42,9 +42,11 @@ const state = {
         checkUpdatesOnStartup: true,
         toastOnQueuePop: true,
         discordRpcEnabled: true,
-        riotApiKey: '',
+        // The Riot API key is not kept here: it is stored encrypted as
+        // riotApiKeyEnc and read through services/secrets.js. The vault keeps
+        // vaultKdf/vaultSalt/vaultHash (scrypt); vaultPasswordHash is the
+        // unsalted SHA-256 of older versions, replaced on the first unlock.
         vaultEnabled: false,
-        vaultPasswordHash: '',
     },
 
     paths: {
