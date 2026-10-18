@@ -8,7 +8,8 @@ const fs = require('fs');
 const path = require('path');
 
 // ── Vault gate (src/main/services/vault.js) ──────────────────────────────────
-const fakeVault = { locked: false, isVaultLocked() { return this.locked; } };
+// A locked vault is an enabled one; the jump list empties for any enabled vault.
+const fakeVault = { locked: false, isVaultLocked() { return this.locked; }, isVaultEnabled() { return this.locked; } };
 const originalLoad = Module._load;
 Module._load = function (request, parent, isMain) {
     if (/(^|[\\/])services[\\/]vault(\.js)?$/.test(request)) return fakeVault;

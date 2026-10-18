@@ -294,3 +294,40 @@ test('verifyLoggedInAccount compares usernames case-insensitively', () => {
     assert.deepEqual(launch.verifyLoggedInAccount('alice', { username: 'bob' }), { ok: false, actual: 'bob' });
     assert.deepEqual(launch.verifyLoggedInAccount('alice', null), { ok: null });
 });
+
+test('an unexpected error in the login script is not reported as a missing window', async () => {
+    setup();
+    const script = await startUntilScript('alice');
+    script.exit(5);
+    await fx.waitFor(() => lastStatus()?.error, 'an error status');
+    assert.equal(lastStatus().kind, 'failed');
+    assert.match(lastStatus().message, /unexpected error/);
+    assert.doesNotMatch(lastStatus().message, /did not appear/);
+});
+
+// lastUsed was saved from the list loaded before the client checks (up to
+// 3 s of awaits), undoing edits and bringing back deleted accounts.
+test('recording lastUsed keeps changes made while the launch checked the client', async () => {
+    setup({
+        lcuConnected: true,
+        session: () => {
+            // Meanwhile: bob gets a new label, carol is deleted.
+            fx.writeAccounts([
+                { username: 'alice', password: encrypt('pw-a') },
+                { username: 'bob', password: encrypt('pw-b'), label: 'edited meanwhile' },
+            ]);
+            return { username: 'someone-else' };
+        },
+        accounts: [
+            { username: 'alice', password: encrypt('pw-a') },
+            { username: 'bob', password: encrypt('pw-b') },
+            { username: 'carol', password: encrypt('pw-c') },
+        ],
+    });
+    await startUntilScript('alice');
+    const saved = fx.readAccounts();
+    assert.deepEqual(saved.map(a => a.username), ['alice', 'bob'], 'carol stays deleted');
+    assert.equal(saved.find(a => a.username === 'bob').label, 'edited meanwhile');
+    assert.ok(saved.find(a => a.username === 'alice').lastUsed > 0);
+    launch.cancelLaunch();
+});
