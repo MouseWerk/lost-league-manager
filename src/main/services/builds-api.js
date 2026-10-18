@@ -1,7 +1,10 @@
 const axios = require('axios');
-const championData = require('./champion-data');
+const itemData = require('./item-data');
 
-const OPGG_BASE = 'https://www.op.gg/champions';
+// www.op.gg/champions/... redirects here; ARAM builds moved to /lol/modes/aram
+// (the old /build/aram URL redirects to the Summoner's Rift build).
+const OPGG_BASE = 'https://op.gg/lol/champions';
+const OPGG_ARAM_BASE = 'https://op.gg/lol/modes/aram';
 
 const HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -20,8 +23,17 @@ const POS_MAP = {
     UTILITY: 'support', SUPPORT: 'support',
 };
 
-// Known LoL boot item IDs
-const BOOT_IDS = new Set([3006, 3009, 3010, 3020, 3047, 3111, 3117, 3158]);
+// Boots are recognised by their Data Dragon "Boots" tag; this list (tier 1-3
+// boots as of patch 16.20) is only used while the item list isn't loaded.
+const FALLBACK_BOOT_IDS = new Set([
+    1001, 3006, 3008, 3009, 3020, 3047, 3111, 3117, 3158,
+    3168, 3170, 3171, 3172, 3173, 3174, 3175,
+]);
+
+function bootIds() {
+    const tagged = itemData.getItemList().filter(i => i.tags?.includes('Boots')).map(i => i.id);
+    return tagged.length ? new Set(tagged) : FALLBACK_BOOT_IDS;
+}
 
 function champToSlug(champKey) {
     // DDragon key → op.gg URL slug: lowercase, strip ' and .
@@ -100,9 +112,10 @@ function extractFromHtml(html) {
     // Classify by item ID range:
     //   1001–2999 → typically starter/component items
     //   3000+     → finished items; boot IDs separated out
-    const starting = all.filter(id => id < 3000);
-    const boots    = all.filter(id => BOOT_IDS.has(id));
-    const rest     = all.filter(id => id >= 3000 && !BOOT_IDS.has(id));
+    const boot     = bootIds();
+    const starting = all.filter(id => id < 3000 && !boot.has(id));
+    const boots    = all.filter(id => boot.has(id));
+    const rest     = all.filter(id => id >= 3000 && !boot.has(id));
 
     return {
         starting: starting.slice(0, 4),
@@ -118,7 +131,8 @@ async function getBuilds(champKey, gameMode, position) {
     const slug   = champToSlug(champKey);
     const isAram = (gameMode || '').toUpperCase() === 'ARAM';
     const pos    = isAram ? 'aram' : (POS_MAP[(position || '').toUpperCase()] || '');
-    const url    = pos ? `${OPGG_BASE}/${slug}/build/${pos}` : `${OPGG_BASE}/${slug}/build`;
+    const url    = isAram ? `${OPGG_ARAM_BASE}/${slug}/build`
+        : pos ? `${OPGG_BASE}/${slug}/build/${pos}` : `${OPGG_BASE}/${slug}/build`;
 
     try {
         const res  = await axios.get(url, { headers: HEADERS, timeout: 12000 });
