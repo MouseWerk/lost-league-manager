@@ -40,6 +40,13 @@ function saveConfig() {
     saveJson(state.paths.config, state.config, 'config');
 }
 
+// AES-CBC with a wrong key still passes the padding check about 1 time in
+// 256 and returns garbage. Re-encrypting that would replace the original for
+// good, so only text that can be a typed password is migrated.
+function looksLikePassword(text) {
+    return text.length > 0 && !/[\u0000-\u001f\u007f\ufffd]/.test(text);
+}
+
 function migratePasswords() {
     const accounts = loadAccounts();
     let migrated = 0;
@@ -53,7 +60,7 @@ function migratePasswords() {
         for (const acc of accounts) {
             if (!acc.password || isCurrentEncryption(acc.password)) continue;
             const plain = decrypt(acc.password);
-            if (plain === null) continue;
+            if (plain === null || !looksLikePassword(plain)) continue;
             acc.password = encrypt(plain);
             migrated++;
         }
@@ -81,4 +88,4 @@ function dataFileProblemText(n) {
     return `${name} could not be read (it may be locked by antivirus or OneDrive). Changes to it are not saved until it can be read again.`;
 }
 
-module.exports = { loadAccounts, saveAccounts, updateAccounts, sameUser, loadConfig, saveConfig, migratePasswords, dataFileProblemText };
+module.exports = { loadAccounts, saveAccounts, updateAccounts, sameUser, loadConfig, saveConfig, migratePasswords, dataFileProblemText, looksLikePassword };

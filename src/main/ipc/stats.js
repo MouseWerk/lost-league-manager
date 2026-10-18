@@ -311,6 +311,8 @@ function register() {
     // Reads Riot ID / region / login name of whoever is signed into the
     // running League client, for one-click "import from client".
     ipcMain.handle('get-client-summoner', async () => {
+        // Includes the Riot login name: nothing while the vault is locked.
+        if (require('../services/vault').isVaultLocked()) return { success: false, locked: true, message: 'Vault is locked' };
         if (!lcu.connected) return { success: false, message: 'League client is not running' };
         const [me, regionLocale, session] = await Promise.all([
             lcu.request('GET', '/lol-summoner/v1/current-summoner'),

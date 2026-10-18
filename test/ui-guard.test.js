@@ -86,3 +86,11 @@ test('no inline scripts, styles or event-handler attributes', () => {
     }
     assert.deepEqual(offenders, []);
 });
+
+// A form dialog replaced while its submit was in flight resolves null even
+// though main applied the change; the vault switch must follow main's state.
+test('the vault switch re-reads the state from main after its dialog', () => {
+    const app = read('js/app.js');
+    const fn = app.slice(app.indexOf('async function initVaultSettings'), app.indexOf('function initRiotApiKeySettings'));
+    assert.match(fn, /enabled = \(await readVaultState\(config\)\)\.enabled;\s*\r?\n\s*render\(\);\s*\r?\n\s*\}\);/);
+});

@@ -274,8 +274,15 @@ function register() {
         if (vault.isVaultLocked()) return vault.lockedResult();
         const passphrase = opts && typeof opts === 'object' && typeof opts.passphrase === 'string' ? opts.passphrase : undefined;
         try {
+            // A passphrase for a backup that is no longer pending (expired after
+            // PENDING_IMPORT_TTL_MS): say so instead of opening a new dialog and
+            // then reporting "wrong passphrase" for the other file.
+            if (passphrase !== undefined && (!_pendingImport || Date.now() - _pendingImport.at > PENDING_IMPORT_TTL_MS)) {
+                _pendingImport = null;
+                return { success: false, expired: true, message: 'The chosen backup is no longer open. Choose the file again.' };
+            }
             // A call without a passphrase starts over with a new file.
-            if (_pendingImport && (passphrase === undefined || Date.now() - _pendingImport.at > PENDING_IMPORT_TTL_MS)) {
+            if (_pendingImport && passphrase === undefined) {
                 _pendingImport = null;
             }
 

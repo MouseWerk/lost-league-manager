@@ -499,6 +499,9 @@ async function initVaultSettings(config) {
         showToast("Vault turned off", "info");
       }
     }
+    // Trust main, not the dialog result: a dialog replaced while its submit
+    // was in flight resolves null even though main already applied it.
+    enabled = (await readVaultState(config)).enabled;
     render();
   });
 
