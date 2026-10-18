@@ -18,6 +18,13 @@ function Exit-Script ([int]$code) {
     exit $code
 }
 
+# Any error nothing else catches ends the script with its own code (5), so the
+# app can tell it apart from "window not found" (1).
+trap {
+    Write-Host "ERROR: $_"
+    Exit-Script 5
+}
+
 Write-Host "Script Started at $(Get-Date)"
 
 # Read the password from stdin rather than a command-line argument, so it

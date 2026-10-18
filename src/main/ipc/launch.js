@@ -7,7 +7,7 @@ const axios = require('axios');
 // Called as childProcess.spawn (not destructured) so tests can stand in a fake.
 const childProcess = require('child_process');
 const state = require('../state');
-const { loadAccounts, saveAccounts } = require('../services/storage');
+const { loadAccounts, updateAccounts } = require('../services/storage');
 const { decrypt } = require('../services/encryption');
 const { broadcastAccountsUpdate } = require('../windows');
 const lcu = require('../lcu');
@@ -41,17 +41,10 @@ function send(channel, ...args) {
     }
 }
 
-// The vault gate lives in services/vault.js. Until that module exists the
-// vault cannot be locked from main's point of view, so launching stays open.
+// The vault gate lives in services/vault.js (required lazily: it requires
+// storage, which requires this module's dependencies).
 function isVaultLocked() {
-    let vault;
-    try {
-        vault = require('../services/vault');
-    } catch (e) {
-        if (e.code === 'MODULE_NOT_FOUND' && /services[\\/]vault/.test(e.message)) return false;
-        throw e;
-    }
-    return vault.isVaultLocked();
+    return require('../services/vault').isVaultLocked();
 }
 
 function sameUsername(a, b) {
@@ -354,6 +347,7 @@ async function onLoginScriptExit(launch, code, signal) {
     let message;
     if (code === 1) message = 'The Riot Client window did not appear. Start the Riot Client and try again.';
     else if (code === 2) message = 'Could not bring the Riot Client window to the front. Click it and try again.';
+    else if (code === 5) message = 'The login stopped because of an unexpected error. Try again; details are in %TEMP%\\leaguelogin_debug.txt.';
     else if (code === null) message = `The login was interrupted${signal ? ` (${signal})` : ''}. Try again.`;
     else message = 'Login failed. Check the Riot Client window and try again.';
     fail(launch, message, 'failed');
@@ -455,8 +449,11 @@ async function executeAccountLaunch(username, opts = {}) {
             }
         }
 
-        accounts[idx].lastUsed = Date.now();
-        saveAccounts(accounts);
+        updateAccounts((fresh) => {
+            const current = fresh.find(a => sameUsername(a.username, account.username));
+            if (!current) return false; // deleted meanwhile: don't bring it back
+            current.lastUsed = Date.now();
+        });
         broadcastAccountsUpdate();
         send('launch-account-info', accountMeta(account));
 
@@ -549,7 +546,8 @@ function register() {
 
     ipcMain.handle('cancel-launch', () => cancelLaunch());
 
-    ipcMain.handle('get-current-account', () => state.currentAccount?.username ?? null);
+    // The signed-in login name is account data: hidden while the vault is locked.
+    ipcMain.handle('get-current-account', () => (isVaultLocked() ? null : state.currentAccount?.username ?? null));
 }
 
 module.exports = {
