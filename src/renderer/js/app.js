@@ -128,6 +128,7 @@ const {
   makeStatsEntry,
   statsEntryState,
   sparklinePoints,
+  lobbyMemberLabel,
   normalizeLoginStatus,
   needsLaunchAttention,
   MIN_PASSPHRASE_LENGTH,
@@ -1094,10 +1095,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setLcuOffline();
     setActiveAccount(null); // nobody is signed in without a client
   });
-  window.electronAPI.onLcuGameflow((phase) => {
-    updateGameflowBadge(phase);
-    updateContextButtons(phase);
-  });
+  window.electronAPI.onLcuGameflow(handleGameflowEvent);
 
   // Dodge / Accept buttons
   document.getElementById("ovDodgeBtn").addEventListener("click", async () => {
@@ -1110,6 +1108,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     const ok = await showConfirm("Dodge Queue?", warningMsg, "danger", "Dodge");
     if (!ok) return;
+    // The game may have started while the confirmation was open.
+    if (_lastGameflowPhase && _lastGameflowPhase !== "ChampSelect") {
+      showToast("Champ select is over, nothing to dodge", "info");
+      return;
+    }
     const res = await window.electronAPI.dodgeQueue();
     if (res?.success) {
       showToast("Queue dodged", "info");
@@ -1425,6 +1428,9 @@ function showView(viewId) {
     .querySelectorAll(".view")
     .forEach((v) => v.classList.remove("active"));
   document.getElementById(viewId).classList.add("active");
+  // Live timers only tick while the Live view is shown; opening it again
+  // reloads the view and restarts them.
+  if (currentView === "liveView" && viewId !== "liveView") stopLiveTimers();
   currentView = viewId;
 }
 
@@ -3173,11 +3179,11 @@ function setLcuOffline() {
   document.getElementById("lcuOffline").style.display = "";
   document.getElementById("lcuOnline").style.display = "none";
   updateGameflowBadge(null);
+  _lastGameflowPhase = null;
   // If the client disconnects mid-queue/game, loadLiveView()'s own cleanup
   // branch (phase !== Matchmaking/InProgress) never runs — clear here too,
   // otherwise these keep ticking forever after the client closes/crashes.
-  clearInterval(window._queueTimerInterval);
-  clearInterval(window._gameTimerInterval);
+  stopLiveTimers();
 }
 
 function formatDuration(seconds) {
@@ -3204,8 +3210,56 @@ function tierClass(tier) {
   return valid.includes(t) ? `rank-${t}` : "rank-unranked";
 }
 
+// ── Live view refresh ─────────────────────────────────────────────────────
+let _queueTimerInterval = null;
+let _gameTimerInterval = null;
+let _liveGen = 0; // newest loadLiveView call; older results are dropped
+let _gameflowSeq = 0; // bumped by every gameflow event
+let _lastGameflowPhase = null;
+let _liveRefreshTimer = null;
+// Phases can flip quickly (ready check declined -> queue again): one reload
+// after things settle instead of one per event.
+const LIVE_REFRESH_DEBOUNCE_MS = 500;
+
+function stopLiveTimers() {
+  clearInterval(_queueTimerInterval);
+  clearInterval(_gameTimerInterval);
+  _queueTimerInterval = null;
+  _gameTimerInterval = null;
+}
+
+function handleGameflowEvent(phase) {
+  _gameflowSeq++;
+  _lastGameflowPhase = phase;
+  updateGameflowBadge(phase);
+  updateContextButtons(phase);
+  if (phase !== "Matchmaking") {
+    clearInterval(_queueTimerInterval);
+    _queueTimerInterval = null;
+  }
+  if (phase !== "InProgress") {
+    clearInterval(_gameTimerInterval);
+    _gameTimerInterval = null;
+  }
+  // The context panel, ranked LP and history follow the phase while the
+  // view is visible; opening the view later loads it anyway.
+  if (currentView === "liveView") {
+    clearTimeout(_liveRefreshTimer);
+    _liveRefreshTimer = setTimeout(loadLiveView, LIVE_REFRESH_DEBOUNCE_MS);
+  }
+}
+
 async function loadLiveView() {
-  const data = await window.electronAPI.getLcuOverview();
+  const gen = ++_liveGen;
+  const seqAtStart = _gameflowSeq;
+  let data;
+  try {
+    data = await window.electronAPI.getLcuOverview();
+  } catch (err) {
+    console.error("[Live]", err);
+    return;
+  }
+  if (gen !== _liveGen) return; // a newer load started meanwhile
   if (!data?.connected) {
     setLcuOffline();
     return;
@@ -3331,7 +3385,12 @@ async function loadLiveView() {
   );
 
   // ── Gameflow ───────────────────────────────────────────────────────────────
-  if (gameflow) {
+  // A gameflow event that arrived while this overview was loading is newer
+  // than the phase in it: keep the event's badge and leave the context to
+  // the refresh that event scheduled.
+  const phaseChanged = _gameflowSeq !== seqAtStart;
+  if (gameflow && !phaseChanged) {
+    _lastGameflowPhase = gameflow;
     updateGameflowBadge(gameflow);
     updateContextButtons(gameflow);
   }
@@ -3344,8 +3403,13 @@ async function loadLiveView() {
   [ctxLobby, ctxQueue, ctxGame].forEach(
     (el) => el && (el.style.display = "none"),
   );
+  // Timers of the previous phase stop here, whatever the new phase is; they
+  // only start while the Live view is visible.
+  stopLiveTimers();
+  const visible = currentView === "liveView";
+  const phase = phaseChanged ? null : gameflow;
 
-  if (gameflow === "Lobby" && data.lobby) {
+  if (phase === "Lobby" && data.lobby) {
     ctxEl.style.display = "";
     ctxLobby.style.display = "";
     const qName = QUEUE_NAMES[data.lobby.gameConfig?.queueId] || "Custom Game";
@@ -3355,10 +3419,10 @@ async function loadLiveView() {
     (data.lobby.members || []).forEach((m) => {
       const chip = document.createElement("span");
       chip.className = "ov-ctx-member-chip";
-      chip.textContent = m.summonerInternalName || m.summonerName || "?";
+      chip.textContent = lobbyMemberLabel(m);
       membersEl.appendChild(chip);
     });
-  } else if (gameflow === "Matchmaking" && data.queueSearch) {
+  } else if (phase === "Matchmaking" && data.queueSearch) {
     ctxEl.style.display = "";
     ctxQueue.style.display = "";
     const qName = QUEUE_NAMES[data.queueSearch.queueId] || "Queue";
@@ -3368,34 +3432,39 @@ async function loadLiveView() {
     timerEl.textContent = formatDuration(elapsed);
     // tick the timer locally
     let secs = elapsed;
-    clearInterval(window._queueTimerInterval);
-    window._queueTimerInterval = setInterval(() => {
-      timerEl.textContent = formatDuration(++secs);
-    }, 1000);
+    if (visible) {
+      _queueTimerInterval = setInterval(() => {
+        timerEl.textContent = formatDuration(++secs);
+      }, 1000);
+    }
     const est = data.queueSearch.estimatedQueueTime;
     document.getElementById("ovCtxQueueEst").textContent = est
       ? `Estimated wait: ~${Math.round(est)}s`
       : "";
-  } else if (gameflow === "InProgress") {
+  } else if (phase === "InProgress") {
     ctxEl.style.display = "";
     ctxGame.style.display = "";
     const gameTimerEl = document.getElementById("ovCtxGameTimer");
-    if (data.liveGame?.gameTime != null) {
-      let secs = Math.floor(data.liveGame.gameTime);
+    const live = data.liveGame;
+    if (live?.gameTime != null) {
+      let secs = Math.floor(live.gameTime);
       gameTimerEl.textContent = formatDuration(secs);
-      clearInterval(window._gameTimerInterval);
-      window._gameTimerInterval = setInterval(() => {
-        gameTimerEl.textContent = formatDuration(++secs);
-      }, 1000);
-      const stats = data.liveGame;
-      document.getElementById("ovCtxGameStats").textContent = stats
-        ? `${stats.championStats?.currentHealth ?? "?"} / ${stats.championStats?.maxHealth ?? "?"} HP`
-        : "";
+      if (visible) {
+        _gameTimerInterval = setInterval(() => {
+          gameTimerEl.textContent = formatDuration(++secs);
+        }, 1000);
+      }
+    } else {
+      gameTimerEl.textContent = "";
     }
+    // HP does not depend on the game clock being available.
+    const hp = live?.championStats;
+    document.getElementById("ovCtxGameStats").textContent =
+      hp?.currentHealth != null
+        ? `${Math.round(hp.currentHealth)} / ${Math.round(hp.maxHealth ?? 0)} HP`
+        : "";
   } else {
     ctxEl.style.display = "none";
-    clearInterval(window._queueTimerInterval);
-    clearInterval(window._gameTimerInterval);
   }
 
   // ── Champion mastery ───────────────────────────────────────────────────────
