@@ -2,10 +2,7 @@ const { Notification } = require('electron');
 const path  = require('path');
 const lcu   = require('./lcu');
 const state = require('./state');
-const { getChampionMap } = require('./services/champion-data');
 const discordRpc = require('./services/discord-rpc');
-
-let autoLockAttempted = false;
 
 function send(win, channel, ...args) {
     if (win && !win.isDestroyed()) win.webContents.send(channel, ...args);
@@ -92,7 +89,6 @@ function registerLcuEvents() {
 
     lcu.onDisconnect(() => {
         send(state.mainWindow, 'lcu-disconnected');
-        autoLockAttempted = false;
         discordRpc.setIdle();
     });
 
@@ -160,41 +156,18 @@ function registerLcuEvents() {
             if (event.uri === '/lol-champ-select/v1/session') {
                 if (event.eventType === 'Update' || event.eventType === 'Create') {
                     send(state.mainWindow, 'champ-select-update', event.data);
-                    if (event.eventType === 'Create') autoLockAttempted = false;
                 } else if (event.eventType === 'Delete') {
                     send(state.mainWindow, 'champ-select-end');
-                    autoLockAttempted = false;
                 }
             }
 
-            // Auto skin / auto lock — runs on both Create and Update
+            // Auto random skin — runs on both Create and Update
             if (!state.currentAccount) return;
             if (event.uri !== '/lol-champ-select/v1/session') return;
             if (event.eventType !== 'Update' && event.eventType !== 'Create') return;
 
-            // AUTO CHAMP LOCK — DISABLED (violates Riot ToS, insta-locking via API is not permitted)
-            // if (state.currentAccount.autoChampLock && !autoLockAttempted) {
-            //     const session     = event.data;
-            //     const localCellId = session.localPlayerCellId;
-            //     const allActions  = Array.isArray(session.actions) ? session.actions.flat() : [];
-            //     const activeCells = session.activeCellIds;
-            //     const myTurnActive =
-            //         !Array.isArray(activeCells) || activeCells.length === 0 ||
-            //         activeCells.includes(localCellId) ||
-            //         allActions.some(a => a.actorCellId === localCellId && a.isInProgress);
-            //     const myPickAction = allActions.find(
-            //         a => a.actorCellId === localCellId && a.type === 'pick' && !a.completed && myTurnActive
-            //     );
-            //     if (myPickAction) {
-            //         autoLockAttempted = true;
-            //         const champName = state.currentAccount.autoChampLock.trim().toLowerCase();
-            //         const champId   = getChampionMap()[champName];
-            //         if (champId) {
-            //             await lcu.request('PATCH', `/lol-champ-select/v1/session/actions/${myPickAction.id}`, { championId: champId });
-            //             await lcu.request('POST', `/lol-champ-select/v1/session/actions/${myPickAction.id}/complete`);
-            //         }
-            //     }
-            // }
+            // Auto champ lock is intentionally not implemented: instant-locking
+            // through the LCU API is not permitted under the Riot ToS.
 
             if (state.currentAccount.autoSkinRandom) {
                 const session     = event.data;
