@@ -127,6 +127,8 @@ const {
   shouldCacheStats,
   makeStatsEntry,
   statsEntryState,
+  growStat,
+  attackSpeedAt,
   sparklinePoints,
   lobbyMemberLabel,
   normalizeLoginStatus,
@@ -2747,13 +2749,15 @@ function initChampionPicker() {
   document
     .getElementById("champPickerOpenBtn")
     .addEventListener("click", async () => {
-      if (!champListCache) {
+      if (!champListCache?.length) {
         document.getElementById("champSearchGrid").innerHTML =
           '<div style="color:var(--text-dim);font-size:12px;padding:16px;grid-column:1/-1;text-align:center;">Loading champions…</div>';
         document.getElementById("champSearchOverlay").classList.add("open");
-        champListCache = await window.electronAPI.getChampionList();
+        // An empty answer (Data Dragon unreachable) is not cached.
+        const list = await window.electronAPI.getChampionList().catch(() => null);
+        if (Array.isArray(list) && list.length) champListCache = list;
         // Resolve pending name now that the list is available
-        if (currentAutoLockName && !selectedChampion) {
+        if (champListCache && currentAutoLockName && !selectedChampion) {
           const found = champListCache.find(
             (c) => c.name.toLowerCase() === currentAutoLockName.toLowerCase(),
           );
@@ -3656,9 +3660,21 @@ let statsItemList = null;
 let currentStatsChamp = null; // { champ, fullData }
 let currentStatsLevel = 1;
 let currentStatsItemId = null;
+let _statsChampToken = 0; // newest champion click; older loads are dropped
+// Data Dragon can be unreachable at start; the main process keeps retrying
+// in the background, so an empty list is asked for again at these delays
+// while the Stat Viewer is open (and on every open).
+const STATS_LIST_RETRY_MS = [5000, 15000, 45000];
+let _statsChampRetry = null;
+let _statsItemRetry = null;
 
 function initStatsView() {
-  if (statsViewInitialized) return;
+  if (statsViewInitialized) {
+    // Lists that were empty last time (offline start) are asked for again.
+    if (!statsChampList?.length) loadStatsChamps();
+    if (!statsItemList?.length) loadStatsItems();
+    return;
+  }
   statsViewInitialized = true;
 
   document.querySelectorAll(".stats-tab").forEach((tab) => {
@@ -3685,18 +3701,53 @@ function initStatsView() {
   loadStatsItems();
 }
 
+// "Could not load" state with a Retry button, for an empty champion/item list.
+function renderStatsListUnavailable(grid, what, onRetry) {
+  grid.innerHTML = `<div class="stats-empty stats-unavailable"><p></p><button type="button" class="action-btn">Retry</button></div>`;
+  grid.querySelector("p").textContent = `Could not load ${what} from Data Dragon yet. Check your connection; the app keeps trying.`;
+  grid.querySelector("button").addEventListener("click", onRetry);
+}
+
+// Calls load() until it reports a non-empty list, at STATS_LIST_RETRY_MS.
+function scheduleStatsListRetry(attempt, load, setTimer) {
+  const delay = STATS_LIST_RETRY_MS[attempt];
+  if (delay === undefined) return;
+  setTimer(setTimeout(async () => {
+    if (currentView !== "statsView") return; // the next open asks again
+    if (!(await load())) scheduleStatsListRetry(attempt + 1, load, setTimer);
+  }, delay));
+}
+
 // ── Champions ────────────────────────────────────────────────────────────────
 
-async function loadStatsChamps() {
-  if (!champListCache)
-    champListCache = await window.electronAPI.getChampionList();
+// Returns true when a non-empty list is shown. An empty answer is never
+// cached (champListCache stays null), so the next call asks again.
+async function fetchStatsChamps() {
+  if (!champListCache?.length) {
+    const list = await window.electronAPI.getChampionList().catch(() => null);
+    if (Array.isArray(list) && list.length) champListCache = list;
+  }
   statsChampList = champListCache;
-  renderStatsChampGrid("");
+  const grid = document.getElementById("statsChampGrid");
+  if (!statsChampList?.length) {
+    document.getElementById("statsChampCount").textContent = "";
+    renderStatsListUnavailable(grid, "champions", () => loadStatsChamps());
+    return false;
+  }
+  renderStatsChampGrid(document.getElementById("statsChampSearch").value);
+  return true;
+}
+
+async function loadStatsChamps() {
+  clearTimeout(_statsChampRetry);
+  if (!(await fetchStatsChamps())) {
+    scheduleStatsListRetry(0, fetchStatsChamps, (t) => (_statsChampRetry = t));
+  }
 }
 
 function renderStatsChampGrid(query) {
   const grid = document.getElementById("statsChampGrid");
-  if (!statsChampList) return;
+  if (!statsChampList?.length) return;
   grid.innerHTML = "";
   const q = (query || "").trim().toLowerCase();
   const list = q
@@ -3729,7 +3780,7 @@ function renderStatsChampGrid(query) {
 }
 
 async function selectStatsChampion(champ) {
-  currentStatsLevel = 1;
+  const token = ++_statsChampToken;
   const detail = document.getElementById("statsChampDetail");
   detail.innerHTML = `
         <div class="stats-empty">
@@ -3737,8 +3788,14 @@ async function selectStatsChampion(champ) {
             <p>Loading ${escapeHtml(champ.name)}…</p>
         </div>`;
 
-  const fullData = await window.electronAPI.getChampionFullData(champ.key);
+  const fullData = await window.electronAPI
+    .getChampionFullData(champ.key)
+    .catch(() => null);
+  // A later click won while this one loaded: its result is not shown.
+  if (token !== _statsChampToken) return;
   if (!fullData) {
+    currentStatsChamp = null; // the grid must not keep the old selection
+    renderStatsChampGrid(document.getElementById("statsChampSearch").value);
     detail.innerHTML = `
             <div class="stats-empty">
                 <div class="empty-icon"><i class="fas fa-triangle-exclamation"></i></div>
@@ -3747,17 +3804,10 @@ async function selectStatsChampion(champ) {
     return;
   }
 
+  currentStatsLevel = 1;
   currentStatsChamp = { champ, fullData };
   renderStatsChampGrid(document.getElementById("statsChampSearch").value);
   renderStatsChampDetail();
-}
-
-// Riot's standard non-linear per-level stat growth curve
-function statGrowthFactor(level) {
-  return 0.7025 + 0.0175 * (level - 1);
-}
-function growStat(base, perLevel, level) {
-  return base + perLevel * (level - 1) * statGrowthFactor(level);
 }
 
 const INFO_BARS = [
@@ -3783,103 +3833,51 @@ function updateSliderFill(slider) {
   slider.style.setProperty("--pct", `${((val - min) / (max - min)) * 100}%`);
 }
 
-function renderStatsChampDetail() {
-  const { champ, fullData } = currentStatsChamp;
-  const { title, tags, partype, info, stats } = fullData;
-  const level = currentStatsLevel;
-
-  const hp = growStat(stats.hp, stats.hpperlevel, level);
-  const hpregen = growStat(stats.hpregen, stats.hpregenperlevel, level);
-  const armor = growStat(stats.armor, stats.armorperlevel, level);
-  const mr = growStat(stats.spellblock, stats.spellblockperlevel, level);
-  const ad = growStat(stats.attackdamage, stats.attackdamageperlevel, level);
-  const asBonus =
-    stats.attackspeedperlevel * (level - 1) * statGrowthFactor(level);
-  const as = stats.attackspeed * (1 + asBonus / 100);
-
+// The stat cards for one level; `id` ties each value to its element so a
+// level change only rewrites the numbers (growStat in ui-lib.js).
+function computeStatCards(fullData, level) {
+  const { partype, stats } = fullData;
   const hasResource =
     (stats.mp > 0 || stats.mpperlevel > 0) && partype && partype !== "None";
-  const mp = hasResource ? growStat(stats.mp, stats.mpperlevel, level) : 0;
-  const mpregen = hasResource
-    ? growStat(stats.mpregen, stats.mpregenperlevel, level)
-    : 0;
-
-  const statCards = [
-    {
-      group: "vitality",
-      icon: "fa-heart",
-      label: "Health",
-      value: Math.round(hp),
-      primary: true,
-    },
-    {
-      group: "vitality",
-      icon: "fa-heart-pulse",
-      label: "HP Regen / 5s",
-      value: hpregen.toFixed(1),
-    },
+  const as = attackSpeedAt(stats.attackspeed, stats.attackspeedperlevel, level);
+  return [
+    { id: "hp", group: "vitality", icon: "fa-heart", label: "Health", primary: true,
+      value: Math.round(growStat(stats.hp, stats.hpperlevel, level)) },
+    { id: "hpregen", group: "vitality", icon: "fa-heart-pulse", label: "HP Regen / 5s",
+      value: growStat(stats.hpregen, stats.hpregenperlevel, level).toFixed(1) },
     ...(hasResource
       ? [
-          {
-            group: "vitality",
-            icon: "fa-droplet",
-            label: partype,
-            value: Math.round(mp),
-          },
-          {
-            group: "vitality",
-            icon: "fa-arrow-rotate-left",
-            label: `${partype} Regen / 5s`,
-            value: mpregen.toFixed(1),
-          },
+          { id: "mp", group: "vitality", icon: "fa-droplet", label: partype,
+            value: Math.round(growStat(stats.mp, stats.mpperlevel, level)) },
+          { id: "mpregen", group: "vitality", icon: "fa-arrow-rotate-left", label: `${partype} Regen / 5s`,
+            value: growStat(stats.mpregen, stats.mpregenperlevel, level).toFixed(1) },
         ]
       : []),
-    {
-      group: "offense",
-      icon: "fa-gavel",
-      label: "Attack Damage",
-      value: ad.toFixed(1),
-      primary: true,
-    },
-    {
-      group: "offense",
-      icon: "fa-bolt",
-      label: "Attack Speed",
-      value: `${as.toFixed(3)} / sec`,
-    },
-    {
-      group: "offense",
-      icon: "fa-star",
-      label: "Crit Chance",
-      value: `${Math.round((stats.crit || 0) + (stats.critperlevel || 0) * (level - 1))}%`,
-    },
-    {
-      group: "defense",
-      icon: "fa-shield-halved",
-      label: "Armor",
-      value: armor.toFixed(1),
-      primary: true,
-    },
-    {
-      group: "defense",
-      icon: "fa-hat-wizard",
-      label: "Magic Resist",
-      value: mr.toFixed(1),
-    },
-    {
-      group: "mobility",
-      icon: "fa-shoe-prints",
-      label: "Move Speed",
-      value: Math.round(stats.movespeed),
-      primary: true,
-    },
-    {
-      group: "mobility",
-      icon: "fa-crosshairs",
-      label: "Attack Range",
-      value: Math.round(stats.attackrange),
-    },
+    { id: "ad", group: "offense", icon: "fa-gavel", label: "Attack Damage", primary: true,
+      value: growStat(stats.attackdamage, stats.attackdamageperlevel, level).toFixed(1) },
+    { id: "as", group: "offense", icon: "fa-bolt", label: "Attack Speed",
+      value: `${as.toFixed(3)} / sec` },
+    { id: "crit", group: "offense", icon: "fa-star", label: "Crit Chance",
+      value: `${Math.round((stats.crit || 0) + (stats.critperlevel || 0) * (level - 1))}%` },
+    { id: "armor", group: "defense", icon: "fa-shield-halved", label: "Armor", primary: true,
+      value: growStat(stats.armor, stats.armorperlevel, level).toFixed(1) },
+    { id: "mr", group: "defense", icon: "fa-hat-wizard", label: "Magic Resist",
+      value: growStat(stats.spellblock, stats.spellblockperlevel, level).toFixed(1) },
+    { id: "ms", group: "mobility", icon: "fa-shoe-prints", label: "Move Speed", primary: true,
+      value: Math.round(stats.movespeed) },
+    { id: "range", group: "mobility", icon: "fa-crosshairs", label: "Attack Range",
+      value: Math.round(stats.attackrange) },
   ];
+}
+
+// Builds the sheet once per champion. The level slider only updates the
+// numbers: rebuilding it on every input destroyed the slider being dragged
+// and dropped keyboard focus after one arrow press.
+function renderStatsChampDetail() {
+  const { champ, fullData } = currentStatsChamp;
+  const { title, tags, info } = fullData;
+  const level = currentStatsLevel;
+  const statCards = computeStatCards(fullData, level);
 
   const detail = document.getElementById("statsChampDetail");
   detail.innerHTML = `
@@ -3899,7 +3897,7 @@ function renderStatsChampDetail() {
               (b) => `
                 <div class="info-bar-row">
                     <span class="info-bar-label"><i class="fas ${escapeHtml(b.icon)}"></i> ${escapeHtml(b.label)}</span>
-                    <div class="info-bar-track"><div class="info-bar-fill" style="width:${((info?.[b.key] || 0) / 10) * 100}%"></div></div>
+                    <div class="info-bar-track"><div class="info-bar-fill" style="width:${((Number(info?.[b.key]) || 0) / 10) * 100}%"></div></div>
                     <span class="info-bar-val">${escapeHtml(info?.[b.key] ?? "—")}/10</span>
                 </div>
             `,
@@ -3911,7 +3909,7 @@ function renderStatsChampDetail() {
             <span class="level-slider-end">1</span>
             <input type="range" id="statsLevelSlider" min="1" max="18" step="1" value="${level}">
             <span class="level-slider-end">18</span>
-            <span class="level-slider-val">${level}</span>
+            <span class="level-slider-val" aria-hidden="true">${level}</span>
         </div>
 
         ${STAT_GROUPS.map((g) => {
@@ -3927,7 +3925,7 @@ function renderStatsChampDetail() {
                             <div class="stat-card ${escapeHtml(g.key)}${c.primary ? " primary" : ""}">
                                 <div class="stat-card-icon"><i class="fas ${escapeHtml(c.icon)}"></i></div>
                                 <div class="stat-card-label">${escapeHtml(c.label)}</div>
-                                <div class="stat-card-value">${escapeHtml(c.value)}</div>
+                                <div class="stat-card-value" data-stat="${escapeHtml(c.id)}">${escapeHtml(c.value)}</div>
                             </div>
                         `,
                           )
@@ -3936,38 +3934,60 @@ function renderStatsChampDetail() {
                 </div>
             `;
         }).join("")}
+        <p class="stats-note">Attack speed uses the base value as the attack speed ratio; for a few champions the real level 18 value differs slightly.</p>
     `;
 
   const slider = document.getElementById("statsLevelSlider");
   updateSliderFill(slider);
   slider.addEventListener("input", (e) => {
-    currentStatsLevel = parseInt(e.target.value);
-    renderStatsChampDetail();
+    currentStatsLevel = parseInt(e.target.value, 10) || 1;
+    updateStatsChampValues();
   });
+}
+
+function updateStatsChampValues() {
+  if (!currentStatsChamp) return;
+  const detail = document.getElementById("statsChampDetail");
+  const level = currentStatsLevel;
+  for (const card of computeStatCards(currentStatsChamp.fullData, level)) {
+    const el = detail.querySelector(`.stat-card-value[data-stat="${card.id}"]`);
+    if (el) el.textContent = card.value;
+  }
+  detail.querySelector(".level-slider-val").textContent = level;
+  const slider = document.getElementById("statsLevelSlider");
+  if (slider) updateSliderFill(slider);
 }
 
 // ── Items ────────────────────────────────────────────────────────────────────
 
-async function loadStatsItems() {
-  statsItemList = await window.electronAPI.getItemList();
-  if (!statsItemList || statsItemList.length === 0) {
-    setTimeout(async () => {
-      statsItemList = await window.electronAPI.getItemList();
-      renderStatsItemGrid(document.getElementById("statsItemSearch").value);
-    }, 3000);
+// Returns true when a non-empty list is shown; an empty one is not kept.
+async function fetchStatsItems() {
+  const list = await window.electronAPI.getItemList().catch(() => null);
+  if (Array.isArray(list) && list.length) statsItemList = list;
+  if (!statsItemList?.length) {
+    document.getElementById("statsItemCount").textContent = "";
+    renderStatsListUnavailable(
+      document.getElementById("statsItemGrid"),
+      "items",
+      () => loadStatsItems(),
+    );
+    return false;
   }
-  renderStatsItemGrid("");
+  renderStatsItemGrid(document.getElementById("statsItemSearch").value);
+  return true;
+}
+
+async function loadStatsItems() {
+  clearTimeout(_statsItemRetry);
+  if (!(await fetchStatsItems())) {
+    scheduleStatsListRetry(0, fetchStatsItems, (t) => (_statsItemRetry = t));
+  }
 }
 
 function renderStatsItemGrid(query) {
   const grid = document.getElementById("statsItemGrid");
   const count = document.getElementById("statsItemCount");
-  if (!statsItemList) return;
-  if (statsItemList.length === 0) {
-    if (count) count.textContent = "";
-    grid.innerHTML = `<div class="stats-empty" style="padding:30px 0"><p>Loading items…</p></div>`;
-    return;
-  }
+  if (!statsItemList?.length) return;
   const q = (query || "").trim().toLowerCase();
   const list = q
     ? statsItemList.filter((i) => i.name.toLowerCase().includes(q))
@@ -4046,12 +4066,12 @@ function selectStatsItem(item) {
         <div class="efficiency-block">
             <div class="efficiency-label-row">
                 <span>Gold Efficiency</span>
-                <span class="efficiency-pct ${effClass(pct)}">${escapeHtml(pct)}%</span>
+                <span class="efficiency-pct ${effClass(pct)}">${escapeHtml(pct)}%${item.efficiencyIncomplete ? "+" : ""}</span>
             </div>
             <div class="efficiency-bar-track">
                 <div class="efficiency-bar-fill ${effClass(pct)}" style="width:${Math.min(pct, 100)}%"></div>
             </div>
-            <div class="efficiency-note">Based on stat value (${escapeHtml(item.statsGoldValue)}g) vs. item cost (${escapeHtml(item.gold.total)}g). Active/passive effects add value beyond raw stats.</div>
+            <div class="efficiency-note">Based on stat value (${escapeHtml(item.statsGoldValue)}g) vs. item cost (${escapeHtml(item.gold.total)}g). Active/passive effects add value beyond raw stats.${item.efficiencyIncomplete ? " Some of its stats (such as ability haste, lethality or penetration) have no gold value in Data Dragon, so the real efficiency is higher." : ""}</div>
         </div>
 
         ${
