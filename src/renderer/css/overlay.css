@@ -190,7 +190,7 @@ body {
     min-width: 0;
 }
 
-.ov-skull { font-size: 20px; flex-shrink: 0; }
+.ov-skull { font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #ff6b6b; flex-shrink: 0; }
 
 .ov-respawn-wrap {
     display: flex;
@@ -244,9 +244,9 @@ body {
 }
 .ov-toggle:hover,
 .ov-toggle.active {
-    background: rgba(10, 200, 185, 0.14);
-    border-color: rgba(10, 200, 185, 0.35);
-    color: var(--ov-primary);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
 }
 
 /* ── Ranked panel ── */
@@ -527,7 +527,7 @@ body {
     -webkit-appearance: none;
     appearance: none;
 }
-.ov-select:focus { border-color: var(--ov-primary); }
+.ov-select:focus { border-color: rgba(255, 255, 255, 0.24); }
 .ov-select option { background: #1a1a22; }
 
 /* Toggle switch */
