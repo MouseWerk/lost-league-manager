@@ -3791,8 +3791,26 @@ select.form-control option {
 .efficiency-note {
     font-size: 11px;
     color: var(--text-dim);
-    opacity: 0.7;
     line-height: 1.4;
+}
+
+.stats-note {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.4;
+    margin: 14px 0 0;
+}
+
+.stats-unavailable {
+    grid-column: 1 / -1;
+    padding: 24px 12px;
+    text-align: center;
+}
+.stats-unavailable p {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin: 0 0 12px;
 }
 
 .item-stats-table {
