@@ -2,25 +2,30 @@ const { ipcMain, screen } = require('electron');
 const lcu = require('../lcu');
 const state = require('../state');
 const championData = require('../services/champion-data');
+const axios = require('axios');
 const riotApi = require('../services/riot-api');
+const opgg = require('../services/opgg-api');
 const { getBuilds } = require('../services/builds-api');
 const { saveConfig } = require('../services/storage');
 const { recordHonorLevel } = require('../services/honor-watch');
+// App region of the running client (cached per LCU connection), or null /
+// "unknown:<raw>" when it can't be mapped (PBE, ...).
+const { getClientRegion } = require('./stats');
 
-// Cached for the lifetime of the LCU connection — cheap local lookup, no need
-// to re-query it for every bulk ranked fetch.
-let cachedLcuRegion = null;
-lcu.onDisconnect(() => { cachedLcuRegion = null; });
+const ONLINE_REGION = /^[a-z]+$/;
 
-async function getLcuRegion() {
-    if (cachedLcuRegion) return cachedLcuRegion;
-    try {
-        const info = await lcu.request('GET', '/riotclient/region-locale');
-        cachedLcuRegion = (info?.region || '').toLowerCase() || null;
-    } catch {
-        cachedLcuRegion = null;
+// Solo rank for a lobby player the LCU doesn't know yet: Riot API (2 requests)
+// when a key is set, otherwise or on failure OP.GG.
+async function onlineSoloRank(gameName, tagLine, region) {
+    if (riotApi.getApiKey()) {
+        try {
+            return await riotApi.getSoloRank(gameName, tagLine, region);
+        } catch (e) {
+            console.log(`[Overlay Ranked] ${gameName}#${tagLine} Riot API failed:`, e.message);
+        }
     }
-    return cachedLcuRegion;
+    const profile = await opgg.getProfile(gameName, tagLine, region);
+    return { tier: profile.tier, lp: profile.lp, winLose: profile.winLose, ratio: profile.ratio };
 }
 
 function capFirst(s) {
@@ -161,24 +166,21 @@ function register() {
 
                 // The LCU hasn't cached this Riot ID locally yet (common for
                 // lobby/champ-select opponents it hasn't looked up before). Fall
-                // back to the Riot Developer API, same as the account-manager's
-                // own stats lookup, instead of silently reporting "Unranked".
-                if (p.gameName && p.tagLine && state.config.riotApiKey) {
-                    try {
-                        const region = await getLcuRegion();
-                        const apiResult = await riotApi.getStats(p.gameName, p.tagLine, region);
-                        results[key] = {
-                            tier:    apiResult.tier,
-                            lp:      apiResult.lp,
-                            winLose: apiResult.winLose,
-                            ratio:   apiResult.ratio,
-                        };
-                        return;
-                    } catch (e) {
-                        console.log(`[Overlay Ranked] ${key} API fallback failed:`, e.message);
+                // back to the online sources instead of silently reporting
+                // "Unranked" — but only for a server they cover.
+                if (p.gameName && p.tagLine) {
+                    const region = await getClientRegion();
+                    if (!region || !ONLINE_REGION.test(region) || region === 'cn') {
                         results[key] = FAILED;
                         return;
                     }
+                    try {
+                        results[key] = await onlineSoloRank(p.gameName, p.tagLine, region);
+                    } catch (e) {
+                        console.log(`[Overlay Ranked] ${key} online fallback failed:`, e.message);
+                        results[key] = FAILED;
+                    }
+                    return;
                 }
 
                 results[key] = FAILED;
@@ -266,11 +268,14 @@ function register() {
             } else if (gameflow === 'Matchmaking') {
                 queueSearch = await lcu.request('GET', '/lol-matchmaking/v1/search');
             } else if (gameflow === 'InProgress') {
-                // Live client data runs on port 2999, no auth required
+                // Live client data runs on port 2999, no auth required. The
+                // game clock is in gamestats, HP in activeplayer.
                 try {
-                    const axios = require('axios');
-                    const r = await axios.get('http://127.0.0.1:2999/liveclientdata/activeplayer', { timeout: 2000 });
-                    liveGame = r.data;
+                    const [player, stats] = await Promise.all([
+                        axios.get('http://127.0.0.1:2999/liveclientdata/activeplayer', { timeout: 2000 }),
+                        axios.get('http://127.0.0.1:2999/liveclientdata/gamestats', { timeout: 2000 }),
+                    ]);
+                    liveGame = { ...player.data, gameTime: stats.data?.gameTime };
                 } catch { /* client data not available yet */ }
             }
 
