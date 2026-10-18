@@ -102,13 +102,15 @@ const REGIONS = [
 
 let lcuConnected = false;
 
-function escapeHtml(str) {
-  return String(str ?? "").replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
-  );
-}
+// Pure helpers (escaping, rank order, cache freshness, ...) live in
+// js/ui-lib.js so the unit tests can load them; index.html loads it first.
+const {
+  escapeHtml,
+  TIER_ORDER,
+  rankScore,
+  reorderList,
+  sparklinePoints,
+} = window.UiLib;
 
 // Images that fail to load fall back to the logo or hide themselves, per their
 // data-fallback attribute. Inline onerror handlers are blocked by the CSP.
@@ -122,36 +124,6 @@ document.addEventListener(
   },
   true,
 );
-
-// Rank tier → numeric for sorting
-const TIER_ORDER = {
-  challenger: 10,
-  grandmaster: 9,
-  master: 8,
-  diamond: 7,
-  emerald: 6,
-  platinum: 5,
-  gold: 4,
-  silver: 3,
-  bronze: 2,
-  iron: 1,
-  unranked: 0,
-};
-
-function rankToNumber(tierText) {
-  if (
-    !tierText ||
-    tierText === "Loading stats..." ||
-    tierText === "N/A" ||
-    tierText === "Err"
-  )
-    return -1;
-  const parts = tierText.toLowerCase().split(" ");
-  const tier = TIER_ORDER[parts[0]];
-  if (tier === undefined) return -1;
-  const div = parts[1] ? 5 - (parseInt(parts[1]) || 0) : 0;
-  return tier * 10 + div;
-}
 
 // Only allow http(s) URLs (or the app's own bundled assets) for a custom
 // avatar — blocks javascript:/data:/file: schemes that a crafted or imported
@@ -208,10 +180,11 @@ function getFilteredSorted() {
       list.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
       break;
     case "rank":
+      // Tier, then division, then LP (rankScore in ui-lib.js); stable sort
+      // keeps the saved order for equal ranks.
       list.sort(
         (a, b) =>
-          rankToNumber(statsCache[b.username]?.tier) -
-          rankToNumber(statsCache[a.username]?.tier),
+          rankScore(statsCache[b.username]) - rankScore(statsCache[a.username]),
       );
       break;
   }
@@ -403,15 +376,15 @@ function showPatchNotesModal(version) {
 
   document.getElementById("patchNotesVersion").textContent =
     `Version ${version}`;
-  // items are hardcoded above, not user input — safe to interpolate directly.
+  // items are hardcoded above; escaped anyway so the markup guard stays simple.
   document.getElementById("patchNotesList").innerHTML = items
     .map(
       (item) => `
         <li>
-            <i class="${item.icon}"></i>
+            <i class="${escapeHtml(item.icon)}"></i>
             <div>
-                <div class="patch-notes-item-title">${item.title}</div>
-                <div class="patch-notes-item-body">${item.body}</div>
+                <div class="patch-notes-item-title">${escapeHtml(item.title)}</div>
+                <div class="patch-notes-item-body">${escapeHtml(item.body)}</div>
             </div>
         </li>
     `,
@@ -1187,6 +1160,9 @@ function renderAccounts() {
   const gen = ++_renderGen; // any callback from a previous render is now stale
   _shownStatErrors = new Set();
   hideTooltip(); // the hovered element is about to be torn out from under the cursor
+  // A drag in progress loses its source card here; its dragend would fire on
+  // the detached node and never clear the state.
+  if (_dragUsername) endDrag();
 
   const listEl = document.getElementById("accountsList");
   listEl.innerHTML = "";
@@ -1292,7 +1268,8 @@ function applyStatsToCard(cardEl, stats) {
     rankEl.className = `rank ${cls}`;
     const tierDisplay =
       stats.tier && stats.tier !== "Unranked" ? stats.tier : "Unranked";
-    rankEl.innerHTML = `<span>${tierDisplay}</span>${stats.lp ? ` • <span>${stats.lp}</span>` : ""}`;
+    // Tier/LP can come from OP.GG or an imported backup's cached stats.
+    rankEl.innerHTML = `<span>${escapeHtml(tierDisplay)}</span>${stats.lp ? ` • <span>${escapeHtml(stats.lp)}</span>` : ""}`;
   }
   const iconEl = cardEl.querySelector(".summoner-icon");
   if (iconEl && stats.iconSrc && !acc?.customAvatar) iconEl.src = stats.iconSrc;
@@ -1469,20 +1446,12 @@ function renderRankSparkline(history) {
   }
   wrap.style.display = "block";
 
-  const scores = history.map((h) => h.score);
-  const min = Math.min(...scores);
-  const max = Math.max(...scores);
-  const range = max - min || 1;
-  const w = 300,
-    h = 44,
-    pad = 3;
-
-  const points = history.map((entry, i) => ({
-    x:
-      pad +
-      (history.length === 1 ? 0 : (i / (history.length - 1)) * (w - pad * 2)),
-    y: h - pad - ((entry.score - min) / range) * (h - pad * 2),
-  }));
+  // Use the SVG's own viewBox so the line spans the whole box (it used a
+  // fixed 44 of the 60 units, which flattened a falling rank).
+  const box = svg.viewBox?.baseVal;
+  const w = box?.width || 300;
+  const h = box?.height || 60;
+  const points = sparklinePoints(history, w, h, 3);
 
   const first = history[0];
   const last = history[history.length - 1];
@@ -1512,16 +1481,17 @@ function renderMatchHistory(res) {
     return;
   }
   wrap.style.display = "block";
-  // championIcon comes from DDragon (main process), kda/win are derived
-  // numbers/booleans — nothing here is raw user input.
+  // Matches can come from OP.GG (external), so the icon URL and KDA text are
+  // escaped like any other outside string.
   strip.innerHTML = matches
-    .map(
-      (m) => `
-        <div class="match-pill ${m.win ? "win" : "loss"}" data-tooltip="${m.win ? "Victory" : "Defeat"}${m.kda ? " — " + m.kda + " KDA" : ""}">
-            ${m.championIcon ? `<img src="${m.championIcon}" alt="">` : ""}
+    .map((m) => {
+      const tip = `${m.win ? "Victory" : "Defeat"}${m.kda ? ` — ${m.kda} KDA` : ""}`;
+      return `
+        <div class="match-pill ${m.win ? "win" : "loss"}" data-tooltip="${escapeHtml(tip)}">
+            ${m.championIcon ? `<img src="${escapeHtml(m.championIcon)}" alt="">` : ""}
         </div>
-    `,
-    )
+    `;
+    })
     .join("");
 }
 
@@ -1611,7 +1581,7 @@ function createAccountCard(account) {
   const isActive = account.username === activeAccountUsername;
   card.className = `account-card${isActive ? " is-active" : ""}${account.isFavourite ? " is-favourite" : ""}`;
   card.dataset.username = account.username;
-  card.draggable = true;
+  card.draggable = canReorder();
 
   const defaultIcon = "assets/logo.png";
   const iconSrc = safeAvatarUrl(account.customAvatar) || defaultIcon;
@@ -1743,26 +1713,46 @@ function createAccountCard(account) {
   return card;
 }
 
+// Username of the card being dragged (module scope so renderAccounts can
+// reset it: a re-render mid-drag detaches the card, and its dragend never
+// reaches the list).
+let _dragUsername = null;
+
+function canReorder() {
+  return currentSort === "default" && !currentQuery;
+}
+
+function endDrag() {
+  _dragUsername = null;
+  document
+    .querySelectorAll("#accountsList .dragging, #accountsList .drag-over")
+    .forEach((el) => el.classList.remove("dragging", "drag-over"));
+}
+
 function initDragAndDrop() {
   const listEl = document.getElementById("accountsList");
-  let dragSrc = null;
 
   listEl.addEventListener("dragstart", (e) => {
-    if (currentSort !== "default" || currentQuery) return;
     const card = e.target.closest(".account-card");
     if (!card) return;
-    dragSrc = card;
+    // Sorted or filtered lists have no stable order to drop into; without
+    // preventDefault the card still showed a drag ghost that could not drop.
+    if (!canReorder()) {
+      e.preventDefault();
+      return;
+    }
+    _dragUsername = card.dataset.username;
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", card.dataset.username);
     requestAnimationFrame(() => card.classList.add("dragging"));
   });
 
   listEl.addEventListener("dragover", (e) => {
-    if (!dragSrc) return;
+    if (!_dragUsername) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     const card = e.target.closest(".account-card");
-    if (!card || card === dragSrc) return;
+    if (!card || card.dataset.username === _dragUsername) return;
     listEl
       .querySelectorAll(".drag-over")
       .forEach((el) => el.classList.remove("drag-over"));
@@ -1778,40 +1768,41 @@ function initDragAndDrop() {
   });
 
   listEl.addEventListener("drop", async (e) => {
+    const srcUsername = _dragUsername;
+    if (!srcUsername) return;
     e.preventDefault();
-    if (!dragSrc || currentSort !== "default" || currentQuery) return;
+    endDrag();
+    if (!canReorder()) return;
     const card = e.target.closest(".account-card");
-    if (!card || card === dragSrc) return;
+    if (!card || card.dataset.username === srcUsername) return;
 
-    const srcIdx = allAccounts.findIndex(
-      (a) => a.username === dragSrc.dataset.username,
-    );
+    const srcIdx = allAccounts.findIndex((a) => a.username === srcUsername);
     const tgtIdx = allAccounts.findIndex(
       (a) => a.username === card.dataset.username,
     );
+    if (srcIdx === -1 || tgtIdx === -1) return;
 
-    if (srcIdx !== -1 && tgtIdx !== -1) {
-      const [moved] = allAccounts.splice(srcIdx, 1);
-      // tgtIdx was computed before the removal above; once the source item
-      // is spliced out, everything after it shifts left by one, so when
-      // dragging forward (srcIdx < tgtIdx) the insertion point must shift
-      // back by one too, or the card lands one slot past the drop target.
-      const insertIdx = srcIdx < tgtIdx ? tgtIdx - 1 : tgtIdx;
-      allAccounts.splice(insertIdx, 0, moved);
-      await window.electronAPI.reorderAccounts(
+    // Dropping on a card above puts the dragged card before it, on a card
+    // below puts it after it (reorderList in ui-lib.js).
+    allAccounts = reorderList(allAccounts, srcIdx, tgtIdx);
+    renderAccounts();
+    let res;
+    try {
+      res = await window.electronAPI.reorderAccounts(
         allAccounts.map((a) => a.username),
       );
-      renderAccounts();
+    } catch (err) {
+      res = { success: false, message: err.message };
+    }
+    if (!res?.success) {
+      showToast(res?.message || "Could not save the new order", "error");
+      loadAccounts(); // show the order that is actually saved
     }
   });
 
-  listEl.addEventListener("dragend", () => {
-    if (dragSrc) dragSrc.classList.remove("dragging");
-    listEl
-      .querySelectorAll(".drag-over")
-      .forEach((el) => el.classList.remove("drag-over"));
-    dragSrc = null;
-  });
+  // On document, not the list: a card detached by a re-render mid-drag
+  // fires dragend on itself, outside the list.
+  document.addEventListener("dragend", endDrag);
 }
 
 let _updateVersion = "";
@@ -2725,8 +2716,8 @@ async function loadLiveView() {
       const card = document.createElement("div");
       card.className = "mastery-card";
       card.innerHTML = `
-                <img class="mastery-champ-icon" src="${iconSrc}" data-fallback="logo">
-                <div class="mastery-champ-name">${champKey || "Unknown"}</div>
+                <img class="mastery-champ-icon" src="${escapeHtml(iconSrc)}" data-fallback="logo">
+                <div class="mastery-champ-name">${escapeHtml(champKey || "Unknown")}</div>
                 <div class="mastery-level-badge ${lvCls}">M${lv}</div>
                 <div class="mastery-pts">${pts}</div>
             `;
@@ -2808,7 +2799,7 @@ async function loadLiveView() {
       const itemsHtml = itemSlots
         .map((id) =>
           id
-            ? `<img class="match-item-icon" src="https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/item/${id}.png" data-fallback="hide">`
+            ? `<img class="match-item-icon" src="https://ddragon.leagueoflegends.com/cdn/${escapeHtml(ddragonVersion)}/img/item/${escapeHtml(id)}.png" data-fallback="hide">`
             : `<span class="match-item-icon empty"></span>`,
         )
         .join("");
@@ -2832,7 +2823,7 @@ async function loadLiveView() {
       const item = document.createElement("div");
       item.className = `match-item ${win ? "win" : "loss"}`;
       item.innerHTML = `
-                <img class="match-champ-icon" src="${champSrc}" data-fallback="logo">
+                <img class="match-champ-icon" src="${escapeHtml(champSrc)}" data-fallback="logo">
                 <span class="match-result-badge">${win ? "WIN" : "LOSS"}</span>
                 <div class="match-main">
                     <div class="match-kda-row">
@@ -2847,7 +2838,7 @@ async function loadLiveView() {
                     <div class="match-items">${itemsHtml}</div>
                 </div>
                 <div class="match-right">
-                    <span class="match-queue">${queue}</span>
+                    <span class="match-queue">${escapeHtml(queue)}</span>
                     <span class="match-duration">${dur}</span>
                 </div>
             `;
@@ -2960,7 +2951,7 @@ async function selectStatsChampion(champ) {
   detail.innerHTML = `
         <div class="stats-empty">
             <div class="empty-icon"><i class="fas fa-spinner fa-spin"></i></div>
-            <p>Loading ${champ.name}…</p>
+            <p>Loading ${escapeHtml(champ.name)}…</p>
         </div>`;
 
   const fullData = await window.electronAPI.getChampionFullData(champ.key);
@@ -2968,7 +2959,7 @@ async function selectStatsChampion(champ) {
     detail.innerHTML = `
             <div class="stats-empty">
                 <div class="empty-icon"><i class="fas fa-triangle-exclamation"></i></div>
-                <p>No stat data available for ${champ.name}.</p>
+                <p>No stat data available for ${escapeHtml(champ.name)}.</p>
             </div>`;
     return;
   }
@@ -3110,12 +3101,12 @@ function renderStatsChampDetail() {
   const detail = document.getElementById("statsChampDetail");
   detail.innerHTML = `
         <div class="champ-detail-header">
-            <img class="champ-detail-icon" src="${champ.iconUrl}" data-fallback="hide">
+            <img class="champ-detail-icon" src="${escapeHtml(champ.iconUrl)}" data-fallback="hide">
             <div class="champ-detail-info">
-                <div class="champ-detail-name">${champ.name}</div>
-                <div class="champ-detail-title">${title || ""}</div>
+                <div class="champ-detail-name">${escapeHtml(champ.name)}</div>
+                <div class="champ-detail-title">${escapeHtml(title || "")}</div>
                 <div class="champ-tags">
-                    ${(tags || []).map((t) => `<span class="champ-tag">${t}</span>`).join("")}
+                    ${(tags || []).map((t) => `<span class="champ-tag">${escapeHtml(t)}</span>`).join("")}
                 </div>
             </div>
         </div>
@@ -3124,9 +3115,9 @@ function renderStatsChampDetail() {
             ${INFO_BARS.map(
               (b) => `
                 <div class="info-bar-row">
-                    <span class="info-bar-label"><i class="fas ${b.icon}"></i> ${b.label}</span>
+                    <span class="info-bar-label"><i class="fas ${escapeHtml(b.icon)}"></i> ${escapeHtml(b.label)}</span>
                     <div class="info-bar-track"><div class="info-bar-fill" style="width:${((info?.[b.key] || 0) / 10) * 100}%"></div></div>
-                    <span class="info-bar-val">${info?.[b.key] ?? "—"}/10</span>
+                    <span class="info-bar-val">${escapeHtml(info?.[b.key] ?? "—")}/10</span>
                 </div>
             `,
             ).join("")}
@@ -3145,15 +3136,15 @@ function renderStatsChampDetail() {
           if (!cards.length) return "";
           return `
                 <div class="stat-group">
-                    <div class="stat-group-header ${g.key}"><i class="fas ${g.icon}"></i> ${g.title}</div>
+                    <div class="stat-group-header ${escapeHtml(g.key)}"><i class="fas ${escapeHtml(g.icon)}"></i> ${escapeHtml(g.title)}</div>
                     <div class="stat-cards-grid">
                         ${cards
                           .map(
                             (c) => `
-                            <div class="stat-card ${g.key}${c.primary ? " primary" : ""}">
-                                <div class="stat-card-icon"><i class="fas ${c.icon}"></i></div>
-                                <div class="stat-card-label">${c.label}</div>
-                                <div class="stat-card-value">${c.value}</div>
+                            <div class="stat-card ${escapeHtml(g.key)}${c.primary ? " primary" : ""}">
+                                <div class="stat-card-icon"><i class="fas ${escapeHtml(c.icon)}"></i></div>
+                                <div class="stat-card-label">${escapeHtml(c.label)}</div>
+                                <div class="stat-card-value">${escapeHtml(c.value)}</div>
                             </div>
                         `,
                           )
@@ -3240,9 +3231,9 @@ function selectStatsItem(item) {
     .map(
       (s) => `
         <div class="item-stat-row">
-            <span class="item-stat-label">${s.label}</span>
-            <span class="item-stat-value">+${s.value}${s.unit}</span>
-            <span class="item-stat-gold">${s.goldValue}g</span>
+            <span class="item-stat-label">${escapeHtml(s.label)}</span>
+            <span class="item-stat-value">+${escapeHtml(s.value)}${escapeHtml(s.unit)}</span>
+            <span class="item-stat-gold">${escapeHtml(s.goldValue)}g</span>
         </div>
     `,
     )
@@ -3250,18 +3241,18 @@ function selectStatsItem(item) {
 
   detail.innerHTML = `
         <div class="item-detail-header">
-            <img class="item-detail-icon" src="${item.icon}" data-fallback="hide">
+            <img class="item-detail-icon" src="${escapeHtml(item.icon)}" data-fallback="hide">
             <div class="item-detail-info">
-                <div class="item-detail-name">${item.name}</div>
+                <div class="item-detail-name">${escapeHtml(item.name)}</div>
                 <div class="item-gold-row">
-                    <span class="gold-badge"><i class="fas fa-coins"></i> ${item.gold.total}</span>
-                    ${item.gold.sell ? `<span class="gold-badge sell"><i class="fas fa-arrow-right-arrow-left"></i> ${item.gold.sell}</span>` : ""}
+                    <span class="gold-badge"><i class="fas fa-coins"></i> ${escapeHtml(item.gold.total)}</span>
+                    ${item.gold.sell ? `<span class="gold-badge sell"><i class="fas fa-arrow-right-arrow-left"></i> ${escapeHtml(item.gold.sell)}</span>` : ""}
                 </div>
                 ${
                   item.tags.length
                     ? `
                     <div class="champ-tags item-tags">
-                        ${item.tags.map((t) => `<span class="champ-tag">${t}</span>`).join("")}
+                        ${item.tags.map((t) => `<span class="champ-tag">${escapeHtml(t)}</span>`).join("")}
                     </div>
                 `
                     : ""
@@ -3272,12 +3263,12 @@ function selectStatsItem(item) {
         <div class="efficiency-block">
             <div class="efficiency-label-row">
                 <span>Gold Efficiency</span>
-                <span class="efficiency-pct ${effClass(pct)}">${pct}%</span>
+                <span class="efficiency-pct ${effClass(pct)}">${escapeHtml(pct)}%</span>
             </div>
             <div class="efficiency-bar-track">
                 <div class="efficiency-bar-fill ${effClass(pct)}" style="width:${Math.min(pct, 100)}%"></div>
             </div>
-            <div class="efficiency-note">Based on stat value (${item.statsGoldValue}g) vs. item cost (${item.gold.total}g). Active/passive effects add value beyond raw stats.</div>
+            <div class="efficiency-note">Based on stat value (${escapeHtml(item.statsGoldValue)}g) vs. item cost (${escapeHtml(item.gold.total)}g). Active/passive effects add value beyond raw stats.</div>
         </div>
 
         ${
