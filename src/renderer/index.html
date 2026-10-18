@@ -70,8 +70,8 @@
             <div class="window-control-bar">
                 <div class="drag-handle"></div>
                 <div class="window-controls">
-                    <button id="minimizeAppBtn" class="icon-btn" data-tooltip="Minimize" data-tooltip-pos="bottom"><i class="fas fa-minus"></i></button>
-                    <button id="closeAppBtn" class="icon-btn close-btn" data-tooltip="Close" data-tooltip-pos="bottom"><i class="fas fa-times"></i></button>
+                    <button id="minimizeAppBtn" class="icon-btn" aria-label="Minimize" data-tooltip="Minimize" data-tooltip-pos="bottom"><i class="fas fa-minus"></i></button>
+                    <button id="closeAppBtn" class="icon-btn close-btn" aria-label="Close" data-tooltip="Close" data-tooltip-pos="bottom"><i class="fas fa-times"></i></button>
                 </div>
             </div>
 
@@ -89,18 +89,18 @@
                             <span class="label-text">Auto-Accept</span>
                         </label>
                         <div class="view-toggle-btns">
-                            <button id="viewGridBtn" class="view-toggle-btn active" data-tooltip="Grid view"><i class="fas fa-th-large"></i></button>
-                            <button id="viewListBtn" class="view-toggle-btn" data-tooltip="Compact list"><i class="fas fa-list"></i></button>
+                            <button id="viewGridBtn" class="view-toggle-btn active" aria-label="Grid view" data-tooltip="Grid view"><i class="fas fa-th-large"></i></button>
+                            <button id="viewListBtn" class="view-toggle-btn" aria-label="Compact list" data-tooltip="Compact list"><i class="fas fa-list"></i></button>
                         </div>
                     </div>
                 </div>
                 <div class="accounts-toolbar">
                     <div class="search-box">
                         <i class="fas fa-search search-icon"></i>
-                        <input type="text" id="accountSearch" class="search-input" placeholder="Search by name, username, region…">
-                        <button id="searchClearBtn" class="search-clear" style="display:none"><i class="fas fa-times"></i></button>
+                        <input type="text" id="accountSearch" class="search-input" aria-label="Search accounts" placeholder="Search by name, username, region…">
+                        <button id="searchClearBtn" class="search-clear" style="display:none" aria-label="Clear search"><i class="fas fa-times"></i></button>
                     </div>
-                    <select id="accountSort" class="sort-select">
+                    <select id="accountSort" class="sort-select" aria-label="Sort accounts">
                         <option value="default">Sort: Default</option>
                         <option value="favourite">Favourites First</option>
                         <option value="rank">By Rank</option>
@@ -541,11 +541,17 @@
                             <h3>Riot API Key <span style="opacity:0.5;font-size:12px;font-weight:500">(optional)</span></h3>
                             <p class="desc">Ranked stats, match history and Quick add work without a key via OP.GG. A personal key adds mastery points and is tried first when set.</p>
                             <div id="riotApiKeyNotice" class="api-key-notice" style="display:none"></div>
-                            <div class="setting-row" style="border-bottom:none;padding-bottom:0;gap:10px">
+                            <div id="riotApiKeySavedRow" class="setting-row api-key-saved" style="display:none;border-bottom:none;padding-bottom:0;gap:10px">
+                                <span class="api-key-saved-label"><i class="fas fa-check" aria-hidden="true"></i> Key saved</span>
+                                <button id="replaceRiotApiKeyBtn" class="action-btn">Replace</button>
+                                <button id="clearRiotApiKeyBtn" class="action-btn">Clear</button>
+                            </div>
+                            <div id="riotApiKeyEditRow" class="setting-row" style="border-bottom:none;padding-bottom:0;gap:10px">
                                 <input type="password" id="riotApiKeyInput" class="form-control api-key-input"
-                                    placeholder="RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    placeholder="RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" aria-label="Riot API key"
                                     autocomplete="off" spellcheck="false">
                                 <button id="saveRiotApiKeyBtn" class="action-btn" style="flex-shrink:0">Save</button>
+                                <button id="cancelRiotApiKeyBtn" class="action-btn" style="display:none;flex-shrink:0">Cancel</button>
                             </div>
                         </div>
                     </div>
@@ -577,9 +583,12 @@
                                 </label>
                             </div>
                             <div id="vaultPasswordSection" style="display:none;padding-top:4px">
-                                <div class="setting-row" style="border-bottom:none;padding-bottom:0;gap:10px">
-                                    <input type="password" id="vaultPasswordSet" class="form-control" placeholder="Set new password" autocomplete="new-password">
-                                    <button id="saveVaultPasswordBtn" class="action-btn" style="flex-shrink:0">Set Password</button>
+                                <div class="setting-row" style="border-bottom:none;padding-bottom:0">
+                                    <div class="setting-row-info">
+                                        <h4>Vault password</h4>
+                                        <p>Change the password the app asks for on start</p>
+                                    </div>
+                                    <button id="changeVaultPasswordBtn" class="action-btn" style="flex-shrink:0">Change password</button>
                                 </div>
                             </div>
                         </div>
@@ -605,7 +614,7 @@
             <div id="accountFormView" class="view" style="position:relative;overflow:hidden">
                 <div class="view-header" style="flex-shrink:0">
                     <div class="view-title-row">
-                        <button class="icon-btn" id="cancelAddBtn" style="margin-right:8px" data-tooltip="Back">
+                        <button class="icon-btn" id="cancelAddBtn" style="margin-right:8px" data-tooltip="Back" aria-label="Back">
                             <i class="fas fa-arrow-left"></i>
                         </button>
                         <h2 id="modalTitle">New Account</h2>
@@ -722,7 +731,7 @@
                 <!-- Champion search overlay — fills the view when open -->
                 <div class="champ-search-overlay" id="champSearchOverlay">
                     <div class="champ-search-header">
-                        <button type="button" class="champ-search-back" id="champSearchBack">
+                        <button type="button" class="champ-search-back" id="champSearchBack" aria-label="Back">
                             <i class="fas fa-arrow-left"></i>
                         </button>
                         <input type="text" class="champ-search-input" id="champSearchInput" placeholder="Search champion...">
@@ -763,7 +772,7 @@
                 <div class="update-card-label">Update Available</div>
                 <div id="updateCardVersion" class="update-card-version">v—</div>
             </div>
-            <button id="closeUpdateCard" class="update-card-close" data-tooltip="Remind me later">
+            <button id="closeUpdateCard" class="update-card-close" data-tooltip="Remind me later" aria-label="Remind me later">
                 <i class="fas fa-times"></i>
             </button>
         </div>
@@ -788,13 +797,13 @@
     </div>
 
     <!-- Dismissed update pill -->
-    <div id="updatePill" class="update-pill">
+    <div id="updatePill" class="update-pill" role="button" tabindex="0">
         <span class="update-pill-dot"></span>
         <span id="updatePillLabel">Update ready</span>
     </div>
 
     <!-- Launch Overlay -->
-    <div id="launchOverlay" class="launch-overlay">
+    <div id="launchOverlay" class="launch-overlay" role="dialog" aria-modal="true" aria-labelledby="launchAccLabel" aria-describedby="launchStatus">
         <div class="launch-content">
             <div class="launch-account-header">
                 <img id="launchAccIcon" src="assets/logo.png" class="launch-acc-icon">
@@ -804,7 +813,7 @@
                 </div>
             </div>
             <div class="launch-spinner"></div>
-            <div id="launchStatus" class="launch-status">Initializing...</div>
+            <div id="launchStatus" class="launch-status" aria-live="polite">Initializing...</div>
             <div class="launch-progress-track">
                 <div id="launchProgress" class="launch-progress-bar"></div>
             </div>
@@ -818,7 +827,7 @@
     </div>
 
     <!-- Account Profile Modal -->
-    <div id="profileModal" class="modal">
+    <div id="profileModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="profileLabel">
         <div class="modal-content profile-modal-content">
             <!-- Header -->
             <div class="profile-header">
@@ -833,7 +842,7 @@
                         <span class="profile-loading-dot"></span> Loading stats…
                     </div>
                 </div>
-                <button id="closeProfileModal" class="icon-btn" style="align-self:flex-start">
+                <button id="closeProfileModal" class="icon-btn" style="align-self:flex-start" aria-label="Close">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -882,7 +891,7 @@
                 <button id="profileLaunchBtn" class="primary-btn" style="flex:1">
                     <i class="fas fa-play"></i> Launch Account
                 </button>
-                <button id="profileEditBtn" class="secondary-btn">
+                <button id="profileEditBtn" class="secondary-btn" aria-label="Edit account" data-tooltip="Edit account">
                     <i class="fas fa-pen"></i>
                 </button>
             </div>
@@ -890,13 +899,13 @@
     </div>
 
     <!-- Patch Notes Modal (shown once on first launch after an update) -->
-    <div id="patchNotesModal" class="modal">
+    <div id="patchNotesModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="patchNotesTitle">
         <div class="modal-content patch-notes-content">
-            <button id="closePatchNotesBtn" class="modal-close-x" data-tooltip="Close"><i class="fas fa-times"></i></button>
+            <button id="closePatchNotesBtn" class="modal-close-x" data-tooltip="Close" aria-label="Close"><i class="fas fa-times"></i></button>
             <div class="patch-notes-header">
                 <div class="patch-notes-badge"><i class="fas fa-bullhorn"></i></div>
                 <div>
-                    <h2>What's New</h2>
+                    <h2 id="patchNotesTitle">What's New</h2>
                     <div id="patchNotesVersion" class="patch-notes-version"></div>
                 </div>
             </div>
@@ -911,35 +920,50 @@
     </div>
 
     <!-- Custom Confirmation Modal -->
-    <div id="confirmModal" class="modal">
+    <div id="confirmModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
         <div class="modal-content confirm-content">
-            <div id="confirmIcon" class="confirm-icon"><i class="fas fa-exclamation-triangle"></i></div>
+            <div id="confirmIcon" class="confirm-icon" aria-hidden="true"><i class="fas fa-exclamation-triangle"></i></div>
             <h2 id="confirmTitle">Confirm Action</h2>
             <p id="confirmMessage">Are you sure you want to proceed?</p>
             <div class="modal-actions">
                 <button id="confirmCancelBtn" class="secondary-btn">Cancel</button>
-                <button id="confirmYesBtn" class="primary-btn danger">Yes, Delete</button>
+                <button id="confirmYesBtn" class="primary-btn">Confirm</button>
             </div>
         </div>
+    </div>
+
+    <!-- In-app form dialog (vault password, backup passphrase) -->
+    <div id="formDialog" class="modal" role="dialog" aria-modal="true" aria-labelledby="formDialogTitle" aria-describedby="formDialogMessage">
+        <form id="formDialogForm" class="modal-content form-dialog-content" novalidate>
+            <h2 id="formDialogTitle"></h2>
+            <p id="formDialogMessage" class="form-dialog-message"></p>
+            <div id="formDialogFields"></div>
+            <p id="formDialogError" class="form-dialog-error" role="alert"></p>
+            <div class="modal-actions">
+                <button type="button" id="formDialogCancelBtn" class="secondary-btn">Cancel</button>
+                <button type="submit" id="formDialogSubmitBtn" class="primary-btn">OK</button>
+            </div>
+        </form>
     </div>
 
     <!-- Toast Container -->
     <div id="toastContainer" class="toast-container"></div>
 
     <!-- Vault Lock Screen -->
-    <div id="vaultLock" class="vault-lock" style="display:none">
+    <div id="vaultLock" class="vault-lock" style="display:none" role="dialog" aria-modal="true" aria-labelledby="vaultLockTitle">
         <div class="vault-lock-content">
             <img src="assets/logo.png" class="vault-lock-logo">
-            <h2 class="vault-lock-title">Lost League Manager</h2>
+            <h2 id="vaultLockTitle" class="vault-lock-title">Lost League Manager</h2>
             <p class="vault-lock-sub">Enter your vault password to continue</p>
             <div class="vault-lock-input-wrap">
-                <input type="password" id="vaultPasswordInput" class="vault-lock-input" placeholder="Password" autocomplete="current-password">
+                <input type="password" id="vaultPasswordInput" class="vault-lock-input" placeholder="Password" autocomplete="current-password" aria-label="Vault password">
                 <button id="vaultUnlockBtn" class="vault-lock-btn">Unlock</button>
             </div>
-            <p id="vaultError" class="vault-lock-error" style="display:none">Incorrect password</p>
+            <p id="vaultError" class="vault-lock-error" style="display:none" role="alert">Incorrect password</p>
         </div>
     </div>
 
+    <script src="js/ui-lib.js"></script>
     <script src="js/app.js"></script>
 </body>
 

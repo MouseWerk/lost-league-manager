@@ -15,9 +15,23 @@ let allAccounts = [];
 let activeAccountUsername = null;
 let currentQuery = "";
 let currentSort = "default";
-const statsCache = {}; // username → { tier, lp, iconSrc, level }
-let _renderGen = 0; // incremented each renderAccounts() call; cancels stale stat callbacks
-let _shownStatErrors = new Set(); // deduplicates error toasts within a render cycle
+// username → { stats, key, at } (makeStatsEntry in ui-lib.js). An entry is
+// only used while its key still matches the account's region|Riot ID, and it
+// is fetched again after STATS_TTL_MS. Errors are never stored here.
+const statsCache = {};
+// username → { key, at, stats } of the last failed lookup: shown on the card
+// and not retried for STATS_RETRY_MS, so a re-render (rank resort, search)
+// does not turn one failure into a request loop.
+const statsFailures = {};
+const STATS_RETRY_MS = 60 * 1000;
+const statsInFlight = new Map(); // username → key of the request in flight
+// Error text → when it was last shown, so the same failure toasts once per
+// STATS_ERROR_TOAST_GAP_MS instead of on every render.
+const shownStatErrors = new Map();
+const STATS_ERROR_TOAST_GAP_MS = 10 * 60 * 1000;
+// Riot API development keys allow 20 requests per second; each card costs
+// several, so card lookups start this far apart.
+const STATS_STAGGER_MS = 150;
 
 // Small "OP" monogram badge standing in for the OP.GG logo on the opgg-btn —
 // not their actual mark (avoids hotlinking/trademark-asset copying), but
@@ -102,12 +116,117 @@ const REGIONS = [
 
 let lcuConnected = false;
 
-function escapeHtml(str) {
-  return String(str ?? "").replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
-  );
+// Pure helpers (escaping, rank order, cache freshness, ...) live in
+// js/ui-lib.js so the unit tests can load them; index.html loads it first.
+const {
+  escapeHtml,
+  TIER_ORDER,
+  rankScore,
+  reorderList,
+  statsKey,
+  shouldCacheStats,
+  makeStatsEntry,
+  statsEntryState,
+  growStat,
+  attackSpeedAt,
+  sparklinePoints,
+  lobbyMemberLabel,
+  normalizeLoginStatus,
+  needsLaunchAttention,
+  MIN_PASSPHRASE_LENGTH,
+  validateNewPassphrase,
+  secondsUntil,
+} = window.UiLib;
+
+// Cached stats for an account, fresh or stale, or null when there is nothing
+// usable (never fetched, or the Riot ID/region changed since).
+function getCachedStats(acc) {
+  if (!acc) return null;
+  const entry = statsCache[acc.username];
+  return statsEntryState(entry, acc, Date.now()) === "missing"
+    ? null
+    : entry.stats;
+}
+
+function cacheStats(acc, stats) {
+  if (shouldCacheStats(stats)) {
+    statsCache[acc.username] = makeStatsEntry(stats, acc, Date.now());
+    delete statsFailures[acc.username];
+  } else if (stats) {
+    statsFailures[acc.username] = { key: statsKey(acc), at: Date.now(), stats };
+  }
+}
+
+// Drops cache entries of deleted accounts and of accounts whose Riot ID or
+// region changed (edit, LCU auto-link, import), so a card never shows the
+// previous summoner's rank.
+function pruneStatsCache() {
+  const byName = new Map(allAccounts.map((a) => [a.username, a]));
+  for (const store of [statsCache, statsFailures]) {
+    for (const username of Object.keys(store)) {
+      const acc = byName.get(username);
+      if (!acc || store[username].key !== statsKey(acc)) delete store[username];
+    }
+  }
+}
+
+function recentStatsFailure(acc) {
+  const f = statsFailures[acc.username];
+  if (!f || f.key !== statsKey(acc)) return null;
+  const age = Date.now() - f.at;
+  return age >= 0 && age < STATS_RETRY_MS ? f : null;
+}
+
+function toastStatError(message) {
+  const last = shownStatErrors.get(message);
+  if (last && Date.now() - last < STATS_ERROR_TOAST_GAP_MS) return;
+  shownStatErrors.set(message, Date.now());
+  showToast(message, "error");
+}
+
+function findAccountCard(username) {
+  for (const card of document.querySelectorAll("#accountsList .account-card")) {
+    if (card.dataset.username === username) return card;
+  }
+  return null;
+}
+
+// Asks the main process for one account's stats unless a request for the
+// same region|Riot ID is already running. The result is cached even when the
+// list was re-rendered in the meantime, and applied to whichever card shows
+// that account now.
+function requestCardStats(acc, delay) {
+  const username = acc.username;
+  const key = statsKey(acc);
+  if (statsInFlight.get(username) === key) return;
+  statsInFlight.set(username, key);
+  const done = () => {
+    if (statsInFlight.get(username) === key) statsInFlight.delete(username);
+  };
+  const current = () => {
+    const a = allAccounts.find((x) => x.username === username);
+    return a && statsKey(a) === key ? a : null;
+  };
+  setTimeout(() => {
+    const target = current();
+    if (!target) return done(); // deleted or edited while waiting
+    window.electronAPI
+      .getStats(target.region, target.riotId)
+      .then((stats) => {
+        done();
+        const acc2 = current();
+        if (!acc2 || !stats) return;
+        if (stats.error) toastStatError(stats.error);
+        cacheStats(acc2, stats);
+        const card = findAccountCard(username);
+        if (card) applyStatsToCard(card, stats);
+        if (currentSort === "rank") scheduleRankResort();
+      })
+      .catch((err) => {
+        done();
+        console.error("[Stats]", username, err);
+      });
+  }, delay);
 }
 
 // Images that fail to load fall back to the logo or hide themselves, per their
@@ -122,36 +241,6 @@ document.addEventListener(
   },
   true,
 );
-
-// Rank tier → numeric for sorting
-const TIER_ORDER = {
-  challenger: 10,
-  grandmaster: 9,
-  master: 8,
-  diamond: 7,
-  emerald: 6,
-  platinum: 5,
-  gold: 4,
-  silver: 3,
-  bronze: 2,
-  iron: 1,
-  unranked: 0,
-};
-
-function rankToNumber(tierText) {
-  if (
-    !tierText ||
-    tierText === "Loading stats..." ||
-    tierText === "N/A" ||
-    tierText === "Err"
-  )
-    return -1;
-  const parts = tierText.toLowerCase().split(" ");
-  const tier = TIER_ORDER[parts[0]];
-  if (tier === undefined) return -1;
-  const div = parts[1] ? 5 - (parseInt(parts[1]) || 0) : 0;
-  return tier * 10 + div;
-}
 
 // Only allow http(s) URLs (or the app's own bundled assets) for a custom
 // avatar — blocks javascript:/data:/file: schemes that a crafted or imported
@@ -208,71 +297,418 @@ function getFilteredSorted() {
       list.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
       break;
     case "rank":
+      // Tier, then division, then LP (rankScore in ui-lib.js); stable sort
+      // keeps the saved order for equal ranks.
       list.sort(
         (a, b) =>
-          rankToNumber(statsCache[b.username]?.tier) -
-          rankToNumber(statsCache[a.username]?.tier),
+          rankScore(getCachedStats(b)) - rankScore(getCachedStats(a)),
       );
       break;
   }
   return list;
 }
 
-async function sha256(str) {
-  const buf = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(str),
-  );
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+// Vault state from the main process. Older main processes have no
+// getVaultState; their config still says vaultEnabled.
+async function readVaultState(config) {
+  const api = window.electronAPI;
+  if (typeof api.getVaultState === "function") {
+    try {
+      const s = await api.getVaultState();
+      if (s && typeof s.enabled === "boolean") return { ...s, legacy: false };
+    } catch {
+      /* fall back to the config flag */
+    }
+  }
+  return { enabled: !!config.vaultEnabled, unlocked: false, legacy: true };
+}
+
+// Text for a failed vault password check (unlock, change, turn off).
+function vaultErrorText(res, fallback = "Incorrect password") {
+  if (res?.retryAfterMs > 0) {
+    return `Too many attempts. Try again in ${secondsUntil(res.retryAfterMs)} s.`;
+  }
+  return res?.message || fallback;
 }
 
 async function initVault(config) {
-  if (!config.vaultEnabled || !config.vaultPasswordHash) {
-    // Nothing to unlock, but the main process still needs to know this
-    // session is allowed to read passwords (it defaults to locked).
-    await window.electronAPI.unlockVault(null);
+  const api = window.electronAPI;
+  const vault = await readVaultState(config);
+  if (!vault.enabled) {
+    // Older main processes treat a session as locked until told otherwise.
+    if (vault.legacy) await api.unlockVault(null);
     return;
   }
+  if (vault.unlocked) return;
+
   return new Promise((resolve) => {
     const lockEl = document.getElementById("vaultLock");
     const input = document.getElementById("vaultPasswordInput");
+    const btn = document.getElementById("vaultUnlockBtn");
     const errorEl = document.getElementById("vaultError");
-    lockEl.style.display = "flex";
-    setTimeout(() => input.focus(), 80);
+    openLayer(lockEl, {
+      show: (el) => (el.style.display = "flex"),
+      focus: input,
+    });
 
-    async function tryUnlock() {
-      if (!input.value) return;
-      const hash = await sha256(input.value);
-      // Verified server-side too — the main process gates get-account-password
-      // on this, so a DOM/JS-only bypass of this lock screen can't leak passwords.
-      const result = await window.electronAPI.unlockVault(hash);
-      if (result?.success) {
-        lockEl.classList.add("vault-unlocking");
-        setTimeout(() => {
-          lockEl.style.display = "none";
-          resolve();
-        }, 220);
-      } else {
-        input.value = "";
-        errorEl.style.display = "block";
-        const c = lockEl.querySelector(".vault-lock-content");
-        c.classList.add("shake");
-        setTimeout(() => {
-          c.classList.remove("shake");
-          input.focus();
-        }, 500);
-      }
+    function showError(text) {
+      errorEl.textContent = text;
+      errorEl.style.display = "block";
     }
 
-    document
-      .getElementById("vaultUnlockBtn")
-      .addEventListener("click", tryUnlock);
-    input.addEventListener("keydown", (e) => {
+    // The main process limits attempts; while it asks us to wait, the
+    // input is disabled and the remaining time counts down.
+    let lockoutTimer = null;
+    function lockOut(ms) {
+      const until = Date.now() + ms;
+      input.disabled = true;
+      btn.disabled = true;
+      const tick = () => {
+        const left = until - Date.now();
+        if (left <= 0) {
+          clearInterval(lockoutTimer);
+          lockoutTimer = null;
+          input.disabled = false;
+          btn.disabled = false;
+          errorEl.style.display = "none";
+          input.focus();
+          return;
+        }
+        showError(`Too many attempts. Try again in ${secondsUntil(left)} s.`);
+      };
+      clearInterval(lockoutTimer);
+      tick();
+      lockoutTimer = setInterval(tick, 250);
+    }
+
+    let busy = false;
+    async function tryUnlock() {
+      // The password goes to the main process exactly as typed (no trimming,
+      // no hashing here): main checks it against its salted scrypt hash.
+      if (busy || input.disabled || !input.value) return;
+      busy = true;
+      btn.disabled = true;
+      let result;
+      try {
+        result = await api.unlockVault(input.value);
+      } catch {
+        result = { success: false, message: "Could not check the password. Try again." };
+      }
+      busy = false;
+      btn.disabled = false;
+      if (result?.success) {
+        input.value = "";
+        lockEl.classList.add("vault-unlocking");
+        setTimeout(() => {
+          closeLayer(lockEl, { hide: (el) => (el.style.display = "none") });
+          resolve();
+        }, 220);
+        return;
+      }
+      input.value = "";
+      if (result?.retryAfterMs > 0) {
+        lockOut(result.retryAfterMs);
+        return;
+      }
+      showError(vaultErrorText(result));
+      const c = lockEl.querySelector(".vault-lock-content");
+      c.classList.add("shake");
+      setTimeout(() => {
+        c.classList.remove("shake");
+        input.focus();
+      }, 500);
+    }
+
+    // Properties, not listeners: the lock can be shown again (lockAgain).
+    btn.onclick = tryUnlock;
+    input.onkeydown = (e) => {
       if (e.key === "Enter") tryUnlock();
-    });
+    };
   });
+}
+
+// The main process answered "locked" (e.g. a tray launch while locked):
+// show the lock screen again and reload the accounts once unlocked.
+let _relocking = false;
+async function lockAgain() {
+  if (_relocking) return;
+  _relocking = true;
+  try {
+    await initVault({ vaultEnabled: true });
+    await loadAccounts();
+  } finally {
+    _relocking = false;
+  }
+}
+
+// ── Vault settings ────────────────────────────────────────────────────────
+// Passwords go to the main process as typed; it hashes and stores them.
+// Turning the vault on asks for the new password twice, turning it off or
+// changing the password asks for the current one first.
+async function initVaultSettings(config) {
+  const api = window.electronAPI;
+  const toggle = document.getElementById("vaultEnabledToggle");
+  const section = document.getElementById("vaultPasswordSection");
+  if (!toggle) return;
+  let enabled = (await readVaultState(config)).enabled;
+
+  const render = () => {
+    toggle.checked = enabled;
+    section.style.display = enabled ? "block" : "none";
+  };
+  render();
+
+  const newPasswordError = (next, confirm) => {
+    if (!next) return "Enter a password";
+    if (next !== confirm) return "The two entries do not match";
+    return null;
+  };
+
+  toggle.addEventListener("change", async () => {
+    render(); // the switch follows the saved state, not the click
+    if (!enabled) {
+      const done = await showFormDialog({
+        title: "Turn on the vault",
+        message:
+          "Choose a password. The app asks for it every time it opens.",
+        fields: [
+          { name: "next", label: "Password", autocomplete: "new-password" },
+          { name: "confirm", label: "Repeat password", autocomplete: "new-password" },
+        ],
+        confirmLabel: "Turn on",
+        onSubmit: async (v) => {
+          const err = newPasswordError(v.next, v.confirm);
+          if (err) return err;
+          const res = await api.setVaultPassword({ current: "", next: v.next });
+          return res?.success ? null : vaultErrorText(res, "Could not set the password");
+        },
+      });
+      if (done) {
+        enabled = true;
+        showToast("Vault turned on", "success");
+      }
+    } else {
+      const done = await showFormDialog({
+        title: "Turn off the vault",
+        message: "Enter the current vault password to turn the lock off.",
+        fields: [
+          { name: "current", label: "Current password", autocomplete: "current-password" },
+        ],
+        confirmLabel: "Turn off",
+        danger: true,
+        onSubmit: async (v) => {
+          if (!v.current) return "Enter the current password";
+          const res = await api.disableVault(v.current);
+          return res?.success ? null : vaultErrorText(res);
+        },
+      });
+      if (done) {
+        enabled = false;
+        showToast("Vault turned off", "info");
+      }
+    }
+    render();
+  });
+
+  document
+    .getElementById("changeVaultPasswordBtn")
+    ?.addEventListener("click", async () => {
+      const done = await showFormDialog({
+        title: "Change vault password",
+        fields: [
+          { name: "current", label: "Current password", autocomplete: "current-password" },
+          { name: "next", label: "New password", autocomplete: "new-password" },
+          { name: "confirm", label: "Repeat new password", autocomplete: "new-password" },
+        ],
+        confirmLabel: "Change password",
+        onSubmit: async (v) => {
+          if (!v.current) return "Enter the current password";
+          const err = newPasswordError(v.next, v.confirm);
+          if (err) return err;
+          const res = await api.setVaultPassword({ current: v.current, next: v.next });
+          return res?.success ? null : vaultErrorText(res);
+        },
+      });
+      if (done) showToast("Vault password changed", "success");
+    });
+}
+
+// ── Riot API key ──────────────────────────────────────────────────────────
+// The key is stored encrypted by the main process and never comes back to
+// the renderer: the card only knows whether one is saved.
+function initRiotApiKeySettings(config) {
+  const api = window.electronAPI;
+  const input = document.getElementById("riotApiKeyInput");
+  const editRow = document.getElementById("riotApiKeyEditRow");
+  const savedRow = document.getElementById("riotApiKeySavedRow");
+  const saveBtn = document.getElementById("saveRiotApiKeyBtn");
+  const cancelBtn = document.getElementById("cancelRiotApiKeyBtn");
+  if (!input || !editRow || !savedRow) return;
+  // riotApiKeySet from current main processes; older ones still sent the key.
+  let keySet = !!(config.riotApiKeySet ?? config.riotApiKey);
+
+  const render = (editing = false) => {
+    input.value = "";
+    savedRow.style.display = keySet && !editing ? "" : "none";
+    editRow.style.display = !keySet || editing ? "" : "none";
+    cancelBtn.style.display = keySet && editing ? "" : "none";
+  };
+  render();
+
+  const store = async (key) => {
+    try {
+      return typeof api.setRiotApiKey === "function"
+        ? await api.setRiotApiKey(key)
+        : await api.setConfig({ riotApiKey: key });
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  };
+
+  const save = async () => {
+    const key = input.value.trim();
+    if (!key) {
+      showToast("Paste a Riot API key first", "error");
+      input.focus();
+      return;
+    }
+    saveBtn.disabled = true;
+    const res = await store(key);
+    saveBtn.disabled = false;
+    if (!res?.success) {
+      showToast(res?.message || "Could not save the API key", "error");
+      return;
+    }
+    keySet = true;
+    render();
+    showToast("API key saved", "success");
+    document.getElementById("replaceRiotApiKeyBtn")?.focus();
+  };
+
+  saveBtn.addEventListener("click", save);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") save();
+  });
+  cancelBtn.addEventListener("click", () => {
+    render();
+    document.getElementById("replaceRiotApiKeyBtn")?.focus();
+  });
+  document.getElementById("replaceRiotApiKeyBtn").addEventListener("click", () => {
+    render(true);
+    input.focus();
+  });
+  document.getElementById("clearRiotApiKeyBtn").addEventListener("click", async () => {
+    const res = await store("");
+    if (!res?.success) {
+      showToast(res?.message || "Could not clear the API key", "error");
+      return;
+    }
+    keySet = false;
+    render();
+    showToast("API key cleared", "info");
+    input.focus();
+  });
+}
+
+// ── Backup (export / import) ──────────────────────────────────────────────
+function plural(n, word) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+// Export asks for a passphrase twice (at least MIN_PASSPHRASE_LENGTH
+// characters, never trimmed); the main process encrypts the file with it.
+async function exportAccountsFlow(btn) {
+  const values = await showFormDialog({
+    title: "Export accounts",
+    message:
+      "The backup contains your account passwords. Choose a passphrase to encrypt it; you need it again to import the file.",
+    fields: [
+      { name: "passphrase", label: "Passphrase", autocomplete: "new-password" },
+      { name: "confirm", label: "Repeat passphrase", autocomplete: "new-password" },
+    ],
+    confirmLabel: "Export",
+    onSubmit: (v) => validateNewPassphrase(v.passphrase, v.confirm, MIN_PASSPHRASE_LENGTH),
+  });
+  if (!values) return;
+  btn.disabled = true;
+  let res;
+  try {
+    res = await window.electronAPI.exportAccounts(values.passphrase);
+  } catch (err) {
+    res = { success: false, message: err.message };
+  } finally {
+    btn.disabled = false;
+  }
+  if (res?.canceled) return;
+  if (res?.success) {
+    const unreadable =
+      res.unreadable > 0
+        ? ` ${plural(res.unreadable, "password")} could not be read and were left empty.`
+        : "";
+    showToast(`${plural(res.count ?? 0, "account")} exported.${unreadable}`, "success");
+  } else {
+    showToast("Export failed: " + (res?.message || "unknown error"), "error");
+  }
+}
+
+// Import opens the file dialog in the main process. A protected backup
+// answers needsPassphrase; the file stays pending there while the
+// passphrase dialog asks (and asks again after a wrong one).
+async function importAccountsFlow(btn) {
+  const api = window.electronAPI;
+  btn.disabled = true;
+  try {
+    let res = await api.importAccounts();
+    if (res?.needsPassphrase) {
+      let finalRes = null;
+      const values = await showFormDialog({
+        title: "Import accounts",
+        message:
+          "This backup is protected. Enter the passphrase that was used to export it.",
+        fields: [{ name: "passphrase", label: "Passphrase", autocomplete: "off" }],
+        confirmLabel: "Import",
+        onSubmit: async (v) => {
+          if (!v.passphrase) return "Enter the passphrase";
+          const r = await api.importAccounts({ passphrase: v.passphrase });
+          if (r?.wrongPassphrase || r?.needsPassphrase) {
+            return "Wrong passphrase. Check it and try again.";
+          }
+          finalRes = r;
+          return null;
+        },
+      });
+      if (!values) return;
+      res = finalRes;
+    }
+    if (res?.canceled) return;
+    if (res?.success) {
+      const added = res.added || 0;
+      const skipped = res.skipped || 0;
+      // Why entries were skipped, when the main process says so.
+      const reasons = [
+        res.duplicates ? `${res.duplicates} already in the list` : "",
+        res.invalid ? `${res.invalid} invalid` : "",
+        res.withoutPassword ? `${res.withoutPassword} without a password` : "",
+      ].filter(Boolean);
+      const skippedText = reasons.length
+        ? `skipped: ${reasons.join(", ")}`
+        : `${skipped} skipped`;
+      const msg =
+        added > 0
+          ? `${plural(added, "account")} imported${skipped ? `, ${skippedText}` : ""}.`
+          : skipped
+            ? `No new accounts (${skippedText}).`
+            : "The backup contains no accounts.";
+      showToast(msg, added > 0 ? "success" : "info");
+      if (added > 0) loadAccounts();
+    } else {
+      showToast("Import failed: " + (res?.message || "unknown error"), "error");
+    }
+  } catch (err) {
+    showToast("Import failed: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ── Compact / grid view ───────────────────────────────────────────────────────
@@ -403,25 +839,28 @@ function showPatchNotesModal(version) {
 
   document.getElementById("patchNotesVersion").textContent =
     `Version ${version}`;
-  // items are hardcoded above, not user input — safe to interpolate directly.
+  // items are hardcoded above; escaped anyway so the markup guard stays simple.
   document.getElementById("patchNotesList").innerHTML = items
     .map(
       (item) => `
         <li>
-            <i class="${item.icon}"></i>
+            <i class="${escapeHtml(item.icon)}"></i>
             <div>
-                <div class="patch-notes-item-title">${item.title}</div>
-                <div class="patch-notes-item-body">${item.body}</div>
+                <div class="patch-notes-item-title">${escapeHtml(item.title)}</div>
+                <div class="patch-notes-item-body">${escapeHtml(item.body)}</div>
             </div>
         </li>
     `,
     )
     .join("");
-  document.getElementById("patchNotesModal").classList.add("active");
+  openLayer(document.getElementById("patchNotesModal"), {
+    onEscape: () => dismissPatchNotesModal(version),
+    focus: "#patchNotesGotItBtn",
+  });
 }
 
 function dismissPatchNotesModal(version) {
-  document.getElementById("patchNotesModal").classList.remove("active");
+  closeLayer(document.getElementById("patchNotesModal"));
   window.electronAPI.setConfig({ lastSeenPatchNotesVersion: version });
 }
 
@@ -429,6 +868,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   applyViewMode();
   initDragAndDrop();
   initTooltips();
+
+  // Launch events are registered before the first await: a cold start with
+  // --launch= begins as soon as the page has loaded.
+  // Account info sent when a launch begins (window, tray, jump list).
+  window.electronAPI.onLaunchAccountInfo((info) => {
+    document.getElementById("launchAccLabel").textContent = info.label;
+    document.getElementById("launchAccMeta").textContent = [
+      info.region,
+      info.username,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const icon = document.getElementById("launchAccIcon");
+    const cached = getCachedStats(
+      allAccounts.find((a) => a.username === info.username),
+    );
+    if (cached?.iconSrc) icon.src = cached.iconSrc;
+    else icon.src = "assets/logo.png";
+    _launchInfoUsername = info.username;
+    isLaunching = true;
+    resetLaunchOverlay();
+  });
+  window.electronAPI.onLoginStatus(handleLoginStatus);
+  // Which account is signed into the client (null when none or unknown).
+  window.electronAPI.onActiveAccountDetected((username) =>
+    setActiveAccount(username || null),
+  );
 
   document.getElementById("viewGridBtn")?.addEventListener("click", () => {
     compactView = false;
@@ -496,7 +962,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         ? config[configKey] !== false
         : !!config[configKey];
       el.addEventListener("change", async (e) => {
-        await window.electronAPI.setConfig({ [configKey]: e.target.checked });
+        const value = e.target.checked;
+        const res = await window.electronAPI
+          .setConfig({ [configKey]: value })
+          .catch((err) => ({ success: false, message: err.message }));
+        // A rejected change must not leave the switch showing it as applied.
+        if (res && res.success === false) {
+          el.checked = !value;
+          showToast(res.message || "Could not save the setting", "error");
+        }
       });
     }
 
@@ -535,42 +1009,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // Vault settings
-    const vaultToggle = document.getElementById("vaultEnabledToggle");
-    const vaultSection = document.getElementById("vaultPasswordSection");
-    if (vaultToggle) {
-      vaultToggle.checked = config.vaultEnabled || false;
-      vaultSection.style.display = config.vaultEnabled ? "block" : "none";
-      vaultToggle.addEventListener("change", async (e) => {
-        if (!e.target.checked) {
-          await window.electronAPI.setConfig({
-            vaultEnabled: false,
-            vaultPasswordHash: "",
-          });
-          vaultSection.style.display = "none";
-          showToast("Vault disabled", "info");
-        } else {
-          vaultSection.style.display = "block";
-          showToast("Set a password below to activate the vault", "info");
-        }
-      });
-    }
-    document
-      .getElementById("saveVaultPasswordBtn")
-      ?.addEventListener("click", async () => {
-        const pw = document.getElementById("vaultPasswordSet")?.value?.trim();
-        if (!pw) {
-          showToast("Enter a password first", "error");
-          return;
-        }
-        const hash = await sha256(pw);
-        await window.electronAPI.setConfig({
-          vaultEnabled: true,
-          vaultPasswordHash: hash,
-        });
-        document.getElementById("vaultPasswordSet").value = "";
-        if (vaultToggle) vaultToggle.checked = true;
-        showToast("Vault password set!", "success");
-      });
+    await initVaultSettings(config);
 
     // Auto-accept in settings synced with header toggle
     const autoAcceptSettings = document.getElementById(
@@ -592,41 +1031,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
 
     // Riot API Key
-    const riotApiKeyInput = document.getElementById("riotApiKeyInput");
-    const riotApiKeyNotice = document.getElementById("riotApiKeyNotice");
-
-    // No key is a supported setup now (OP.GG covers stats), so there's no
-    // warning to show either way.
-    function updateApiKeyNotice() {
-      if (riotApiKeyNotice) riotApiKeyNotice.style.display = "none";
-    }
-
-    if (riotApiKeyInput) {
-      riotApiKeyInput.value = config.riotApiKey || "";
-      updateApiKeyNotice(config.riotApiKey);
-
-      document
-        .getElementById("saveRiotApiKeyBtn")
-        ?.addEventListener("click", async () => {
-          const key = riotApiKeyInput.value.trim();
-          await window.electronAPI.setConfig({ riotApiKey: key });
-          updateApiKeyNotice(key);
-          showToast(
-            key ? "API key saved!" : "API key cleared",
-            key ? "success" : "info",
-          );
-        });
-    }
+    initRiotApiKeySettings(config);
 
     // Load accounts
     await loadAccounts();
 
-    // Check for updates on startup
-    if (config.checkUpdatesOnStartup !== false) {
-      setTimeout(() => {
-        window.electronAPI.checkForUpdates();
-      }, 2000);
-    }
+    // The startup update check runs in the main process (one check, and a
+    // failed background check is not toasted).
 
     // Auto-update event listeners
     window.electronAPI.onUpdateAvailable((data) => {
@@ -642,8 +1053,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     window.electronAPI.onUpdateError((message) => {
-      showToast("Update failed: " + message, "error");
+      // A manual check reports its own result; this event matters for a
+      // download that was running.
+      if (_updateState === "downloading") {
+        showToast("Update failed: " + message, "error");
+      } else {
+        console.warn("[Update]", message);
+      }
+      // Reset everything, or the pill kept offering a download that died.
       document.getElementById("updateCard").classList.remove("active");
+      document.getElementById("updatePill").classList.remove("active");
+      _updateVersion = "";
+      _updateState = "";
     });
 
     // Update card controls
@@ -671,30 +1092,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         setTimeout(() => window.electronAPI.installUpdate(), 900);
       });
 
-    document.getElementById("updatePill").addEventListener("click", () => {
-      document.getElementById("updatePill").classList.remove("active");
-      showUpdateCard(_updateVersion, _updateState);
+    const updatePill = document.getElementById("updatePill");
+    const openUpdatePill = () => {
+      updatePill.classList.remove("active");
+      if (_updateVersion) showUpdateCard(_updateVersion, _updateState);
+    };
+    updatePill.addEventListener("click", openUpdatePill);
+    updatePill.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openUpdatePill();
+      }
     });
   } catch (err) {
     console.error("Initialization error:", err);
   }
-
-  // Account info sent when launch begins — populate overlay header
-  window.electronAPI.onLaunchAccountInfo((info) => {
-    document.getElementById("launchAccLabel").textContent = info.label;
-    document.getElementById("launchAccMeta").textContent = [
-      info.region,
-      info.username,
-    ]
-      .filter(Boolean)
-      .join(" · ");
-    const icon = document.getElementById("launchAccIcon");
-    const cached = statsCache[info.username];
-    if (cached?.iconSrc) icon.src = cached.iconSrc;
-    else icon.src = "assets/logo.png";
-    // Reset retry button on each new launch
-    document.getElementById("retryLaunchBtn").style.display = "none";
-  });
 
   // LCU connect / disconnect
   window.electronAPI.onLcuConnected(() => {
@@ -708,19 +1120,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("quickAddClientBtn").style.display = "none";
     document.getElementById("lcuNavDot").classList.remove("visible");
     setLcuOffline();
+    setActiveAccount(null); // nobody is signed in without a client
   });
-  window.electronAPI.onLcuGameflow((phase) => {
-    updateGameflowBadge(phase);
-    updateContextButtons(phase);
-  });
-
-  // When LCU reveals which account is currently logged in (external launch)
-  window.electronAPI.onActiveAccountDetected((username) => {
-    if (activeAccountUsername !== username) {
-      activeAccountUsername = username;
-      renderAccounts();
-    }
-  });
+  window.electronAPI.onLcuGameflow(handleGameflowEvent);
 
   // Dodge / Accept buttons
   document.getElementById("ovDodgeBtn").addEventListener("click", async () => {
@@ -731,8 +1133,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (info.hasActivePenalty && info.penaltyMinutesRemaining) {
       warningMsg += `\n\nNote: you already have an active dodge penalty (${info.penaltyMinutesRemaining} min remaining) — this will extend it.`;
     }
-    const ok = await showConfirm("Dodge Queue?", warningMsg, "danger");
+    const ok = await showConfirm("Dodge Queue?", warningMsg, "danger", "Dodge");
     if (!ok) return;
+    // The game may have started while the confirmation was open.
+    if (_lastGameflowPhase && _lastGameflowPhase !== "ChampSelect") {
+      showToast("Champ select is over, nothing to dodge", "info");
+      return;
+    }
     const res = await window.electronAPI.dodgeQueue();
     if (res?.success) {
       showToast("Queue dodged", "info");
@@ -774,46 +1181,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 
-  // Login Progress (Overlay)
-  window.electronAPI.onLoginStatus((data) => {
-    const overlay = document.getElementById("launchOverlay");
-    const statusEl = document.getElementById("launchStatus");
-    const progressEl = document.getElementById("launchProgress");
-
-    let msg = "";
-    let pct = 0;
-    let isError = false;
-
-    if (typeof data === "string") {
-      msg = data;
-    } else if (data && typeof data === "object") {
-      msg = data.message;
-      pct = data.progress || 0;
-      isError = !!data.error;
-    }
-
-    if (msg) {
-      statusEl.textContent = msg;
-      overlay.classList.add("active");
-      if (pct > 0) progressEl.style.width = pct + "%";
-      if (pct === 100) showToast("League launched successfully!", "success");
-      if (isError) {
-        showToast(msg, "error");
-        document.getElementById("retryLaunchBtn").style.display = "inline-flex";
-        isLaunching = false;
-      }
-    } else {
-      // The null/empty "clear" message is sent exactly once, after every
-      // terminal outcome (success, code=3 heads-up, or error) — the real
-      // end of the flow, as opposed to the IPC call resolving early.
-      overlay.classList.remove("active");
-      setTimeout(() => {
-        progressEl.style.width = "0%";
-      }, 500);
-      isLaunching = false;
-    }
-  });
-
   // Listen for external account updates
   window.electronAPI.onAccountsUpdated(() => {
     loadAccounts();
@@ -827,20 +1194,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log("[GEP] Info update:", data);
   });
 
-  // Cancel Launch
+  // Cancel Launch (reads "Close" while a failed launch is shown)
   document
     .getElementById("cancelLaunchBtn")
-    .addEventListener("click", async () => {
-      document.getElementById("launchOverlay").classList.remove("active");
-      document.getElementById("retryLaunchBtn").style.display = "none";
-      isLaunching = false;
-      _launchToken++; // invalidate the in-flight launchAccount() call, if any
-      await window.electronAPI.cancelLaunch();
-    });
+    .addEventListener("click", cancelOrCloseLaunch);
 
   // Retry Launch
   document.getElementById("retryLaunchBtn").addEventListener("click", () => {
-    if (lastLaunchedUsername) launchAccount(lastLaunchedUsername);
+    const username = _launchInfoUsername || lastLaunchedUsername;
+    if (username) launchAccount(username);
   });
 
   document.getElementById("patchNotesBtn").addEventListener("click", (e) => {
@@ -867,6 +1229,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         "Emergency Fix",
         "This will close all League of Legends and Riot Games processes. Continue?",
         "danger",
+        "Close processes",
       );
       if (confirm) {
         const res = await window.electronAPI.fixClient();
@@ -900,6 +1263,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         "Clear Cache",
         "This will delete the Riot Client cache. The client will re-download it on next launch.",
         "info",
+        "Clear cache",
       );
       if (!ok) return;
       const btn = e.target;
@@ -925,44 +1289,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Backup
   document
     .getElementById("exportAccountsBtn")
-    .addEventListener("click", async (e) => {
-      const btn = e.target.closest("button");
-      btn.disabled = true;
-      const res = await window.electronAPI.exportAccounts();
-      btn.disabled = false;
-      if (res.canceled) return;
-      if (res.success) {
-        showToast(`${res.count} account(s) exported!`, "success");
-      } else {
-        showToast(
-          "Export failed: " + (res.message || "unknown error"),
-          "error",
-        );
-      }
-    });
-
+    .addEventListener("click", (e) =>
+      exportAccountsFlow(e.target.closest("button")),
+    );
   document
     .getElementById("importAccountsBtn")
-    .addEventListener("click", async (e) => {
-      const btn = e.target.closest("button");
-      btn.disabled = true;
-      const res = await window.electronAPI.importAccounts();
-      btn.disabled = false;
-      if (res.canceled) return;
-      if (res.success) {
-        const msg =
-          res.added > 0
-            ? `${res.added} account(s) imported${res.skipped > 0 ? `, ${res.skipped} skipped (already exist)` : ""}!`
-            : `No new accounts — all ${res.skipped} already exist`;
-        showToast(msg, res.added > 0 ? "success" : "info");
-        if (res.added > 0) loadAccounts();
-      } else {
-        showToast(
-          "Import failed: " + (res.message || "unknown error"),
-          "error",
-        );
-      }
-    });
+    .addEventListener("click", (e) =>
+      importAccountsFlow(e.target.closest("button")),
+    );
 
   // Manual update check
   document
@@ -993,13 +1327,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   const clearBtn = document.getElementById("searchClearBtn");
   const sortSelect = document.getElementById("accountSort");
 
+  // Rebuilding every card per keystroke is wasted work while typing.
+  let searchTimer = null;
   searchInput.addEventListener("input", () => {
-    currentQuery = searchInput.value.trim();
-    clearBtn.style.display = currentQuery ? "block" : "none";
-    renderAccounts();
+    clearBtn.style.display = searchInput.value.trim() ? "block" : "none";
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      currentQuery = searchInput.value.trim();
+      renderAccounts();
+    }, 150);
   });
 
   clearBtn.addEventListener("click", () => {
+    clearTimeout(searchTimer);
     searchInput.value = "";
     currentQuery = "";
     clearBtn.style.display = "none";
@@ -1037,6 +1377,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   document
     .getElementById("closeProfileModal")
     .addEventListener("click", closeProfileModal);
+  document.getElementById("profileModal").addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) closeProfileModal(); // backdrop
+  });
   document.getElementById("profileLaunchBtn").addEventListener("click", () => {
     closeProfileModal();
     if (_profileUsername) launchAccount(_profileUsername);
@@ -1112,6 +1455,9 @@ function showView(viewId) {
     .querySelectorAll(".view")
     .forEach((v) => v.classList.remove("active"));
   document.getElementById(viewId).classList.add("active");
+  // Live timers only tick while the Live view is shown; opening it again
+  // reloads the view and restarts them.
+  if (currentView === "liveView" && viewId !== "liveView") stopLiveTimers();
   currentView = viewId;
 }
 
@@ -1135,6 +1481,12 @@ function showToast(message, type = "info") {
     `;
   toast.querySelector(".toast-msg").textContent = message;
 
+  // The same text already on screen is not repeated, and at most
+  // MAX_TOASTS stay visible (the oldest goes first).
+  const visible = [...container.querySelectorAll(".toast:not(.removing)")];
+  if (visible.some((t) => t.querySelector(".toast-msg")?.textContent === message)) return;
+  while (visible.length >= MAX_TOASTS) visible.shift().remove();
+
   container.appendChild(toast);
 
   // Auto-remove after 4s
@@ -1143,11 +1495,93 @@ function showToast(message, type = "info") {
     setTimeout(() => toast.remove(), 400);
   }, 4000);
 }
+const MAX_TOASTS = 3;
+
+// ── Dialog layers ─────────────────────────────────────────────────────────
+// One stack of open layers (modals, the launch overlay, the vault lock).
+// The topmost one gets focus and Escape; everything behind it is inert (no
+// Tab, no clicks), and focus returns to where it was when the layer closes.
+const _layers = [];
+const LAYER_ROOTS =
+  ".app-container, #updateCard, #updatePill, #launchOverlay, .modal, #vaultLock";
+const FOCUSABLE =
+  'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function syncLayerInert() {
+  const top = _layers[_layers.length - 1]?.el || null;
+  document.querySelectorAll(LAYER_ROOTS).forEach((el) => {
+    el.inert = !!top && el !== top;
+  });
+}
+
+function isLayerOpen(el) {
+  return _layers.some((l) => l.el === el);
+}
+
+// show: called to make the element visible (default: add .active).
+function openLayer(el, { onEscape = null, focus = null, show = null } = {}) {
+  if (!isLayerOpen(el)) {
+    _layers.push({ el, onEscape, returnFocus: document.activeElement });
+  } else {
+    const layer = _layers.find((l) => l.el === el);
+    layer.onEscape = onEscape;
+  }
+  if (show) show(el);
+  else el.classList.add("active");
+  syncLayerInert();
+  const target =
+    (typeof focus === "string" ? el.querySelector(focus) : focus) ||
+    el.querySelector(FOCUSABLE);
+  target?.focus();
+}
+
+function closeLayer(el, { hide = null } = {}) {
+  if (hide) hide(el);
+  else el.classList.remove("active");
+  const i = _layers.findIndex((l) => l.el === el);
+  if (i === -1) return;
+  const wasTop = i === _layers.length - 1;
+  const [layer] = _layers.splice(i, 1);
+  syncLayerInert();
+  const back = layer.returnFocus;
+  if (wasTop && back?.isConnected && !back.closest("[inert]")) back.focus();
+}
+
+// Escape closes the topmost thing only: an open layer, then the champion
+// search inside the account form, then the account form itself.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || e.defaultPrevented) return;
+  const top = _layers[_layers.length - 1];
+  if (top) {
+    if (top.onEscape) {
+      e.preventDefault();
+      top.onEscape();
+    }
+    return;
+  }
+  const champSearch = document.getElementById("champSearchOverlay");
+  if (champSearch?.classList.contains("open")) {
+    e.preventDefault();
+    closeChampionSearch();
+    return;
+  }
+  if (currentView === "accountFormView") {
+    e.preventDefault();
+    closeModal();
+  }
+});
+
 /**
- * Custom confirmation modal
+ * Confirmation modal. Starts on Cancel, so Enter never confirms a
+ * destructive action by accident; Escape and a backdrop click cancel.
+ * type "danger" colors the confirm button red; confirmLabel names the action.
  */
-function showConfirm(title, message, type = "info") {
+let _confirmFinish = null;
+function showConfirm(title, message, type = "info", confirmLabel = "Confirm") {
   return new Promise((resolve) => {
+    // A second confirm replaces an open one instead of orphaning its promise.
+    if (_confirmFinish) _confirmFinish(false);
+
     const modal = document.getElementById("confirmModal");
     const content = modal.querySelector(".modal-content");
     const titleEl = document.getElementById("confirmTitle");
@@ -1158,20 +1592,129 @@ function showConfirm(title, message, type = "info") {
     // Reset and apply type
     content.classList.remove("danger", "info", "success");
     content.classList.add(type);
+    yesBtn.textContent = confirmLabel;
+    yesBtn.classList.toggle("danger", type === "danger");
 
     titleEl.innerText = title;
     msgEl.innerText = message;
-    modal.classList.add("active");
 
-    const cleanup = (value) => {
-      modal.classList.remove("active");
+    const finish = (value) => {
+      if (_confirmFinish !== finish) return;
+      _confirmFinish = null;
       yesBtn.onclick = null;
       cancelBtn.onclick = null;
+      modal.onclick = null;
+      closeLayer(modal);
       resolve(value);
     };
+    _confirmFinish = finish;
 
-    yesBtn.onclick = () => cleanup(true);
-    cancelBtn.onclick = () => cleanup(false);
+    yesBtn.onclick = () => finish(true);
+    cancelBtn.onclick = () => finish(false);
+    modal.onclick = (e) => {
+      if (e.target === modal) finish(false);
+    };
+    openLayer(modal, { onEscape: () => finish(false), focus: cancelBtn });
+  });
+}
+
+/**
+ * In-app form dialog (passwords, passphrases). fields: [{ name, label,
+ * type = "password", autocomplete }]. onSubmit(values) may return an error
+ * text (the dialog stays open and shows it) or nothing (the dialog closes).
+ * Resolves with the values, or null when cancelled. Values are never trimmed.
+ */
+let _formDialogFinish = null;
+function showFormDialog({
+  title,
+  message = "",
+  fields,
+  confirmLabel = "OK",
+  danger = false,
+  onSubmit = null,
+}) {
+  return new Promise((resolve) => {
+    if (_formDialogFinish) _formDialogFinish(null);
+
+    const modal = document.getElementById("formDialog");
+    const form = document.getElementById("formDialogForm");
+    const fieldsEl = document.getElementById("formDialogFields");
+    const errorEl = document.getElementById("formDialogError");
+    const submitBtn = document.getElementById("formDialogSubmitBtn");
+    const cancelBtn = document.getElementById("formDialogCancelBtn");
+
+    document.getElementById("formDialogTitle").textContent = title;
+    const msgEl = document.getElementById("formDialogMessage");
+    msgEl.textContent = message;
+    msgEl.style.display = message ? "" : "none";
+    errorEl.textContent = "";
+    submitBtn.textContent = confirmLabel;
+    submitBtn.classList.toggle("danger", danger);
+    submitBtn.disabled = false;
+
+    fieldsEl.innerHTML = "";
+    const inputs = fields.map((f, i) => {
+      const group = document.createElement("div");
+      group.className = "form-group";
+      const label = document.createElement("label");
+      label.htmlFor = `formDialogField${i}`;
+      label.textContent = f.label;
+      const input = document.createElement("input");
+      input.id = label.htmlFor;
+      input.type = f.type || "password";
+      input.autocomplete = f.autocomplete || "off";
+      input.spellcheck = false;
+      group.append(label, input);
+      fieldsEl.appendChild(group);
+      return input;
+    });
+
+    let busy = false;
+    const finish = (value) => {
+      if (_formDialogFinish !== finish) return;
+      _formDialogFinish = null;
+      form.onsubmit = null;
+      cancelBtn.onclick = null;
+      inputs.forEach((input) => (input.value = "")); // no secrets left in the DOM
+      closeLayer(modal);
+      resolve(value);
+    };
+    _formDialogFinish = finish;
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      if (busy) return;
+      const values = Object.fromEntries(
+        fields.map((f, i) => [f.name, inputs[i].value]),
+      );
+      busy = true;
+      submitBtn.disabled = true;
+      let error = null;
+      try {
+        error = onSubmit ? await onSubmit(values) : null;
+      } catch (err) {
+        error = err?.message || String(err);
+      }
+      busy = false;
+      submitBtn.disabled = false;
+      if (_formDialogFinish !== finish) return;
+      if (error) {
+        errorEl.textContent = error;
+        inputs[0]?.focus();
+        inputs[0]?.select();
+      } else {
+        finish(values);
+      }
+    };
+    cancelBtn.onclick = () => {
+      if (!busy) finish(null);
+    };
+    openLayer(modal, {
+      onEscape: () => {
+        if (!busy) finish(null);
+      },
+      focus: inputs[0],
+    });
   });
 }
 
@@ -1180,13 +1723,16 @@ async function loadAccounts() {
     window.electronAPI.getAccounts(),
     window.electronAPI.getCurrentAccount(),
   ]);
+  if (!Array.isArray(allAccounts)) allAccounts = [];
+  pruneStatsCache();
   renderAccounts();
 }
 
 function renderAccounts() {
-  const gen = ++_renderGen; // any callback from a previous render is now stale
-  _shownStatErrors = new Set();
   hideTooltip(); // the hovered element is about to be torn out from under the cursor
+  // A drag in progress loses its source card here; its dragend would fire on
+  // the detached node and never clear the state.
+  if (_dragUsername) endDrag();
 
   const listEl = document.getElementById("accountsList");
   listEl.innerHTML = "";
@@ -1220,42 +1766,28 @@ function renderAccounts() {
   }
 
   let staggerIndex = 0;
+  const now = Date.now();
 
   for (const acc of filtered) {
     const el = createAccountCard(acc);
     listEl.appendChild(el);
 
-    if (acc.riotId && acc.region) {
-      const cached = statsCache[acc.username];
-      if (cached) {
-        applyStatsToCard(el, cached);
-      } else {
-        // Stagger uncached fetches by 150ms each to stay under Riot API rate limits.
-        // The generation check discards callbacks that belong to a superseded render.
-        const delay = staggerIndex++ * 150;
-        setTimeout(() => {
-          if (_renderGen !== gen) return; // render was superseded, abort
-          window.electronAPI
-            .getStats(acc.region, acc.riotId)
-            .then((stats) => {
-              if (_renderGen !== gen || !stats) return;
-              if (stats.error) {
-                // Only show each unique error once per render cycle
-                if (!_shownStatErrors.has(stats.error)) {
-                  _shownStatErrors.add(stats.error);
-                  showToast(stats.error, "error");
-                }
-              }
-              statsCache[acc.username] = stats;
-              applyStatsToCard(el, stats);
-              if (currentSort === "rank") scheduleRankResort();
-            })
-            .catch((err) => {
-              if (_renderGen !== gen) return;
-              console.error("[Stats]", acc.username, err);
-            });
-        }, delay);
+    if (!acc.riotId || !acc.region) continue;
+    const entry = statsCache[acc.username];
+    const state = statsEntryState(entry, acc, now);
+    if (state !== "missing") {
+      applyStatsToCard(el, entry.stats); // stale entries stay visible while refetching
+      if (state === "fresh") continue;
+    } else {
+      const failure = recentStatsFailure(acc);
+      if (failure) {
+        applyStatsToCard(el, failure.stats);
+        continue;
       }
+    }
+    // Only requests that actually start take a stagger slot.
+    if (statsInFlight.get(acc.username) !== statsKey(acc)) {
+      requestCardStats(acc, staggerIndex++ * STATS_STAGGER_MS);
     }
   }
 }
@@ -1289,10 +1821,11 @@ function applyStatsToCard(cardEl, stats) {
       "challenger",
     ];
     const cls = valid.includes(tierName) ? `rank-${tierName}` : "rank-unranked";
-    rankEl.className = `rank ${cls}`;
+    rankEl.className = `rank card-rank ${cls}`;
     const tierDisplay =
       stats.tier && stats.tier !== "Unranked" ? stats.tier : "Unranked";
-    rankEl.innerHTML = `<span>${tierDisplay}</span>${stats.lp ? ` • <span>${stats.lp}</span>` : ""}`;
+    // Tier/LP can come from OP.GG or an imported backup's cached stats.
+    rankEl.innerHTML = `<span>${escapeHtml(tierDisplay)}</span>${stats.lp ? ` • <span>${escapeHtml(stats.lp)}</span>` : ""}`;
   }
   const iconEl = cardEl.querySelector(".summoner-icon");
   if (iconEl && stats.iconSrc && !acc?.customAvatar) iconEl.src = stats.iconSrc;
@@ -1469,20 +2002,12 @@ function renderRankSparkline(history) {
   }
   wrap.style.display = "block";
 
-  const scores = history.map((h) => h.score);
-  const min = Math.min(...scores);
-  const max = Math.max(...scores);
-  const range = max - min || 1;
-  const w = 300,
-    h = 44,
-    pad = 3;
-
-  const points = history.map((entry, i) => ({
-    x:
-      pad +
-      (history.length === 1 ? 0 : (i / (history.length - 1)) * (w - pad * 2)),
-    y: h - pad - ((entry.score - min) / range) * (h - pad * 2),
-  }));
+  // Use the SVG's own viewBox so the line spans the whole box (it used a
+  // fixed 44 of the 60 units, which flattened a falling rank).
+  const box = svg.viewBox?.baseVal;
+  const w = box?.width || 300;
+  const h = box?.height || 60;
+  const points = sparklinePoints(history, w, h, 3);
 
   const first = history[0];
   const last = history[history.length - 1];
@@ -1512,16 +2037,17 @@ function renderMatchHistory(res) {
     return;
   }
   wrap.style.display = "block";
-  // championIcon comes from DDragon (main process), kda/win are derived
-  // numbers/booleans — nothing here is raw user input.
+  // Matches can come from OP.GG (external), so the icon URL and KDA text are
+  // escaped like any other outside string.
   strip.innerHTML = matches
-    .map(
-      (m) => `
-        <div class="match-pill ${m.win ? "win" : "loss"}" data-tooltip="${m.win ? "Victory" : "Defeat"}${m.kda ? " — " + m.kda + " KDA" : ""}">
-            ${m.championIcon ? `<img src="${m.championIcon}" alt="">` : ""}
+    .map((m) => {
+      const tip = `${m.win ? "Victory" : "Defeat"}${m.kda ? ` — ${m.kda} KDA` : ""}`;
+      return `
+        <div class="match-pill ${m.win ? "win" : "loss"}" data-tooltip="${escapeHtml(tip)}">
+            ${m.championIcon ? `<img src="${escapeHtml(m.championIcon)}" alt="">` : ""}
         </div>
-    `,
-    )
+    `;
+    })
     .join("");
 }
 
@@ -1531,7 +2057,7 @@ async function showProfileModal(username) {
   if (!acc) return;
 
   const modal = document.getElementById("profileModal");
-  modal.classList.add("active");
+  openLayer(modal, { onEscape: closeProfileModal, focus: "#closeProfileModal" });
 
   // Rank history is a cheap local read (no rate limit / network concerns),
   // so it's always fetched fresh rather than reusing statsCache below.
@@ -1552,7 +2078,9 @@ async function showProfileModal(username) {
     });
   }
 
-  const cached = statsCache[username];
+  const cached = getCachedStats(acc);
+  const isFresh =
+    statsEntryState(statsCache[username], acc, Date.now()) === "fresh";
   if (cached) {
     populateProfileModal(acc, cached);
   } else {
@@ -1582,18 +2110,28 @@ async function showProfileModal(username) {
     ].forEach((id) => {
       document.getElementById(id).textContent = "";
     });
-    document.getElementById("profileNotesWrap").style.display = "none";
+    const notesEl = document.getElementById("profileNotes");
+    notesEl.textContent = acc.notes || "";
+    document.getElementById("profileNotesWrap").style.display = acc.notes
+      ? "block"
+      : "none";
+    if (!acc.riotId || !acc.region) {
+      document.getElementById("profileLoading").style.display = "none";
+    }
+  }
 
-    if (acc.riotId && acc.region) {
-      try {
-        const stats = await window.electronAPI.getStats(acc.region, acc.riotId);
-        if (stats) {
-          statsCache[username] = stats;
-          if (_profileUsername === username) populateProfileModal(acc, stats);
-        }
-      } catch {
-        /* show skeleton */
+  // Stale or missing: fetch now; a stale entry stays on screen meanwhile.
+  if (acc.riotId && acc.region && !isFresh) {
+    const key = statsKey(acc);
+    try {
+      const stats = await window.electronAPI.getStats(acc.region, acc.riotId);
+      const current = allAccounts.find((a) => a.username === username);
+      if (stats && current && statsKey(current) === key) {
+        cacheStats(current, stats);
+        if (_profileUsername === username) populateProfileModal(current, stats);
       }
+    } catch {
+      /* keep what is shown */
     }
     if (_profileUsername === username) {
       document.getElementById("profileLoading").style.display = "none";
@@ -1602,7 +2140,7 @@ async function showProfileModal(username) {
 }
 
 function closeProfileModal() {
-  document.getElementById("profileModal").classList.remove("active");
+  closeLayer(document.getElementById("profileModal"));
   _profileUsername = null;
 }
 
@@ -1611,7 +2149,7 @@ function createAccountCard(account) {
   const isActive = account.username === activeAccountUsername;
   card.className = `account-card${isActive ? " is-active" : ""}${account.isFavourite ? " is-favourite" : ""}`;
   card.dataset.username = account.username;
-  card.draggable = true;
+  card.draggable = canReorder();
 
   const defaultIcon = "assets/logo.png";
   const iconSrc = safeAvatarUrl(account.customAvatar) || defaultIcon;
@@ -1629,7 +2167,7 @@ function createAccountCard(account) {
             <div class="summoner-icon-container">
                 <img class="summoner-icon">
                 <span class="level-badge" style="display:none">1</span>
-                <button class="fav-btn${account.isFavourite ? " is-fav" : ""}" data-tooltip="${account.isFavourite ? "Remove from Favourites" : "Add to Favourites"}"><i class="fas fa-star"></i></button>
+                <button class="fav-btn${account.isFavourite ? " is-fav" : ""}" data-tooltip="${account.isFavourite ? "Remove from Favourites" : "Add to Favourites"}" aria-label="${account.isFavourite ? "Remove from Favourites" : "Add to Favourites"}" aria-pressed="${account.isFavourite ? "true" : "false"}"><i class="fas fa-star"></i></button>
             </div>
             <div class="text-content">
                 <div class="card-title-row">
@@ -1649,13 +2187,13 @@ function createAccountCard(account) {
             </div>
         </div>
         <div class="card-actions">
-            <button class="icon-btn info-btn"      data-tooltip="View Profile"><i class="fas fa-chart-bar"></i></button>
-            ${account.riotId ? `<button class="icon-btn opgg-btn" data-tooltip="Open on OP.GG">${OPGG_ICON_SVG}</button>` : ""}
-            <button class="icon-btn copy-user-btn" data-tooltip="Copy Username"><i class="fas fa-user"></i></button>
-            <button class="icon-btn copy-pass-btn" data-tooltip="Copy Password"><i class="fas fa-key"></i></button>
-            <button class="icon-btn play-btn"      data-tooltip="Launch"><i class="fas fa-play"></i></button>
-            <button class="icon-btn edit-btn"      data-tooltip="Edit"><i class="fas fa-pen"></i></button>
-            <button class="icon-btn delete-btn"    data-tooltip="Delete" data-tooltip-pos="left"><i class="fas fa-trash"></i></button>
+            <button class="icon-btn info-btn"      data-tooltip="View Profile" aria-label="View Profile"><i class="fas fa-chart-bar"></i></button>
+            ${account.riotId ? `<button class="icon-btn opgg-btn" data-tooltip="Open on OP.GG" aria-label="Open on OP.GG">${OPGG_ICON_SVG}</button>` : ""}
+            <button class="icon-btn copy-user-btn" data-tooltip="Copy Username" aria-label="Copy Username"><i class="fas fa-user"></i></button>
+            <button class="icon-btn copy-pass-btn" data-tooltip="Copy Password" aria-label="Copy Password"><i class="fas fa-key"></i></button>
+            <button class="icon-btn play-btn"      data-tooltip="Launch" aria-label="Launch"><i class="fas fa-play"></i></button>
+            <button class="icon-btn edit-btn"      data-tooltip="Edit" aria-label="Edit"><i class="fas fa-pen"></i></button>
+            <button class="icon-btn delete-btn"    data-tooltip="Delete" aria-label="Delete" data-tooltip-pos="left"><i class="fas fa-trash"></i></button>
         </div>
     `;
 
@@ -1677,20 +2215,34 @@ function createAccountCard(account) {
     if (btn.dataset.saving) return;
     btn.dataset.saving = "1";
     const newFav = !account.isFavourite;
-    // Optimistic update — flip state immediately before the async call
-    account.isFavourite = newFav;
-    const idx = allAccounts.findIndex((a) => a.username === account.username);
-    if (idx !== -1) allAccounts[idx].isFavourite = newFav;
-    btn.classList.toggle("is-fav", newFav);
-    btn.title = newFav ? "Remove from Favourites" : "Add to Favourites";
-    card.classList.toggle("is-favourite", newFav);
+    // Optimistic update — flip state immediately, revert if saving fails
+    const applyFav = (fav) => {
+      account.isFavourite = fav;
+      const i = allAccounts.findIndex((a) => a.username === account.username);
+      if (i !== -1) allAccounts[i].isFavourite = fav;
+      btn.classList.toggle("is-fav", fav);
+      // Tooltips read data-tooltip (a title attribute showed a second one).
+      btn.dataset.tooltip = fav ? "Remove from Favourites" : "Add to Favourites";
+      btn.setAttribute("aria-label", btn.dataset.tooltip);
+      btn.setAttribute("aria-pressed", String(fav));
+      card.classList.toggle("is-favourite", fav);
+    };
+    applyFav(newFav);
+    let res;
     try {
-      await window.electronAPI.updateAccount({
+      res = await window.electronAPI.updateAccount({
         username: account.username,
         isFavourite: newFav,
       });
+    } catch (err) {
+      res = { success: false, message: err.message };
     } finally {
       delete btn.dataset.saving;
+    }
+    if (res && res.success === false) {
+      applyFav(!newFav);
+      showToast(res.message || "Could not save favourite", "error");
+      return;
     }
     if (currentSort === "favourite") renderAccounts();
   });
@@ -1743,26 +2295,46 @@ function createAccountCard(account) {
   return card;
 }
 
+// Username of the card being dragged (module scope so renderAccounts can
+// reset it: a re-render mid-drag detaches the card, and its dragend never
+// reaches the list).
+let _dragUsername = null;
+
+function canReorder() {
+  return currentSort === "default" && !currentQuery;
+}
+
+function endDrag() {
+  _dragUsername = null;
+  document
+    .querySelectorAll("#accountsList .dragging, #accountsList .drag-over")
+    .forEach((el) => el.classList.remove("dragging", "drag-over"));
+}
+
 function initDragAndDrop() {
   const listEl = document.getElementById("accountsList");
-  let dragSrc = null;
 
   listEl.addEventListener("dragstart", (e) => {
-    if (currentSort !== "default" || currentQuery) return;
     const card = e.target.closest(".account-card");
     if (!card) return;
-    dragSrc = card;
+    // Sorted or filtered lists have no stable order to drop into; without
+    // preventDefault the card still showed a drag ghost that could not drop.
+    if (!canReorder()) {
+      e.preventDefault();
+      return;
+    }
+    _dragUsername = card.dataset.username;
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", card.dataset.username);
     requestAnimationFrame(() => card.classList.add("dragging"));
   });
 
   listEl.addEventListener("dragover", (e) => {
-    if (!dragSrc) return;
+    if (!_dragUsername) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     const card = e.target.closest(".account-card");
-    if (!card || card === dragSrc) return;
+    if (!card || card.dataset.username === _dragUsername) return;
     listEl
       .querySelectorAll(".drag-over")
       .forEach((el) => el.classList.remove("drag-over"));
@@ -1778,40 +2350,41 @@ function initDragAndDrop() {
   });
 
   listEl.addEventListener("drop", async (e) => {
+    const srcUsername = _dragUsername;
+    if (!srcUsername) return;
     e.preventDefault();
-    if (!dragSrc || currentSort !== "default" || currentQuery) return;
+    endDrag();
+    if (!canReorder()) return;
     const card = e.target.closest(".account-card");
-    if (!card || card === dragSrc) return;
+    if (!card || card.dataset.username === srcUsername) return;
 
-    const srcIdx = allAccounts.findIndex(
-      (a) => a.username === dragSrc.dataset.username,
-    );
+    const srcIdx = allAccounts.findIndex((a) => a.username === srcUsername);
     const tgtIdx = allAccounts.findIndex(
       (a) => a.username === card.dataset.username,
     );
+    if (srcIdx === -1 || tgtIdx === -1) return;
 
-    if (srcIdx !== -1 && tgtIdx !== -1) {
-      const [moved] = allAccounts.splice(srcIdx, 1);
-      // tgtIdx was computed before the removal above; once the source item
-      // is spliced out, everything after it shifts left by one, so when
-      // dragging forward (srcIdx < tgtIdx) the insertion point must shift
-      // back by one too, or the card lands one slot past the drop target.
-      const insertIdx = srcIdx < tgtIdx ? tgtIdx - 1 : tgtIdx;
-      allAccounts.splice(insertIdx, 0, moved);
-      await window.electronAPI.reorderAccounts(
+    // Dropping on a card above puts the dragged card before it, on a card
+    // below puts it after it (reorderList in ui-lib.js).
+    allAccounts = reorderList(allAccounts, srcIdx, tgtIdx);
+    renderAccounts();
+    let res;
+    try {
+      res = await window.electronAPI.reorderAccounts(
         allAccounts.map((a) => a.username),
       );
-      renderAccounts();
+    } catch (err) {
+      res = { success: false, message: err.message };
+    }
+    if (!res?.success) {
+      showToast(res?.message || "Could not save the new order", "error");
+      loadAccounts(); // show the order that is actually saved
     }
   });
 
-  listEl.addEventListener("dragend", () => {
-    if (dragSrc) dragSrc.classList.remove("dragging");
-    listEl
-      .querySelectorAll(".drag-over")
-      .forEach((el) => el.classList.remove("drag-over"));
-    dragSrc = null;
-  });
+  // On document, not the list: a card detached by a re-render mid-drag
+  // fires dragend on itself, outside the list.
+  document.addEventListener("dragend", endDrag);
 }
 
 let _updateVersion = "";
@@ -1854,7 +2427,12 @@ function updateDownloadProgress(percent) {
 
 // Account Form View Functions
 function openModal(account = null) {
-  previousView = currentView;
+  // Leaving the form through the sidebar skips closeModal(), so an open
+  // champion search would otherwise cover the next form.
+  closeChampionSearch();
+  // Coming from the form itself (sidebar Add while editing) keeps the view
+  // the form was first opened from.
+  if (currentView !== "accountFormView") previousView = currentView;
   isEditing = false;
 
   if (account && account.username) {
@@ -1925,7 +2503,7 @@ function openModal(account = null) {
 
 // ── Quick add (OP.GG / Riot API lookup) ─────────────────────────────────────
 
-let quickAddProfile = null; // last successful lookup — seeds statsCache on save
+let quickAddProfile = null; // last successful lookup — seeds the stats cache on save
 let _quickAddToken = 0;
 
 function populateRegionSelects() {
@@ -2210,13 +2788,15 @@ function initChampionPicker() {
   document
     .getElementById("champPickerOpenBtn")
     .addEventListener("click", async () => {
-      if (!champListCache) {
+      if (!champListCache?.length) {
         document.getElementById("champSearchGrid").innerHTML =
           '<div style="color:var(--text-dim);font-size:12px;padding:16px;grid-column:1/-1;text-align:center;">Loading champions…</div>';
         document.getElementById("champSearchOverlay").classList.add("open");
-        champListCache = await window.electronAPI.getChampionList();
+        // An empty answer (Data Dragon unreachable) is not cached.
+        const list = await window.electronAPI.getChampionList().catch(() => null);
+        if (Array.isArray(list) && list.length) champListCache = list;
         // Resolve pending name now that the list is available
-        if (currentAutoLockName && !selectedChampion) {
+        if (champListCache && currentAutoLockName && !selectedChampion) {
           const found = champListCache.find(
             (c) => c.name.toLowerCase() === currentAutoLockName.toLowerCase(),
           );
@@ -2239,7 +2819,23 @@ function initChampionPicker() {
   });
 }
 
+// One save at a time: a double click used to add the account and then
+// report the second call as a duplicate on a form that was already closed.
+let _saving = false;
 async function saveAccount() {
+  if (_saving) return;
+  _saving = true;
+  const btn = document.getElementById("saveAccountBtn");
+  btn.disabled = true;
+  try {
+    await saveAccountForm();
+  } finally {
+    _saving = false;
+    btn.disabled = false;
+  }
+}
+
+async function saveAccountForm() {
   const username = document.getElementById("newUsername").value.trim();
   const password = document.getElementById("newPassword").value;
   const label = document.getElementById("newLabel").value.trim();
@@ -2310,18 +2906,25 @@ async function saveAccount() {
     return;
   }
 
-  if (res.success) {
+  if (res?.success) {
     // Show the looked-up rank/icon immediately instead of refetching it.
-    if (quickAddProfile && quickAddProfile.riotId === riotId) {
-      statsCache[username] = quickAddProfile;
-    } else if (isEditing) {
-      delete statsCache[username]; // Riot ID/region may have changed
+    // Only when the form still holds the looked-up Riot ID and region: a
+    // region changed after the lookup is a different summoner.
+    const saved = { username, riotId, region };
+    if (
+      quickAddProfile &&
+      statsKey(quickAddProfile) === statsKey(saved)
+    ) {
+      cacheStats(saved, quickAddProfile);
+    } else {
+      delete statsCache[username];
+      delete statsFailures[username];
     }
     showToast(isEditing ? "Account updated!" : "Account added!", "success");
     closeModal();
     loadAccounts();
   } else {
-    showToast("Error: " + res.message, "error");
+    showToast("Error: " + (res?.message || "could not save"), "error");
     shakeModal();
   }
 }
@@ -2349,12 +2952,24 @@ async function deleteAccount(username) {
     "Delete Account",
     `Are you sure you want to delete ${username}? This action cannot be undone.`,
     "danger",
+    "Delete",
   );
   if (ok) {
-    await window.electronAPI.deleteAccount(username);
+    let res;
+    try {
+      res = await window.electronAPI.deleteAccount(username);
+    } catch (err) {
+      res = { success: false, message: err.message };
+    }
+    if (res && res.success === false) {
+      showToast(res.message || "Could not delete the account", "error");
+      loadAccounts();
+      return;
+    }
     // Otherwise a new account later reusing this username would briefly
     // render with this deleted account's stale cached tier/icon/level.
     delete statsCache[username];
+    delete statsFailures[username];
     showToast("Account deleted", "success");
     loadAccounts();
   }
@@ -2368,40 +2983,195 @@ async function editAccount(username) {
   }
 }
 
-async function launchAccount(username) {
-  if (isLaunching) return;
+// ── Launch overlay ────────────────────────────────────────────────────────
+// The overlay is a dialog layer while a launch runs. On a failure, a wrong
+// account or a step the user must finish in the Riot Client it stays open
+// with Try Again and Close until the user picks one (the main process's
+// later "clear" message no longer hides it).
+let _launchAttention = false;
+// Set after the user cancels, so late status messages of that launch do not
+// bring the overlay back. Cleared when the next launch starts.
+let _launchSuppressed = false;
+let _launchDoneShown = false; // one success toast per launch
+let _launchInfoUsername = null; // account of the launch in progress
+
+// The highlighted (signed-in) account comes only from the main process
+// (active-account-detected, get-current-account), never from a launch click.
+function setActiveAccount(username) {
+  if (activeAccountUsername === username) return;
+  activeAccountUsername = username;
+  renderAccounts();
+}
+
+function launchOverlayEl() {
+  return document.getElementById("launchOverlay");
+}
+
+function showLaunchOverlay() {
+  const overlay = launchOverlayEl();
+  if (isLayerOpen(overlay)) return;
+  openLayer(overlay, {
+    onEscape: () => {
+      if (_launchAttention) hideLaunchOverlay();
+    },
+    focus: "#cancelLaunchBtn",
+  });
+}
+
+function setLaunchAttention(on) {
+  _launchAttention = on;
+  const retry = document.getElementById("retryLaunchBtn");
+  retry.style.display = on ? "inline-flex" : "none";
+  document.getElementById("cancelLaunchBtn").textContent = on ? "Close" : "Cancel";
+  launchOverlayEl().classList.toggle("needs-attention", on);
+  if (on) retry.focus();
+}
+
+function hideLaunchOverlay() {
+  closeLayer(launchOverlayEl());
+  setLaunchAttention(false);
+  setTimeout(() => {
+    if (!isLayerOpen(launchOverlayEl())) {
+      document.getElementById("launchProgress").style.width = "0%";
+    }
+  }, 500);
+}
+
+function resetLaunchOverlay() {
+  _launchSuppressed = false;
+  _launchDoneShown = false;
+  setLaunchAttention(false);
+  document.getElementById("launchProgress").style.width = "0%";
+  document.getElementById("launchStatus").textContent = "Preparing...";
+}
+
+// Shows a failure that ends the launch, with Try Again and Close.
+function showLaunchFailure(message, toastType = "error") {
+  document.getElementById("launchStatus").textContent = message;
+  showLaunchOverlay();
+  setLaunchAttention(true);
+  showToast(message, toastType);
+}
+
+// login-status from the main process: { message, progress, error?, kind? }
+// or null once the flow has ended (normalizeLoginStatus in ui-lib.js).
+function handleLoginStatus(data) {
+  const status = normalizeLoginStatus(data);
+  if (status.clear) {
+    isLaunching = false;
+    if (!_launchAttention) hideLaunchOverlay();
+    return;
+  }
+  if (_launchSuppressed) return;
+  if (status.kind === "cancelled") {
+    isLaunching = false;
+    hideLaunchOverlay();
+    return;
+  }
+
+  if (status.progress > 0) {
+    document.getElementById("launchProgress").style.width = `${status.progress}%`;
+  }
+  if (needsLaunchAttention(status.kind)) {
+    isLaunching = false;
+    showLaunchFailure(
+      status.message || "Login did not complete",
+      status.kind === "needs-action" ? "info" : "error",
+    );
+    return;
+  }
+  document.getElementById("launchStatus").textContent = status.message;
+  showLaunchOverlay();
+  if (status.kind === "done") {
+    if (!_launchDoneShown) {
+      _launchDoneShown = true;
+      showToast("League launched successfully!", "success");
+    }
+  }
+}
+
+async function cancelOrCloseLaunch() {
+  if (_launchAttention) {
+    hideLaunchOverlay(); // the launch already ended; this only dismisses it
+    return;
+  }
+  hideLaunchOverlay();
+  isLaunching = false;
+  _launchToken++; // invalidate the in-flight launchAccount() call, if any
+  _launchSuppressed = true;
+  let res;
+  try {
+    res = await window.electronAPI.cancelLaunch();
+  } catch (err) {
+    res = { success: false, message: err.message };
+  }
+  if (!res?.success) {
+    // The launch may still be running: let its next status show it again.
+    _launchSuppressed = false;
+    showToast(
+      res?.message ? `Could not cancel: ${res.message}` : "Could not cancel the launch",
+      "error",
+    );
+  }
+}
+
+async function launchAccount(username, options) {
+  if (isLaunching) {
+    // The overlay can be hidden (heads-up already dismissed) while the login
+    // script still runs; say why the click does nothing.
+    showToast("A launch is already in progress", "info");
+    return;
+  }
   isLaunching = true;
   lastLaunchedUsername = username;
   const myToken = ++_launchToken;
-  document.getElementById("retryLaunchBtn").style.display = "none";
+  resetLaunchOverlay();
   try {
-    const res = await window.electronAPI.launchAccount(username);
+    const res = options
+      ? await window.electronAPI.launchAccount(username, options)
+      : await window.electronAPI.launchAccount(username);
     // If Cancel was clicked (or a different launch started) while this was
     // in flight, _launchToken has moved on — applying this stale result
     // would overwrite the newer launch's UI state.
     if (myToken !== _launchToken) return;
-    if (!res.success) {
+    if (res?.busy) {
+      // Another launch (tray, jump list) is running in the main process; its
+      // status messages own the overlay and clear isLaunching at the end.
+      showToast("A launch is already in progress", "info");
+      return;
+    }
+    if (res?.cancelled) return;
+    if (res?.locked) {
+      isLaunching = false;
+      lockAgain();
+      return;
+    }
+    if (res?.needsConfirm) {
+      // e.g. a game is running: relaunching would close it.
+      isLaunching = false;
+      const ok = await showConfirm(
+        "Launch anyway?",
+        res.message || "League is busy. Launching closes the running client.",
+        "danger",
+        "Launch",
+      );
+      if (ok) launchAccount(username, { confirmed: true });
+      return;
+    }
+    if (!res?.success) {
       // Immediate failure (bad account/password) — no login-status stream
       // follows, so this is the only place that clears isLaunching.
-      showToast(res.message || "Error launching account", "error");
-      document.getElementById("launchStatus").textContent =
-        res.message || "Launch failed.";
-      document.getElementById("retryLaunchBtn").style.display = "inline-flex";
       isLaunching = false;
-    } else {
-      activeAccountUsername = username;
-      renderAccounts();
-      // isLaunching stays true here — the actual login script can run for
-      // up to ~150s after this IPC call already resolved. The login-status
-      // stream (onLoginStatus below) owns clearing it once the flow truly
-      // finishes; clearing it here let a second click re-trigger the whole
-      // launch mid-flight and kill the in-progress login script.
+      // reported: the main process already showed it through login-status.
+      if (!res?.reported) showLaunchFailure(res?.message || "Launch failed.");
     }
+    // On success isLaunching stays true: the login script can run for up to
+    // ~150s after this call resolved; handleLoginStatus clears it at the end.
   } catch (e) {
     console.error(e);
-    if (myToken === _launchToken)
-      document.getElementById("retryLaunchBtn").style.display = "inline-flex";
+    if (myToken !== _launchToken) return;
     isLaunching = false;
+    showLaunchFailure(`Launch failed: ${e.message}`);
   }
 }
 
@@ -2468,11 +3238,11 @@ function setLcuOffline() {
   document.getElementById("lcuOffline").style.display = "";
   document.getElementById("lcuOnline").style.display = "none";
   updateGameflowBadge(null);
+  _lastGameflowPhase = null;
   // If the client disconnects mid-queue/game, loadLiveView()'s own cleanup
   // branch (phase !== Matchmaking/InProgress) never runs — clear here too,
   // otherwise these keep ticking forever after the client closes/crashes.
-  clearInterval(window._queueTimerInterval);
-  clearInterval(window._gameTimerInterval);
+  stopLiveTimers();
 }
 
 function formatDuration(seconds) {
@@ -2499,8 +3269,56 @@ function tierClass(tier) {
   return valid.includes(t) ? `rank-${t}` : "rank-unranked";
 }
 
+// ── Live view refresh ─────────────────────────────────────────────────────
+let _queueTimerInterval = null;
+let _gameTimerInterval = null;
+let _liveGen = 0; // newest loadLiveView call; older results are dropped
+let _gameflowSeq = 0; // bumped by every gameflow event
+let _lastGameflowPhase = null;
+let _liveRefreshTimer = null;
+// Phases can flip quickly (ready check declined -> queue again): one reload
+// after things settle instead of one per event.
+const LIVE_REFRESH_DEBOUNCE_MS = 500;
+
+function stopLiveTimers() {
+  clearInterval(_queueTimerInterval);
+  clearInterval(_gameTimerInterval);
+  _queueTimerInterval = null;
+  _gameTimerInterval = null;
+}
+
+function handleGameflowEvent(phase) {
+  _gameflowSeq++;
+  _lastGameflowPhase = phase;
+  updateGameflowBadge(phase);
+  updateContextButtons(phase);
+  if (phase !== "Matchmaking") {
+    clearInterval(_queueTimerInterval);
+    _queueTimerInterval = null;
+  }
+  if (phase !== "InProgress") {
+    clearInterval(_gameTimerInterval);
+    _gameTimerInterval = null;
+  }
+  // The context panel, ranked LP and history follow the phase while the
+  // view is visible; opening the view later loads it anyway.
+  if (currentView === "liveView") {
+    clearTimeout(_liveRefreshTimer);
+    _liveRefreshTimer = setTimeout(loadLiveView, LIVE_REFRESH_DEBOUNCE_MS);
+  }
+}
+
 async function loadLiveView() {
-  const data = await window.electronAPI.getLcuOverview();
+  const gen = ++_liveGen;
+  const seqAtStart = _gameflowSeq;
+  let data;
+  try {
+    data = await window.electronAPI.getLcuOverview();
+  } catch (err) {
+    console.error("[Live]", err);
+    return;
+  }
+  if (gen !== _liveGen) return; // a newer load started meanwhile
   if (!data?.connected) {
     setLcuOffline();
     return;
@@ -2626,7 +3444,12 @@ async function loadLiveView() {
   );
 
   // ── Gameflow ───────────────────────────────────────────────────────────────
-  if (gameflow) {
+  // A gameflow event that arrived while this overview was loading is newer
+  // than the phase in it: keep the event's badge and leave the context to
+  // the refresh that event scheduled.
+  const phaseChanged = _gameflowSeq !== seqAtStart;
+  if (gameflow && !phaseChanged) {
+    _lastGameflowPhase = gameflow;
     updateGameflowBadge(gameflow);
     updateContextButtons(gameflow);
   }
@@ -2639,8 +3462,13 @@ async function loadLiveView() {
   [ctxLobby, ctxQueue, ctxGame].forEach(
     (el) => el && (el.style.display = "none"),
   );
+  // Timers of the previous phase stop here, whatever the new phase is; they
+  // only start while the Live view is visible.
+  stopLiveTimers();
+  const visible = currentView === "liveView";
+  const phase = phaseChanged ? null : gameflow;
 
-  if (gameflow === "Lobby" && data.lobby) {
+  if (phase === "Lobby" && data.lobby) {
     ctxEl.style.display = "";
     ctxLobby.style.display = "";
     const qName = QUEUE_NAMES[data.lobby.gameConfig?.queueId] || "Custom Game";
@@ -2650,10 +3478,10 @@ async function loadLiveView() {
     (data.lobby.members || []).forEach((m) => {
       const chip = document.createElement("span");
       chip.className = "ov-ctx-member-chip";
-      chip.textContent = m.summonerInternalName || m.summonerName || "?";
+      chip.textContent = lobbyMemberLabel(m);
       membersEl.appendChild(chip);
     });
-  } else if (gameflow === "Matchmaking" && data.queueSearch) {
+  } else if (phase === "Matchmaking" && data.queueSearch) {
     ctxEl.style.display = "";
     ctxQueue.style.display = "";
     const qName = QUEUE_NAMES[data.queueSearch.queueId] || "Queue";
@@ -2663,34 +3491,39 @@ async function loadLiveView() {
     timerEl.textContent = formatDuration(elapsed);
     // tick the timer locally
     let secs = elapsed;
-    clearInterval(window._queueTimerInterval);
-    window._queueTimerInterval = setInterval(() => {
-      timerEl.textContent = formatDuration(++secs);
-    }, 1000);
+    if (visible) {
+      _queueTimerInterval = setInterval(() => {
+        timerEl.textContent = formatDuration(++secs);
+      }, 1000);
+    }
     const est = data.queueSearch.estimatedQueueTime;
     document.getElementById("ovCtxQueueEst").textContent = est
       ? `Estimated wait: ~${Math.round(est)}s`
       : "";
-  } else if (gameflow === "InProgress") {
+  } else if (phase === "InProgress") {
     ctxEl.style.display = "";
     ctxGame.style.display = "";
     const gameTimerEl = document.getElementById("ovCtxGameTimer");
-    if (data.liveGame?.gameTime != null) {
-      let secs = Math.floor(data.liveGame.gameTime);
+    const live = data.liveGame;
+    if (live?.gameTime != null) {
+      let secs = Math.floor(live.gameTime);
       gameTimerEl.textContent = formatDuration(secs);
-      clearInterval(window._gameTimerInterval);
-      window._gameTimerInterval = setInterval(() => {
-        gameTimerEl.textContent = formatDuration(++secs);
-      }, 1000);
-      const stats = data.liveGame;
-      document.getElementById("ovCtxGameStats").textContent = stats
-        ? `${stats.championStats?.currentHealth ?? "?"} / ${stats.championStats?.maxHealth ?? "?"} HP`
-        : "";
+      if (visible) {
+        _gameTimerInterval = setInterval(() => {
+          gameTimerEl.textContent = formatDuration(++secs);
+        }, 1000);
+      }
+    } else {
+      gameTimerEl.textContent = "";
     }
+    // HP does not depend on the game clock being available.
+    const hp = live?.championStats;
+    document.getElementById("ovCtxGameStats").textContent =
+      hp?.currentHealth != null
+        ? `${Math.round(hp.currentHealth)} / ${Math.round(hp.maxHealth ?? 0)} HP`
+        : "";
   } else {
     ctxEl.style.display = "none";
-    clearInterval(window._queueTimerInterval);
-    clearInterval(window._gameTimerInterval);
   }
 
   // ── Champion mastery ───────────────────────────────────────────────────────
@@ -2725,8 +3558,8 @@ async function loadLiveView() {
       const card = document.createElement("div");
       card.className = "mastery-card";
       card.innerHTML = `
-                <img class="mastery-champ-icon" src="${iconSrc}" data-fallback="logo">
-                <div class="mastery-champ-name">${champKey || "Unknown"}</div>
+                <img class="mastery-champ-icon" src="${escapeHtml(iconSrc)}" data-fallback="logo">
+                <div class="mastery-champ-name">${escapeHtml(champKey || "Unknown")}</div>
                 <div class="mastery-level-badge ${lvCls}">M${lv}</div>
                 <div class="mastery-pts">${pts}</div>
             `;
@@ -2808,7 +3641,7 @@ async function loadLiveView() {
       const itemsHtml = itemSlots
         .map((id) =>
           id
-            ? `<img class="match-item-icon" src="https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/item/${id}.png" data-fallback="hide">`
+            ? `<img class="match-item-icon" src="https://ddragon.leagueoflegends.com/cdn/${escapeHtml(ddragonVersion)}/img/item/${escapeHtml(id)}.png" data-fallback="hide">`
             : `<span class="match-item-icon empty"></span>`,
         )
         .join("");
@@ -2832,7 +3665,7 @@ async function loadLiveView() {
       const item = document.createElement("div");
       item.className = `match-item ${win ? "win" : "loss"}`;
       item.innerHTML = `
-                <img class="match-champ-icon" src="${champSrc}" data-fallback="logo">
+                <img class="match-champ-icon" src="${escapeHtml(champSrc)}" data-fallback="logo">
                 <span class="match-result-badge">${win ? "WIN" : "LOSS"}</span>
                 <div class="match-main">
                     <div class="match-kda-row">
@@ -2847,7 +3680,7 @@ async function loadLiveView() {
                     <div class="match-items">${itemsHtml}</div>
                 </div>
                 <div class="match-right">
-                    <span class="match-queue">${queue}</span>
+                    <span class="match-queue">${escapeHtml(queue)}</span>
                     <span class="match-duration">${dur}</span>
                 </div>
             `;
@@ -2882,9 +3715,21 @@ let statsItemList = null;
 let currentStatsChamp = null; // { champ, fullData }
 let currentStatsLevel = 1;
 let currentStatsItemId = null;
+let _statsChampToken = 0; // newest champion click; older loads are dropped
+// Data Dragon can be unreachable at start; the main process keeps retrying
+// in the background, so an empty list is asked for again at these delays
+// while the Stat Viewer is open (and on every open).
+const STATS_LIST_RETRY_MS = [5000, 15000, 45000];
+let _statsChampRetry = null;
+let _statsItemRetry = null;
 
 function initStatsView() {
-  if (statsViewInitialized) return;
+  if (statsViewInitialized) {
+    // Lists that were empty last time (offline start) are asked for again.
+    if (!statsChampList?.length) loadStatsChamps();
+    if (!statsItemList?.length) loadStatsItems();
+    return;
+  }
   statsViewInitialized = true;
 
   document.querySelectorAll(".stats-tab").forEach((tab) => {
@@ -2911,18 +3756,53 @@ function initStatsView() {
   loadStatsItems();
 }
 
+// "Could not load" state with a Retry button, for an empty champion/item list.
+function renderStatsListUnavailable(grid, what, onRetry) {
+  grid.innerHTML = `<div class="stats-empty stats-unavailable"><p></p><button type="button" class="action-btn">Retry</button></div>`;
+  grid.querySelector("p").textContent = `Could not load ${what} from Data Dragon yet. Check your connection; the app keeps trying.`;
+  grid.querySelector("button").addEventListener("click", onRetry);
+}
+
+// Calls load() until it reports a non-empty list, at STATS_LIST_RETRY_MS.
+function scheduleStatsListRetry(attempt, load, setTimer) {
+  const delay = STATS_LIST_RETRY_MS[attempt];
+  if (delay === undefined) return;
+  setTimer(setTimeout(async () => {
+    if (currentView !== "statsView") return; // the next open asks again
+    if (!(await load())) scheduleStatsListRetry(attempt + 1, load, setTimer);
+  }, delay));
+}
+
 // ── Champions ────────────────────────────────────────────────────────────────
 
-async function loadStatsChamps() {
-  if (!champListCache)
-    champListCache = await window.electronAPI.getChampionList();
+// Returns true when a non-empty list is shown. An empty answer is never
+// cached (champListCache stays null), so the next call asks again.
+async function fetchStatsChamps() {
+  if (!champListCache?.length) {
+    const list = await window.electronAPI.getChampionList().catch(() => null);
+    if (Array.isArray(list) && list.length) champListCache = list;
+  }
   statsChampList = champListCache;
-  renderStatsChampGrid("");
+  const grid = document.getElementById("statsChampGrid");
+  if (!statsChampList?.length) {
+    document.getElementById("statsChampCount").textContent = "";
+    renderStatsListUnavailable(grid, "champions", () => loadStatsChamps());
+    return false;
+  }
+  renderStatsChampGrid(document.getElementById("statsChampSearch").value);
+  return true;
+}
+
+async function loadStatsChamps() {
+  clearTimeout(_statsChampRetry);
+  if (!(await fetchStatsChamps())) {
+    scheduleStatsListRetry(0, fetchStatsChamps, (t) => (_statsChampRetry = t));
+  }
 }
 
 function renderStatsChampGrid(query) {
   const grid = document.getElementById("statsChampGrid");
-  if (!statsChampList) return;
+  if (!statsChampList?.length) return;
   grid.innerHTML = "";
   const q = (query || "").trim().toLowerCase();
   const list = q
@@ -2955,35 +3835,34 @@ function renderStatsChampGrid(query) {
 }
 
 async function selectStatsChampion(champ) {
-  currentStatsLevel = 1;
+  const token = ++_statsChampToken;
   const detail = document.getElementById("statsChampDetail");
   detail.innerHTML = `
         <div class="stats-empty">
             <div class="empty-icon"><i class="fas fa-spinner fa-spin"></i></div>
-            <p>Loading ${champ.name}…</p>
+            <p>Loading ${escapeHtml(champ.name)}…</p>
         </div>`;
 
-  const fullData = await window.electronAPI.getChampionFullData(champ.key);
+  const fullData = await window.electronAPI
+    .getChampionFullData(champ.key)
+    .catch(() => null);
+  // A later click won while this one loaded: its result is not shown.
+  if (token !== _statsChampToken) return;
   if (!fullData) {
+    currentStatsChamp = null; // the grid must not keep the old selection
+    renderStatsChampGrid(document.getElementById("statsChampSearch").value);
     detail.innerHTML = `
             <div class="stats-empty">
                 <div class="empty-icon"><i class="fas fa-triangle-exclamation"></i></div>
-                <p>No stat data available for ${champ.name}.</p>
+                <p>No stat data available for ${escapeHtml(champ.name)}.</p>
             </div>`;
     return;
   }
 
+  currentStatsLevel = 1;
   currentStatsChamp = { champ, fullData };
   renderStatsChampGrid(document.getElementById("statsChampSearch").value);
   renderStatsChampDetail();
-}
-
-// Riot's standard non-linear per-level stat growth curve
-function statGrowthFactor(level) {
-  return 0.7025 + 0.0175 * (level - 1);
-}
-function growStat(base, perLevel, level) {
-  return base + perLevel * (level - 1) * statGrowthFactor(level);
 }
 
 const INFO_BARS = [
@@ -3009,113 +3888,61 @@ function updateSliderFill(slider) {
   slider.style.setProperty("--pct", `${((val - min) / (max - min)) * 100}%`);
 }
 
-function renderStatsChampDetail() {
-  const { champ, fullData } = currentStatsChamp;
-  const { title, tags, partype, info, stats } = fullData;
-  const level = currentStatsLevel;
-
-  const hp = growStat(stats.hp, stats.hpperlevel, level);
-  const hpregen = growStat(stats.hpregen, stats.hpregenperlevel, level);
-  const armor = growStat(stats.armor, stats.armorperlevel, level);
-  const mr = growStat(stats.spellblock, stats.spellblockperlevel, level);
-  const ad = growStat(stats.attackdamage, stats.attackdamageperlevel, level);
-  const asBonus =
-    stats.attackspeedperlevel * (level - 1) * statGrowthFactor(level);
-  const as = stats.attackspeed * (1 + asBonus / 100);
-
+// The stat cards for one level; `id` ties each value to its element so a
+// level change only rewrites the numbers (growStat in ui-lib.js).
+function computeStatCards(fullData, level) {
+  const { partype, stats } = fullData;
   const hasResource =
     (stats.mp > 0 || stats.mpperlevel > 0) && partype && partype !== "None";
-  const mp = hasResource ? growStat(stats.mp, stats.mpperlevel, level) : 0;
-  const mpregen = hasResource
-    ? growStat(stats.mpregen, stats.mpregenperlevel, level)
-    : 0;
-
-  const statCards = [
-    {
-      group: "vitality",
-      icon: "fa-heart",
-      label: "Health",
-      value: Math.round(hp),
-      primary: true,
-    },
-    {
-      group: "vitality",
-      icon: "fa-heart-pulse",
-      label: "HP Regen / 5s",
-      value: hpregen.toFixed(1),
-    },
+  const as = attackSpeedAt(stats.attackspeed, stats.attackspeedperlevel, level);
+  return [
+    { id: "hp", group: "vitality", icon: "fa-heart", label: "Health", primary: true,
+      value: Math.round(growStat(stats.hp, stats.hpperlevel, level)) },
+    { id: "hpregen", group: "vitality", icon: "fa-heart-pulse", label: "HP Regen / 5s",
+      value: growStat(stats.hpregen, stats.hpregenperlevel, level).toFixed(1) },
     ...(hasResource
       ? [
-          {
-            group: "vitality",
-            icon: "fa-droplet",
-            label: partype,
-            value: Math.round(mp),
-          },
-          {
-            group: "vitality",
-            icon: "fa-arrow-rotate-left",
-            label: `${partype} Regen / 5s`,
-            value: mpregen.toFixed(1),
-          },
+          { id: "mp", group: "vitality", icon: "fa-droplet", label: partype,
+            value: Math.round(growStat(stats.mp, stats.mpperlevel, level)) },
+          { id: "mpregen", group: "vitality", icon: "fa-arrow-rotate-left", label: `${partype} Regen / 5s`,
+            value: growStat(stats.mpregen, stats.mpregenperlevel, level).toFixed(1) },
         ]
       : []),
-    {
-      group: "offense",
-      icon: "fa-gavel",
-      label: "Attack Damage",
-      value: ad.toFixed(1),
-      primary: true,
-    },
-    {
-      group: "offense",
-      icon: "fa-bolt",
-      label: "Attack Speed",
-      value: `${as.toFixed(3)} / sec`,
-    },
-    {
-      group: "offense",
-      icon: "fa-star",
-      label: "Crit Chance",
-      value: `${Math.round((stats.crit || 0) + (stats.critperlevel || 0) * (level - 1))}%`,
-    },
-    {
-      group: "defense",
-      icon: "fa-shield-halved",
-      label: "Armor",
-      value: armor.toFixed(1),
-      primary: true,
-    },
-    {
-      group: "defense",
-      icon: "fa-hat-wizard",
-      label: "Magic Resist",
-      value: mr.toFixed(1),
-    },
-    {
-      group: "mobility",
-      icon: "fa-shoe-prints",
-      label: "Move Speed",
-      value: Math.round(stats.movespeed),
-      primary: true,
-    },
-    {
-      group: "mobility",
-      icon: "fa-crosshairs",
-      label: "Attack Range",
-      value: Math.round(stats.attackrange),
-    },
+    { id: "ad", group: "offense", icon: "fa-gavel", label: "Attack Damage", primary: true,
+      value: growStat(stats.attackdamage, stats.attackdamageperlevel, level).toFixed(1) },
+    { id: "as", group: "offense", icon: "fa-bolt", label: "Attack Speed",
+      value: `${as.toFixed(3)} / sec` },
+    { id: "crit", group: "offense", icon: "fa-star", label: "Crit Chance",
+      value: `${Math.round((stats.crit || 0) + (stats.critperlevel || 0) * (level - 1))}%` },
+    { id: "armor", group: "defense", icon: "fa-shield-halved", label: "Armor", primary: true,
+      value: growStat(stats.armor, stats.armorperlevel, level).toFixed(1) },
+    { id: "mr", group: "defense", icon: "fa-hat-wizard", label: "Magic Resist",
+      value: growStat(stats.spellblock, stats.spellblockperlevel, level).toFixed(1) },
+    { id: "ms", group: "mobility", icon: "fa-shoe-prints", label: "Move Speed", primary: true,
+      value: Math.round(stats.movespeed) },
+    { id: "range", group: "mobility", icon: "fa-crosshairs", label: "Attack Range",
+      value: Math.round(stats.attackrange) },
   ];
+}
+
+// Builds the sheet once per champion. The level slider only updates the
+// numbers: rebuilding it on every input destroyed the slider being dragged
+// and dropped keyboard focus after one arrow press.
+function renderStatsChampDetail() {
+  const { champ, fullData } = currentStatsChamp;
+  const { title, tags, info } = fullData;
+  const level = currentStatsLevel;
+  const statCards = computeStatCards(fullData, level);
 
   const detail = document.getElementById("statsChampDetail");
   detail.innerHTML = `
         <div class="champ-detail-header">
-            <img class="champ-detail-icon" src="${champ.iconUrl}" data-fallback="hide">
+            <img class="champ-detail-icon" src="${escapeHtml(champ.iconUrl)}" data-fallback="hide">
             <div class="champ-detail-info">
-                <div class="champ-detail-name">${champ.name}</div>
-                <div class="champ-detail-title">${title || ""}</div>
+                <div class="champ-detail-name">${escapeHtml(champ.name)}</div>
+                <div class="champ-detail-title">${escapeHtml(title || "")}</div>
                 <div class="champ-tags">
-                    ${(tags || []).map((t) => `<span class="champ-tag">${t}</span>`).join("")}
+                    ${(tags || []).map((t) => `<span class="champ-tag">${escapeHtml(t)}</span>`).join("")}
                 </div>
             </div>
         </div>
@@ -3124,9 +3951,9 @@ function renderStatsChampDetail() {
             ${INFO_BARS.map(
               (b) => `
                 <div class="info-bar-row">
-                    <span class="info-bar-label"><i class="fas ${b.icon}"></i> ${b.label}</span>
-                    <div class="info-bar-track"><div class="info-bar-fill" style="width:${((info?.[b.key] || 0) / 10) * 100}%"></div></div>
-                    <span class="info-bar-val">${info?.[b.key] ?? "—"}/10</span>
+                    <span class="info-bar-label"><i class="fas ${escapeHtml(b.icon)}"></i> ${escapeHtml(b.label)}</span>
+                    <div class="info-bar-track"><div class="info-bar-fill" style="width:${((Number(info?.[b.key]) || 0) / 10) * 100}%"></div></div>
+                    <span class="info-bar-val">${escapeHtml(info?.[b.key] ?? "—")}/10</span>
                 </div>
             `,
             ).join("")}
@@ -3137,7 +3964,7 @@ function renderStatsChampDetail() {
             <span class="level-slider-end">1</span>
             <input type="range" id="statsLevelSlider" min="1" max="18" step="1" value="${level}">
             <span class="level-slider-end">18</span>
-            <span class="level-slider-val">${level}</span>
+            <span class="level-slider-val" aria-hidden="true">${level}</span>
         </div>
 
         ${STAT_GROUPS.map((g) => {
@@ -3145,15 +3972,15 @@ function renderStatsChampDetail() {
           if (!cards.length) return "";
           return `
                 <div class="stat-group">
-                    <div class="stat-group-header ${g.key}"><i class="fas ${g.icon}"></i> ${g.title}</div>
+                    <div class="stat-group-header ${escapeHtml(g.key)}"><i class="fas ${escapeHtml(g.icon)}"></i> ${escapeHtml(g.title)}</div>
                     <div class="stat-cards-grid">
                         ${cards
                           .map(
                             (c) => `
-                            <div class="stat-card ${g.key}${c.primary ? " primary" : ""}">
-                                <div class="stat-card-icon"><i class="fas ${c.icon}"></i></div>
-                                <div class="stat-card-label">${c.label}</div>
-                                <div class="stat-card-value">${c.value}</div>
+                            <div class="stat-card ${escapeHtml(g.key)}${c.primary ? " primary" : ""}">
+                                <div class="stat-card-icon"><i class="fas ${escapeHtml(c.icon)}"></i></div>
+                                <div class="stat-card-label">${escapeHtml(c.label)}</div>
+                                <div class="stat-card-value" data-stat="${escapeHtml(c.id)}">${escapeHtml(c.value)}</div>
                             </div>
                         `,
                           )
@@ -3162,38 +3989,60 @@ function renderStatsChampDetail() {
                 </div>
             `;
         }).join("")}
+        <p class="stats-note">Attack speed uses the base value as the attack speed ratio; for a few champions the real level 18 value differs slightly.</p>
     `;
 
   const slider = document.getElementById("statsLevelSlider");
   updateSliderFill(slider);
   slider.addEventListener("input", (e) => {
-    currentStatsLevel = parseInt(e.target.value);
-    renderStatsChampDetail();
+    currentStatsLevel = parseInt(e.target.value, 10) || 1;
+    updateStatsChampValues();
   });
+}
+
+function updateStatsChampValues() {
+  if (!currentStatsChamp) return;
+  const detail = document.getElementById("statsChampDetail");
+  const level = currentStatsLevel;
+  for (const card of computeStatCards(currentStatsChamp.fullData, level)) {
+    const el = detail.querySelector(`.stat-card-value[data-stat="${card.id}"]`);
+    if (el) el.textContent = card.value;
+  }
+  detail.querySelector(".level-slider-val").textContent = level;
+  const slider = document.getElementById("statsLevelSlider");
+  if (slider) updateSliderFill(slider);
 }
 
 // ── Items ────────────────────────────────────────────────────────────────────
 
-async function loadStatsItems() {
-  statsItemList = await window.electronAPI.getItemList();
-  if (!statsItemList || statsItemList.length === 0) {
-    setTimeout(async () => {
-      statsItemList = await window.electronAPI.getItemList();
-      renderStatsItemGrid(document.getElementById("statsItemSearch").value);
-    }, 3000);
+// Returns true when a non-empty list is shown; an empty one is not kept.
+async function fetchStatsItems() {
+  const list = await window.electronAPI.getItemList().catch(() => null);
+  if (Array.isArray(list) && list.length) statsItemList = list;
+  if (!statsItemList?.length) {
+    document.getElementById("statsItemCount").textContent = "";
+    renderStatsListUnavailable(
+      document.getElementById("statsItemGrid"),
+      "items",
+      () => loadStatsItems(),
+    );
+    return false;
   }
-  renderStatsItemGrid("");
+  renderStatsItemGrid(document.getElementById("statsItemSearch").value);
+  return true;
+}
+
+async function loadStatsItems() {
+  clearTimeout(_statsItemRetry);
+  if (!(await fetchStatsItems())) {
+    scheduleStatsListRetry(0, fetchStatsItems, (t) => (_statsItemRetry = t));
+  }
 }
 
 function renderStatsItemGrid(query) {
   const grid = document.getElementById("statsItemGrid");
   const count = document.getElementById("statsItemCount");
-  if (!statsItemList) return;
-  if (statsItemList.length === 0) {
-    if (count) count.textContent = "";
-    grid.innerHTML = `<div class="stats-empty" style="padding:30px 0"><p>Loading items…</p></div>`;
-    return;
-  }
+  if (!statsItemList?.length) return;
   const q = (query || "").trim().toLowerCase();
   const list = q
     ? statsItemList.filter((i) => i.name.toLowerCase().includes(q))
@@ -3240,9 +4089,9 @@ function selectStatsItem(item) {
     .map(
       (s) => `
         <div class="item-stat-row">
-            <span class="item-stat-label">${s.label}</span>
-            <span class="item-stat-value">+${s.value}${s.unit}</span>
-            <span class="item-stat-gold">${s.goldValue}g</span>
+            <span class="item-stat-label">${escapeHtml(s.label)}</span>
+            <span class="item-stat-value">+${escapeHtml(s.value)}${escapeHtml(s.unit)}</span>
+            <span class="item-stat-gold">${escapeHtml(s.goldValue)}g</span>
         </div>
     `,
     )
@@ -3250,18 +4099,18 @@ function selectStatsItem(item) {
 
   detail.innerHTML = `
         <div class="item-detail-header">
-            <img class="item-detail-icon" src="${item.icon}" data-fallback="hide">
+            <img class="item-detail-icon" src="${escapeHtml(item.icon)}" data-fallback="hide">
             <div class="item-detail-info">
-                <div class="item-detail-name">${item.name}</div>
+                <div class="item-detail-name">${escapeHtml(item.name)}</div>
                 <div class="item-gold-row">
-                    <span class="gold-badge"><i class="fas fa-coins"></i> ${item.gold.total}</span>
-                    ${item.gold.sell ? `<span class="gold-badge sell"><i class="fas fa-arrow-right-arrow-left"></i> ${item.gold.sell}</span>` : ""}
+                    <span class="gold-badge"><i class="fas fa-coins"></i> ${escapeHtml(item.gold.total)}</span>
+                    ${item.gold.sell ? `<span class="gold-badge sell"><i class="fas fa-arrow-right-arrow-left"></i> ${escapeHtml(item.gold.sell)}</span>` : ""}
                 </div>
                 ${
                   item.tags.length
                     ? `
                     <div class="champ-tags item-tags">
-                        ${item.tags.map((t) => `<span class="champ-tag">${t}</span>`).join("")}
+                        ${item.tags.map((t) => `<span class="champ-tag">${escapeHtml(t)}</span>`).join("")}
                     </div>
                 `
                     : ""
@@ -3272,12 +4121,12 @@ function selectStatsItem(item) {
         <div class="efficiency-block">
             <div class="efficiency-label-row">
                 <span>Gold Efficiency</span>
-                <span class="efficiency-pct ${effClass(pct)}">${pct}%</span>
+                <span class="efficiency-pct ${effClass(pct)}">${escapeHtml(pct)}%${item.efficiencyIncomplete ? "+" : ""}</span>
             </div>
             <div class="efficiency-bar-track">
                 <div class="efficiency-bar-fill ${effClass(pct)}" style="width:${Math.min(pct, 100)}%"></div>
             </div>
-            <div class="efficiency-note">Based on stat value (${item.statsGoldValue}g) vs. item cost (${item.gold.total}g). Active/passive effects add value beyond raw stats.</div>
+            <div class="efficiency-note">Based on stat value (${escapeHtml(item.statsGoldValue)}g) vs. item cost (${escapeHtml(item.gold.total)}g). Active/passive effects add value beyond raw stats.${item.efficiencyIncomplete ? " Some of its stats (such as ability haste, lethality or penetration) have no gold value in Data Dragon, so the real efficiency is higher." : ""}</div>
         </div>
 
         ${
