@@ -104,6 +104,38 @@ async function fetchAttempts(attempt) {
     }
 }
 
+// ── Attack speed ratio ───────────────────────────────────────────────────────
+// Bonus attack speed scales with a champion's attack speed ratio, which Data
+// Dragon does not have (its "attackspeed" is the base value; for most
+// champions both are equal, for some not: Graves 0.475 / 0.490). Community
+// Dragon serves the game's own character record; fetched once per champion
+// when the stat viewer opens it.
+const ratioCache = new Map(); // DDragon key -> ratio, or null when unknown
+
+function attackSpeedRatioFromBin(bin, champKey) {
+    const want = `Characters/${champKey}/CharacterRecords/Root`.toLowerCase();
+    const rootKey = Object.keys(bin || {}).find(k => k.toLowerCase() === want)
+        || Object.keys(bin || {}).find(k => /\/CharacterRecords\/Root$/i.test(k));
+    const root = rootKey && bin[rootKey];
+    const ratio = root?.attackSpeedRatioModifiable?.baseValue ?? root?.attackSpeedRatio;
+    return typeof ratio === 'number' && ratio > 0 && ratio < 5 ? ratio : null;
+}
+
+async function getAttackSpeedRatio(champKey) {
+    if (!/^[A-Za-z]+$/.test(champKey || '')) return null;
+    if (ratioCache.has(champKey)) return ratioCache.get(champKey);
+    const name = champKey.toLowerCase();
+    try {
+        const res = await axios.get(`https://raw.communitydragon.org/latest/game/data/characters/${name}/${name}.bin.json`, { timeout: 8000 });
+        const ratio = attackSpeedRatioFromBin(res.data, champKey);
+        ratioCache.set(champKey, ratio);
+        return ratio;
+    } catch (e) {
+        console.warn(`[CDragon] Attack speed ratio for ${champKey} unavailable: ${e.message}`);
+        return null; // not cached: try again next time
+    }
+}
+
 function getChampionIdByKey(champKey) {
     return championIdByKey[champKey] ?? null;
 }
@@ -132,4 +164,6 @@ module.exports = {
     getChampionIdByKey,
     getNameToKeyMap,
     getChampionFullData: (champKey) => champFullData[champKey] || null,
+    getAttackSpeedRatio,
+    attackSpeedRatioFromBin,
 };

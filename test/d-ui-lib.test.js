@@ -85,6 +85,15 @@ test('stat growth matches the League formula', () => {
     assert.ok(Math.abs(lib.attackSpeedAt(0.625, 2, 18) - 0.625 * 1.34) < 1e-9);
 });
 
+// Bonus attack speed scales with the ratio, not the base value: Graves has
+// 0.475 base and a 0.490 ratio, so level 18 was shown too low.
+test('attack speed growth uses the attack speed ratio when it is known', () => {
+    const graves = lib.attackSpeedAt(0.475, 3, 18, 0.49);
+    assert.ok(Math.abs(graves - (0.475 + 0.49 * 0.51)) < 1e-9);
+    assert.equal(lib.attackSpeedAt(0.475, 3, 1, 0.49), 0.475);
+    assert.equal(lib.attackSpeedAt(0.625, 2, 18, null), lib.attackSpeedAt(0.625, 2, 18));
+});
+
 test('sparkline points fill the whole box', () => {
     const pts = lib.sparklinePoints([{ score: 10 }, { score: 30 }, { score: 20 }], 300, 60, 3);
     assert.equal(pts.length, 3);

@@ -5,7 +5,9 @@ const itemData = require('../services/item-data');
 function register() {
     ipcMain.handle('get-champion-full-data', async (event, champKey) => {
         await championData.whenReady();
-        return championData.getChampionFullData(champKey);
+        const data = championData.getChampionFullData(champKey);
+        if (!data) return null;
+        return { ...data, attackSpeedRatio: await championData.getAttackSpeedRatio(champKey) };
     });
 
     ipcMain.handle('get-item-list', async () => {

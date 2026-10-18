@@ -92,9 +92,8 @@
 .summoner-banner-info { min-width: 0; }
 .summoner-banner-name {
     font-family: var(--font-display);
-    font-variation-settings: 'opsz' 72;
-    font-weight: 600;
-    font-size: 26px;
+    font-weight: 700;
+    font-size: 22px;
     line-height: 1.1;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -103,7 +102,7 @@
 .summoner-banner-rank {
     margin-top: 2px;
     font-family: var(--font-display);
-    font-weight: 600;
+    font-weight: 700;
     font-size: 16px;
 }
 .summoner-banner-spacer { flex: 1; }
@@ -131,17 +130,17 @@
     border-radius: var(--radius-xl);
     background: var(--surface);
 }
-.ov-ranked-emblem { font-size: 30px; width: 40px; text-align: center; flex-shrink: 0; }
+.ov-ranked-emblem { display: flex; align-items: center; justify-content: center; width: 64px; flex-shrink: 0; color: var(--subtle); font-size: 22px; }
+.ov-ranked-emblem .tier-emblem { width: 64px; height: 64px; object-fit: contain; }
 .ov-ranked-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .ov-ranked-label { color: var(--muted); font-size: 13px; }
 .ov-ranked-tier {
     font-family: var(--font-display);
-    font-variation-settings: 'opsz' 48;
     font-weight: 700;
-    font-size: 22px;
+    font-size: 19px;
     line-height: 1.15;
 }
-.ov-ranked-lp { font-weight: 600; font-size: 14px; }
+.ov-ranked-lp { font-family: var(--font-display); font-weight: 600; font-size: 14px; }
 .ov-lp-track { height: 5px; margin: 4px 0 2px; border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
 .ov-lp-fill { height: 100%; border-radius: var(--radius-pill); background: var(--primary); transition: width 0.3s ease; }
 .ov-ranked-record { color: var(--muted); font-size: 12px; }
@@ -155,7 +154,7 @@
 .ov-ctx-dot.game { background: var(--success); animation: dot-pulse 2s ease-in-out 3; }
 @keyframes dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .ov-ctx-title { font-weight: 600; font-size: 15px; }
-.ov-ctx-timer { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--muted); }
+.ov-ctx-timer { font-family: var(--font-display); margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--muted); }
 .ov-ctx-sub { margin-top: 6px; color: var(--muted); font-size: 13px; }
 .ov-ctx-members { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .ov-ctx-member-chip {
@@ -223,7 +222,7 @@
 .match-item.loss .match-result-badge { background: var(--loss); color: var(--loss-ink); }
 .match-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .match-kda-row { display: flex; align-items: center; gap: 8px; }
-.match-kda { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+.match-kda { font-family: var(--font-display); font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
 .kda-d { color: var(--danger); }
 .match-multikill {
     padding: 1px 7px;

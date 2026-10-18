@@ -37,13 +37,12 @@
     align-items: center;
     justify-content: center;
 }
-.logo-tile .logo { width: 28px; height: 28px; display: block; -webkit-app-region: drag; }
+.logo-tile .logo { width: 34px; height: 34px; display: block; -webkit-app-region: drag; }
 .brand-name {
     font-family: var(--font-display);
-    font-variation-settings: 'opsz' 48;
     font-weight: 700;
     font-size: 19px;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
     white-space: nowrap;
 }
 
@@ -128,11 +127,10 @@
 .view-title,
 .view-header h2 {
     font-family: var(--font-display);
-    font-variation-settings: 'opsz' 96;
-    font-weight: 500;
-    font-size: 34px;
+    font-weight: 700;
+    font-size: 29px;
     line-height: 1.05;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.02em;
     color: var(--ink);
 }
 .view-sub { margin: 0; color: var(--muted); font-size: 14px; }

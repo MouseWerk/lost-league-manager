@@ -137,3 +137,12 @@ test('buttons, fields, tabs and chips use the control height scale', () => {
             .map(([p, v]) => `${r.file}: ${r.selector} { ${p}: ${v} }`));
     assert.deepEqual(offenders, []);
 });
+
+// Owner decision: the logo and account icons stand free, no white tile.
+test('the logo has no backdrop', () => {
+    const tokens = allRules.filter(r => r.file === 'tokens.css' && r.decls['--logo-tile']);
+    assert.ok(tokens.length);
+    for (const r of tokens) assert.equal(r.decls['--logo-tile'], 'transparent');
+    const tile = allRules.find(r => r.file === 'shell.css' && r.selector === '.logo-tile');
+    assert.ok(!/#fff|white/i.test(tile.decls.background || ''));
+});

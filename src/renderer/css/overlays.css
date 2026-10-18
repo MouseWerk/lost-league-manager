@@ -35,9 +35,8 @@
 .modal-content h2 {
     margin: 0 0 8px;
     font-family: var(--font-display);
-    font-variation-settings: 'opsz' 48;
-    font-weight: 600;
-    font-size: 22px;
+    font-weight: 700;
+    font-size: 19px;
     line-height: 1.2;
 }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
@@ -112,9 +111,8 @@
 .launch-acc-details { min-width: 0; }
 .launch-acc-label {
     font-family: var(--font-display);
-    font-variation-settings: 'opsz' 48;
-    font-weight: 600;
-    font-size: 22px;
+    font-weight: 700;
+    font-size: 19px;
     line-height: 1.15;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -185,7 +183,7 @@
 }
 .update-card-title-group { flex: 1; min-width: 0; }
 .update-card-label { color: var(--muted); font-size: 13px; }
-.update-card-version { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
+.update-card-version { font-family: var(--font-display); font-weight: 700; font-size: 18px; }
 .update-card-close {
     width: var(--control-sm);
     height: var(--control-sm);
@@ -258,7 +256,7 @@
 .install-bg-glow { display: none; }
 .install-content { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
 .install-logo { width: 72px; height: 72px; padding: 8px; border-radius: var(--radius-xl); background: var(--logo-tile); box-shadow: var(--logo-ring); }
-.install-title { font-family: var(--font-display); font-variation-settings: 'opsz' 72; font-weight: 600; font-size: 28px; }
+.install-title { font-family: var(--font-display); font-weight: 700; font-size: 24px; }
 .install-version-line { color: var(--muted); }
 .install-rings { position: relative; width: 44px; height: 44px; margin: 10px 0 4px; }
 .install-ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--primary); animation: spin 0.9s linear infinite; }
@@ -291,7 +289,7 @@
     -webkit-app-region: no-drag;
 }
 .vault-lock-logo { width: 72px; height: 72px; padding: 8px; border-radius: var(--radius-xl); background: var(--logo-tile); box-shadow: var(--logo-ring); margin-bottom: 6px; }
-.vault-lock-title { font-family: var(--font-display); font-variation-settings: 'opsz' 72; font-weight: 600; font-size: 28px; }
+.vault-lock-title { font-family: var(--font-display); font-weight: 700; font-size: 24px; }
 .vault-lock-sub { margin: 0 0 8px; color: var(--muted); }
 .vault-lock-input-wrap { display: flex; gap: 8px; width: 100%; }
 .vault-lock-input {
