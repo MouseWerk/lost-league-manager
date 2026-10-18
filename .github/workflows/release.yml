@@ -20,11 +20,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22+: node --test expands the test/**/*.test.js glob itself
+          node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
+
+      # Release gate: no installer is built from a commit with a failing test.
+      - name: Run tests
+        run: npm test
 
       - name: Set version from tag
         shell: pwsh
@@ -48,10 +53,17 @@ jobs:
           $VERSION = "${{ github.ref_name }}"
           $TITLE   = "Lost League Manager $VERSION"
 
-          # GitHub API: generate changelog from commits since previous tag
-          $BODY = gh api "repos/${{ github.repository }}/releases/generate-notes" `
-            -f tag_name=$VERSION `
-            --jq '.body'
+          # The hand-written notes for this version (docs/releases/v<version>.md)
+          # when they exist, otherwise GitHub's changelog of commits since the last tag.
+          $NOTES_FILE = "docs/releases/$VERSION.md"
+          if (Test-Path $NOTES_FILE) {
+            # Drop the first line ("Lost League Manager <version>"): it is the release title.
+            $BODY = ((Get-Content $NOTES_FILE -Encoding utf8 | Select-Object -Skip 1) -join "`n").Trim()
+          } else {
+            $BODY = gh api "repos/${{ github.repository }}/releases/generate-notes" `
+              -f tag_name=$VERSION `
+              --jq '.body'
+          }
 
           gh release edit $VERSION --title $TITLE --notes $BODY --draft=false
 
