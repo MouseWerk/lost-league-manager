@@ -499,11 +499,14 @@ function showPatchNotesModal(version) {
     `,
     )
     .join("");
-  document.getElementById("patchNotesModal").classList.add("active");
+  openLayer(document.getElementById("patchNotesModal"), {
+    onEscape: () => dismissPatchNotesModal(version),
+    focus: "#patchNotesGotItBtn",
+  });
 }
 
 function dismissPatchNotesModal(version) {
-  document.getElementById("patchNotesModal").classList.remove("active");
+  closeLayer(document.getElementById("patchNotesModal"));
   window.electronAPI.setConfig({ lastSeenPatchNotesVersion: version });
 }
 
@@ -815,7 +818,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (info.hasActivePenalty && info.penaltyMinutesRemaining) {
       warningMsg += `\n\nNote: you already have an active dodge penalty (${info.penaltyMinutesRemaining} min remaining) — this will extend it.`;
     }
-    const ok = await showConfirm("Dodge Queue?", warningMsg, "danger");
+    const ok = await showConfirm("Dodge Queue?", warningMsg, "danger", "Dodge");
     if (!ok) return;
     const res = await window.electronAPI.dodgeQueue();
     if (res?.success) {
@@ -951,6 +954,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         "Emergency Fix",
         "This will close all League of Legends and Riot Games processes. Continue?",
         "danger",
+        "Close processes",
       );
       if (confirm) {
         const res = await window.electronAPI.fixClient();
@@ -984,6 +988,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         "Clear Cache",
         "This will delete the Riot Client cache. The client will re-download it on next launch.",
         "info",
+        "Clear cache",
       );
       if (!ok) return;
       const btn = e.target;
@@ -1127,6 +1132,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   document
     .getElementById("closeProfileModal")
     .addEventListener("click", closeProfileModal);
+  document.getElementById("profileModal").addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) closeProfileModal(); // backdrop
+  });
   document.getElementById("profileLaunchBtn").addEventListener("click", () => {
     closeProfileModal();
     if (_profileUsername) launchAccount(_profileUsername);
@@ -1225,6 +1233,12 @@ function showToast(message, type = "info") {
     `;
   toast.querySelector(".toast-msg").textContent = message;
 
+  // The same text already on screen is not repeated, and at most
+  // MAX_TOASTS stay visible (the oldest goes first).
+  const visible = [...container.querySelectorAll(".toast:not(.removing)")];
+  if (visible.some((t) => t.querySelector(".toast-msg")?.textContent === message)) return;
+  while (visible.length >= MAX_TOASTS) visible.shift().remove();
+
   container.appendChild(toast);
 
   // Auto-remove after 4s
@@ -1233,11 +1247,93 @@ function showToast(message, type = "info") {
     setTimeout(() => toast.remove(), 400);
   }, 4000);
 }
+const MAX_TOASTS = 3;
+
+// ── Dialog layers ─────────────────────────────────────────────────────────
+// One stack of open layers (modals, the launch overlay, the vault lock).
+// The topmost one gets focus and Escape; everything behind it is inert (no
+// Tab, no clicks), and focus returns to where it was when the layer closes.
+const _layers = [];
+const LAYER_ROOTS =
+  ".app-container, #updateCard, #updatePill, #launchOverlay, .modal, #vaultLock";
+const FOCUSABLE =
+  'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function syncLayerInert() {
+  const top = _layers[_layers.length - 1]?.el || null;
+  document.querySelectorAll(LAYER_ROOTS).forEach((el) => {
+    el.inert = !!top && el !== top;
+  });
+}
+
+function isLayerOpen(el) {
+  return _layers.some((l) => l.el === el);
+}
+
+// show: called to make the element visible (default: add .active).
+function openLayer(el, { onEscape = null, focus = null, show = null } = {}) {
+  if (!isLayerOpen(el)) {
+    _layers.push({ el, onEscape, returnFocus: document.activeElement });
+  } else {
+    const layer = _layers.find((l) => l.el === el);
+    layer.onEscape = onEscape;
+  }
+  if (show) show(el);
+  else el.classList.add("active");
+  syncLayerInert();
+  const target =
+    (typeof focus === "string" ? el.querySelector(focus) : focus) ||
+    el.querySelector(FOCUSABLE);
+  target?.focus();
+}
+
+function closeLayer(el, { hide = null } = {}) {
+  if (hide) hide(el);
+  else el.classList.remove("active");
+  const i = _layers.findIndex((l) => l.el === el);
+  if (i === -1) return;
+  const wasTop = i === _layers.length - 1;
+  const [layer] = _layers.splice(i, 1);
+  syncLayerInert();
+  const back = layer.returnFocus;
+  if (wasTop && back?.isConnected && !back.closest("[inert]")) back.focus();
+}
+
+// Escape closes the topmost thing only: an open layer, then the champion
+// search inside the account form, then the account form itself.
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape" || e.defaultPrevented) return;
+  const top = _layers[_layers.length - 1];
+  if (top) {
+    if (top.onEscape) {
+      e.preventDefault();
+      top.onEscape();
+    }
+    return;
+  }
+  const champSearch = document.getElementById("champSearchOverlay");
+  if (champSearch?.classList.contains("open")) {
+    e.preventDefault();
+    closeChampionSearch();
+    return;
+  }
+  if (currentView === "accountFormView") {
+    e.preventDefault();
+    closeModal();
+  }
+});
+
 /**
- * Custom confirmation modal
+ * Confirmation modal. Starts on Cancel, so Enter never confirms a
+ * destructive action by accident; Escape and a backdrop click cancel.
+ * type "danger" colors the confirm button red; confirmLabel names the action.
  */
-function showConfirm(title, message, type = "info") {
+let _confirmFinish = null;
+function showConfirm(title, message, type = "info", confirmLabel = "Confirm") {
   return new Promise((resolve) => {
+    // A second confirm replaces an open one instead of orphaning its promise.
+    if (_confirmFinish) _confirmFinish(false);
+
     const modal = document.getElementById("confirmModal");
     const content = modal.querySelector(".modal-content");
     const titleEl = document.getElementById("confirmTitle");
@@ -1248,20 +1344,129 @@ function showConfirm(title, message, type = "info") {
     // Reset and apply type
     content.classList.remove("danger", "info", "success");
     content.classList.add(type);
+    yesBtn.textContent = confirmLabel;
+    yesBtn.classList.toggle("danger", type === "danger");
 
     titleEl.innerText = title;
     msgEl.innerText = message;
-    modal.classList.add("active");
 
-    const cleanup = (value) => {
-      modal.classList.remove("active");
+    const finish = (value) => {
+      if (_confirmFinish !== finish) return;
+      _confirmFinish = null;
       yesBtn.onclick = null;
       cancelBtn.onclick = null;
+      modal.onclick = null;
+      closeLayer(modal);
       resolve(value);
     };
+    _confirmFinish = finish;
 
-    yesBtn.onclick = () => cleanup(true);
-    cancelBtn.onclick = () => cleanup(false);
+    yesBtn.onclick = () => finish(true);
+    cancelBtn.onclick = () => finish(false);
+    modal.onclick = (e) => {
+      if (e.target === modal) finish(false);
+    };
+    openLayer(modal, { onEscape: () => finish(false), focus: cancelBtn });
+  });
+}
+
+/**
+ * In-app form dialog (passwords, passphrases). fields: [{ name, label,
+ * type = "password", autocomplete }]. onSubmit(values) may return an error
+ * text (the dialog stays open and shows it) or nothing (the dialog closes).
+ * Resolves with the values, or null when cancelled. Values are never trimmed.
+ */
+let _formDialogFinish = null;
+function showFormDialog({
+  title,
+  message = "",
+  fields,
+  confirmLabel = "OK",
+  danger = false,
+  onSubmit = null,
+}) {
+  return new Promise((resolve) => {
+    if (_formDialogFinish) _formDialogFinish(null);
+
+    const modal = document.getElementById("formDialog");
+    const form = document.getElementById("formDialogForm");
+    const fieldsEl = document.getElementById("formDialogFields");
+    const errorEl = document.getElementById("formDialogError");
+    const submitBtn = document.getElementById("formDialogSubmitBtn");
+    const cancelBtn = document.getElementById("formDialogCancelBtn");
+
+    document.getElementById("formDialogTitle").textContent = title;
+    const msgEl = document.getElementById("formDialogMessage");
+    msgEl.textContent = message;
+    msgEl.style.display = message ? "" : "none";
+    errorEl.textContent = "";
+    submitBtn.textContent = confirmLabel;
+    submitBtn.classList.toggle("danger", danger);
+    submitBtn.disabled = false;
+
+    fieldsEl.innerHTML = "";
+    const inputs = fields.map((f, i) => {
+      const group = document.createElement("div");
+      group.className = "form-group";
+      const label = document.createElement("label");
+      label.htmlFor = `formDialogField${i}`;
+      label.textContent = f.label;
+      const input = document.createElement("input");
+      input.id = label.htmlFor;
+      input.type = f.type || "password";
+      input.autocomplete = f.autocomplete || "off";
+      input.spellcheck = false;
+      group.append(label, input);
+      fieldsEl.appendChild(group);
+      return input;
+    });
+
+    let busy = false;
+    const finish = (value) => {
+      if (_formDialogFinish !== finish) return;
+      _formDialogFinish = null;
+      form.onsubmit = null;
+      cancelBtn.onclick = null;
+      inputs.forEach((input) => (input.value = "")); // no secrets left in the DOM
+      closeLayer(modal);
+      resolve(value);
+    };
+    _formDialogFinish = finish;
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      if (busy) return;
+      const values = Object.fromEntries(
+        fields.map((f, i) => [f.name, inputs[i].value]),
+      );
+      busy = true;
+      submitBtn.disabled = true;
+      let error = null;
+      try {
+        error = onSubmit ? await onSubmit(values) : null;
+      } catch (err) {
+        error = err?.message || String(err);
+      }
+      busy = false;
+      submitBtn.disabled = false;
+      if (_formDialogFinish !== finish) return;
+      if (error) {
+        errorEl.textContent = error;
+        inputs[0]?.focus();
+        inputs[0]?.select();
+      } else {
+        finish(values);
+      }
+    };
+    cancelBtn.onclick = () => {
+      if (!busy) finish(null);
+    };
+    openLayer(modal, {
+      onEscape: () => {
+        if (!busy) finish(null);
+      },
+      focus: inputs[0],
+    });
   });
 }
 
@@ -1604,7 +1809,7 @@ async function showProfileModal(username) {
   if (!acc) return;
 
   const modal = document.getElementById("profileModal");
-  modal.classList.add("active");
+  openLayer(modal, { onEscape: closeProfileModal, focus: "#closeProfileModal" });
 
   // Rank history is a cheap local read (no rate limit / network concerns),
   // so it's always fetched fresh rather than reusing statsCache below.
@@ -1687,7 +1892,7 @@ async function showProfileModal(username) {
 }
 
 function closeProfileModal() {
-  document.getElementById("profileModal").classList.remove("active");
+  closeLayer(document.getElementById("profileModal"));
   _profileUsername = null;
 }
 
@@ -1960,7 +2165,12 @@ function updateDownloadProgress(percent) {
 
 // Account Form View Functions
 function openModal(account = null) {
-  previousView = currentView;
+  // Leaving the form through the sidebar skips closeModal(), so an open
+  // champion search would otherwise cover the next form.
+  closeChampionSearch();
+  // Coming from the form itself (sidebar Add while editing) keeps the view
+  // the form was first opened from.
+  if (currentView !== "accountFormView") previousView = currentView;
   isEditing = false;
 
   if (account && account.username) {
@@ -2462,6 +2672,7 @@ async function deleteAccount(username) {
     "Delete Account",
     `Are you sure you want to delete ${username}? This action cannot be undone.`,
     "danger",
+    "Delete",
   );
   if (ok) {
     await window.electronAPI.deleteAccount(username);
