@@ -254,7 +254,11 @@ async function onEvent(event) {
 }
 
 function registerLcuEvents() {
-    lcu.clearHandlers(); // prevent accumulation if called more than once
+    // Drop only our own handlers if called again: clearHandlers() also wiped
+    // other modules' handlers (stats.js resets its client region on disconnect).
+    lcu.offConnect(onConnect);
+    lcu.offDisconnect(onDisconnect);
+    lcu.offEvent(onEvent);
     skinRolledFor = null;
     readyCheckAccepted = false;
     minimizedThisGame = false;

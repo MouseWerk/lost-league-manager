@@ -71,8 +71,10 @@ function sameServer(accountRegion, clientRegion) {
     return a === clientRegion;
 }
 
-// Region of the running client, read once per LCU connection.
+// Region of the running client, read once per LCU connection. Reset on both
+// events: after a switch to another account the client may be on another server.
 let clientRegion = null;
+lcu.onConnect(() => { clientRegion = null; });
 lcu.onDisconnect(() => { clientRegion = null; });
 
 async function getClientRegion() {
