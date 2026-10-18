@@ -2504,6 +2504,15 @@ select.form-control option {
     color: #ffd87a;
 }
 
+.api-key-saved { justify-content: flex-start; }
+.api-key-saved-label {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-main);
+}
+.api-key-saved-label i { color: var(--primary); margin-right: 4px; }
+
 .api-key-input {
     flex: 1;
     font-family: monospace;

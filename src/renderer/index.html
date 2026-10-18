@@ -541,11 +541,17 @@
                             <h3>Riot API Key <span style="opacity:0.5;font-size:12px;font-weight:500">(optional)</span></h3>
                             <p class="desc">Ranked stats, match history and Quick add work without a key via OP.GG. A personal key adds mastery points and is tried first when set.</p>
                             <div id="riotApiKeyNotice" class="api-key-notice" style="display:none"></div>
-                            <div class="setting-row" style="border-bottom:none;padding-bottom:0;gap:10px">
+                            <div id="riotApiKeySavedRow" class="setting-row api-key-saved" style="display:none;border-bottom:none;padding-bottom:0;gap:10px">
+                                <span class="api-key-saved-label"><i class="fas fa-check" aria-hidden="true"></i> Key saved</span>
+                                <button id="replaceRiotApiKeyBtn" class="action-btn">Replace</button>
+                                <button id="clearRiotApiKeyBtn" class="action-btn">Clear</button>
+                            </div>
+                            <div id="riotApiKeyEditRow" class="setting-row" style="border-bottom:none;padding-bottom:0;gap:10px">
                                 <input type="password" id="riotApiKeyInput" class="form-control api-key-input"
-                                    placeholder="RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    placeholder="RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" aria-label="Riot API key"
                                     autocomplete="off" spellcheck="false">
                                 <button id="saveRiotApiKeyBtn" class="action-btn" style="flex-shrink:0">Save</button>
+                                <button id="cancelRiotApiKeyBtn" class="action-btn" style="display:none;flex-shrink:0">Cancel</button>
                             </div>
                         </div>
                     </div>
@@ -577,9 +583,12 @@
                                 </label>
                             </div>
                             <div id="vaultPasswordSection" style="display:none;padding-top:4px">
-                                <div class="setting-row" style="border-bottom:none;padding-bottom:0;gap:10px">
-                                    <input type="password" id="vaultPasswordSet" class="form-control" placeholder="Set new password" autocomplete="new-password">
-                                    <button id="saveVaultPasswordBtn" class="action-btn" style="flex-shrink:0">Set Password</button>
+                                <div class="setting-row" style="border-bottom:none;padding-bottom:0">
+                                    <div class="setting-row-info">
+                                        <h4>Vault password</h4>
+                                        <p>Change the password the app asks for on start</p>
+                                    </div>
+                                    <button id="changeVaultPasswordBtn" class="action-btn" style="flex-shrink:0">Change password</button>
                                 </div>
                             </div>
                         </div>
@@ -941,16 +950,16 @@
     <div id="toastContainer" class="toast-container"></div>
 
     <!-- Vault Lock Screen -->
-    <div id="vaultLock" class="vault-lock" style="display:none">
+    <div id="vaultLock" class="vault-lock" style="display:none" role="dialog" aria-modal="true" aria-labelledby="vaultLockTitle">
         <div class="vault-lock-content">
             <img src="assets/logo.png" class="vault-lock-logo">
-            <h2 class="vault-lock-title">Lost League Manager</h2>
+            <h2 id="vaultLockTitle" class="vault-lock-title">Lost League Manager</h2>
             <p class="vault-lock-sub">Enter your vault password to continue</p>
             <div class="vault-lock-input-wrap">
-                <input type="password" id="vaultPasswordInput" class="vault-lock-input" placeholder="Password" autocomplete="current-password">
+                <input type="password" id="vaultPasswordInput" class="vault-lock-input" placeholder="Password" autocomplete="current-password" aria-label="Vault password">
                 <button id="vaultUnlockBtn" class="vault-lock-btn">Unlock</button>
             </div>
-            <p id="vaultError" class="vault-lock-error" style="display:none">Incorrect password</p>
+            <p id="vaultError" class="vault-lock-error" style="display:none" role="alert">Incorrect password</p>
         </div>
     </div>
 

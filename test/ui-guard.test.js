@@ -53,6 +53,16 @@ test('markup in app.js escapes every interpolated property', () => {
     assert.equal(rawMemberInterpolations('el.innerHTML = `<span>${escapeHtml(stats.lp)}</span>`;').length, 0);
 });
 
+test('vault passwords leave the renderer as typed: no hashing, no trimming', () => {
+    const app = read('js/app.js');
+    // The main process verifies with salted scrypt; a renderer-side hash
+    // would become the password (anyone reading it could unlock).
+    assert.ok(!/crypto\.subtle|sha256/i.test(app), 'app.js must not hash vault passwords');
+    assert.match(app, /unlockVault\(input\.value\)/, 'unlock sends the input value unchanged');
+    assert.ok(!/vaultPassword\w*["']\)\??\.value\??\.trim\(\)/.test(app), 'vault password inputs are not trimmed');
+    assert.ok(!/vaultPasswordHash|config\.riotApiKey\s*\|\|/.test(app), 'no vault hash or API key read from config');
+});
+
 test('index.html loads ui-lib.js before app.js', () => {
     const html = read('index.html');
     const lib = html.indexOf('<script src="js/ui-lib.js"></script>');

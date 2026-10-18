@@ -128,6 +128,9 @@ const {
   makeStatsEntry,
   statsEntryState,
   sparklinePoints,
+  MIN_PASSPHRASE_LENGTH,
+  validateNewPassphrase,
+  secondsUntil,
 } = window.UiLib;
 
 // Cached stats for an account, fresh or stale, or null when there is nothing
@@ -300,61 +303,381 @@ function getFilteredSorted() {
   return list;
 }
 
-async function sha256(str) {
-  const buf = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(str),
-  );
-  return Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+// Vault state from the main process. Older main processes have no
+// getVaultState; their config still says vaultEnabled.
+async function readVaultState(config) {
+  const api = window.electronAPI;
+  if (typeof api.getVaultState === "function") {
+    try {
+      const s = await api.getVaultState();
+      if (s && typeof s.enabled === "boolean") return { ...s, legacy: false };
+    } catch {
+      /* fall back to the config flag */
+    }
+  }
+  return { enabled: !!config.vaultEnabled, unlocked: false, legacy: true };
+}
+
+// Text for a failed vault password check (unlock, change, turn off).
+function vaultErrorText(res, fallback = "Incorrect password") {
+  if (res?.retryAfterMs > 0) {
+    return `Too many attempts. Try again in ${secondsUntil(res.retryAfterMs)} s.`;
+  }
+  return res?.message || fallback;
 }
 
 async function initVault(config) {
-  if (!config.vaultEnabled || !config.vaultPasswordHash) {
-    // Nothing to unlock, but the main process still needs to know this
-    // session is allowed to read passwords (it defaults to locked).
-    await window.electronAPI.unlockVault(null);
+  const api = window.electronAPI;
+  const vault = await readVaultState(config);
+  if (!vault.enabled) {
+    // Older main processes treat a session as locked until told otherwise.
+    if (vault.legacy) await api.unlockVault(null);
     return;
   }
+  if (vault.unlocked) return;
+
   return new Promise((resolve) => {
     const lockEl = document.getElementById("vaultLock");
     const input = document.getElementById("vaultPasswordInput");
+    const btn = document.getElementById("vaultUnlockBtn");
     const errorEl = document.getElementById("vaultError");
-    lockEl.style.display = "flex";
-    setTimeout(() => input.focus(), 80);
+    openLayer(lockEl, {
+      show: (el) => (el.style.display = "flex"),
+      focus: input,
+    });
 
-    async function tryUnlock() {
-      if (!input.value) return;
-      const hash = await sha256(input.value);
-      // Verified server-side too — the main process gates get-account-password
-      // on this, so a DOM/JS-only bypass of this lock screen can't leak passwords.
-      const result = await window.electronAPI.unlockVault(hash);
-      if (result?.success) {
-        lockEl.classList.add("vault-unlocking");
-        setTimeout(() => {
-          lockEl.style.display = "none";
-          resolve();
-        }, 220);
-      } else {
-        input.value = "";
-        errorEl.style.display = "block";
-        const c = lockEl.querySelector(".vault-lock-content");
-        c.classList.add("shake");
-        setTimeout(() => {
-          c.classList.remove("shake");
-          input.focus();
-        }, 500);
-      }
+    function showError(text) {
+      errorEl.textContent = text;
+      errorEl.style.display = "block";
     }
 
-    document
-      .getElementById("vaultUnlockBtn")
-      .addEventListener("click", tryUnlock);
+    // The main process limits attempts; while it asks us to wait, the
+    // input is disabled and the remaining time counts down.
+    let lockoutTimer = null;
+    function lockOut(ms) {
+      const until = Date.now() + ms;
+      input.disabled = true;
+      btn.disabled = true;
+      const tick = () => {
+        const left = until - Date.now();
+        if (left <= 0) {
+          clearInterval(lockoutTimer);
+          lockoutTimer = null;
+          input.disabled = false;
+          btn.disabled = false;
+          errorEl.style.display = "none";
+          input.focus();
+          return;
+        }
+        showError(`Too many attempts. Try again in ${secondsUntil(left)} s.`);
+      };
+      clearInterval(lockoutTimer);
+      tick();
+      lockoutTimer = setInterval(tick, 250);
+    }
+
+    let busy = false;
+    async function tryUnlock() {
+      // The password goes to the main process exactly as typed (no trimming,
+      // no hashing here): main checks it against its salted scrypt hash.
+      if (busy || input.disabled || !input.value) return;
+      busy = true;
+      btn.disabled = true;
+      let result;
+      try {
+        result = await api.unlockVault(input.value);
+      } catch {
+        result = { success: false, message: "Could not check the password. Try again." };
+      }
+      busy = false;
+      btn.disabled = false;
+      if (result?.success) {
+        input.value = "";
+        lockEl.classList.add("vault-unlocking");
+        setTimeout(() => {
+          closeLayer(lockEl, { hide: (el) => (el.style.display = "none") });
+          resolve();
+        }, 220);
+        return;
+      }
+      input.value = "";
+      if (result?.retryAfterMs > 0) {
+        lockOut(result.retryAfterMs);
+        return;
+      }
+      showError(vaultErrorText(result));
+      const c = lockEl.querySelector(".vault-lock-content");
+      c.classList.add("shake");
+      setTimeout(() => {
+        c.classList.remove("shake");
+        input.focus();
+      }, 500);
+    }
+
+    btn.addEventListener("click", tryUnlock);
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") tryUnlock();
     });
   });
+}
+
+// ── Vault settings ────────────────────────────────────────────────────────
+// Passwords go to the main process as typed; it hashes and stores them.
+// Turning the vault on asks for the new password twice, turning it off or
+// changing the password asks for the current one first.
+async function initVaultSettings(config) {
+  const api = window.electronAPI;
+  const toggle = document.getElementById("vaultEnabledToggle");
+  const section = document.getElementById("vaultPasswordSection");
+  if (!toggle) return;
+  let enabled = (await readVaultState(config)).enabled;
+
+  const render = () => {
+    toggle.checked = enabled;
+    section.style.display = enabled ? "block" : "none";
+  };
+  render();
+
+  const newPasswordError = (next, confirm) => {
+    if (!next) return "Enter a password";
+    if (next !== confirm) return "The two entries do not match";
+    return null;
+  };
+
+  toggle.addEventListener("change", async () => {
+    render(); // the switch follows the saved state, not the click
+    if (!enabled) {
+      const done = await showFormDialog({
+        title: "Turn on the vault",
+        message:
+          "Choose a password. The app asks for it every time it opens.",
+        fields: [
+          { name: "next", label: "Password", autocomplete: "new-password" },
+          { name: "confirm", label: "Repeat password", autocomplete: "new-password" },
+        ],
+        confirmLabel: "Turn on",
+        onSubmit: async (v) => {
+          const err = newPasswordError(v.next, v.confirm);
+          if (err) return err;
+          const res = await api.setVaultPassword({ current: "", next: v.next });
+          return res?.success ? null : res?.message || "Could not set the password";
+        },
+      });
+      if (done) {
+        enabled = true;
+        showToast("Vault turned on", "success");
+      }
+    } else {
+      const done = await showFormDialog({
+        title: "Turn off the vault",
+        message: "Enter the current vault password to turn the lock off.",
+        fields: [
+          { name: "current", label: "Current password", autocomplete: "current-password" },
+        ],
+        confirmLabel: "Turn off",
+        danger: true,
+        onSubmit: async (v) => {
+          if (!v.current) return "Enter the current password";
+          const res = await api.disableVault(v.current);
+          return res?.success ? null : vaultErrorText(res);
+        },
+      });
+      if (done) {
+        enabled = false;
+        showToast("Vault turned off", "info");
+      }
+    }
+    render();
+  });
+
+  document
+    .getElementById("changeVaultPasswordBtn")
+    ?.addEventListener("click", async () => {
+      const done = await showFormDialog({
+        title: "Change vault password",
+        fields: [
+          { name: "current", label: "Current password", autocomplete: "current-password" },
+          { name: "next", label: "New password", autocomplete: "new-password" },
+          { name: "confirm", label: "Repeat new password", autocomplete: "new-password" },
+        ],
+        confirmLabel: "Change password",
+        onSubmit: async (v) => {
+          if (!v.current) return "Enter the current password";
+          const err = newPasswordError(v.next, v.confirm);
+          if (err) return err;
+          const res = await api.setVaultPassword({ current: v.current, next: v.next });
+          return res?.success ? null : vaultErrorText(res);
+        },
+      });
+      if (done) showToast("Vault password changed", "success");
+    });
+}
+
+// ── Riot API key ──────────────────────────────────────────────────────────
+// The key is stored encrypted by the main process and never comes back to
+// the renderer: the card only knows whether one is saved.
+function initRiotApiKeySettings(config) {
+  const api = window.electronAPI;
+  const input = document.getElementById("riotApiKeyInput");
+  const editRow = document.getElementById("riotApiKeyEditRow");
+  const savedRow = document.getElementById("riotApiKeySavedRow");
+  const saveBtn = document.getElementById("saveRiotApiKeyBtn");
+  const cancelBtn = document.getElementById("cancelRiotApiKeyBtn");
+  if (!input || !editRow || !savedRow) return;
+  // riotApiKeySet from current main processes; older ones still sent the key.
+  let keySet = !!(config.riotApiKeySet ?? config.riotApiKey);
+
+  const render = (editing = false) => {
+    input.value = "";
+    savedRow.style.display = keySet && !editing ? "" : "none";
+    editRow.style.display = !keySet || editing ? "" : "none";
+    cancelBtn.style.display = keySet && editing ? "" : "none";
+  };
+  render();
+
+  const store = async (key) => {
+    try {
+      return typeof api.setRiotApiKey === "function"
+        ? await api.setRiotApiKey(key)
+        : await api.setConfig({ riotApiKey: key });
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  };
+
+  const save = async () => {
+    const key = input.value.trim();
+    if (!key) {
+      showToast("Paste a Riot API key first", "error");
+      input.focus();
+      return;
+    }
+    saveBtn.disabled = true;
+    const res = await store(key);
+    saveBtn.disabled = false;
+    if (!res?.success) {
+      showToast(res?.message || "Could not save the API key", "error");
+      return;
+    }
+    keySet = true;
+    render();
+    showToast("API key saved", "success");
+    document.getElementById("replaceRiotApiKeyBtn")?.focus();
+  };
+
+  saveBtn.addEventListener("click", save);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") save();
+  });
+  cancelBtn.addEventListener("click", () => {
+    render();
+    document.getElementById("replaceRiotApiKeyBtn")?.focus();
+  });
+  document.getElementById("replaceRiotApiKeyBtn").addEventListener("click", () => {
+    render(true);
+    input.focus();
+  });
+  document.getElementById("clearRiotApiKeyBtn").addEventListener("click", async () => {
+    const res = await store("");
+    if (!res?.success) {
+      showToast(res?.message || "Could not clear the API key", "error");
+      return;
+    }
+    keySet = false;
+    render();
+    showToast("API key cleared", "info");
+    input.focus();
+  });
+}
+
+// ── Backup (export / import) ──────────────────────────────────────────────
+function plural(n, word) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+// Export asks for a passphrase twice (at least MIN_PASSPHRASE_LENGTH
+// characters, never trimmed); the main process encrypts the file with it.
+async function exportAccountsFlow(btn) {
+  const values = await showFormDialog({
+    title: "Export accounts",
+    message:
+      "The backup contains your account passwords. Choose a passphrase to encrypt it; you need it again to import the file.",
+    fields: [
+      { name: "passphrase", label: "Passphrase", autocomplete: "new-password" },
+      { name: "confirm", label: "Repeat passphrase", autocomplete: "new-password" },
+    ],
+    confirmLabel: "Export",
+    onSubmit: (v) => validateNewPassphrase(v.passphrase, v.confirm, MIN_PASSPHRASE_LENGTH),
+  });
+  if (!values) return;
+  btn.disabled = true;
+  let res;
+  try {
+    res = await window.electronAPI.exportAccounts(values.passphrase);
+  } catch (err) {
+    res = { success: false, message: err.message };
+  } finally {
+    btn.disabled = false;
+  }
+  if (res?.canceled) return;
+  if (res?.success) {
+    const unreadable =
+      res.unreadable > 0
+        ? ` ${plural(res.unreadable, "password")} could not be read and were left empty.`
+        : "";
+    showToast(`${plural(res.count ?? 0, "account")} exported.${unreadable}`, "success");
+  } else {
+    showToast("Export failed: " + (res?.message || "unknown error"), "error");
+  }
+}
+
+// Import opens the file dialog in the main process. A protected backup
+// answers needsPassphrase; the file stays pending there while the
+// passphrase dialog asks (and asks again after a wrong one).
+async function importAccountsFlow(btn) {
+  const api = window.electronAPI;
+  btn.disabled = true;
+  try {
+    let res = await api.importAccounts();
+    if (res?.needsPassphrase) {
+      let finalRes = null;
+      const values = await showFormDialog({
+        title: "Import accounts",
+        message:
+          "This backup is protected. Enter the passphrase that was used to export it.",
+        fields: [{ name: "passphrase", label: "Passphrase", autocomplete: "off" }],
+        confirmLabel: "Import",
+        onSubmit: async (v) => {
+          if (!v.passphrase) return "Enter the passphrase";
+          const r = await api.importAccounts({ passphrase: v.passphrase });
+          if (r?.wrongPassphrase || r?.needsPassphrase) {
+            return "Wrong passphrase. Check it and try again.";
+          }
+          finalRes = r;
+          return null;
+        },
+      });
+      if (!values) return;
+      res = finalRes;
+    }
+    if (res?.canceled) return;
+    if (res?.success) {
+      const added = res.added || 0;
+      const skipped = res.skipped || 0;
+      const msg =
+        added > 0
+          ? `${plural(added, "account")} imported${skipped ? `, ${skipped} skipped (already in the list or incomplete)` : ""}.`
+          : `No new accounts: all ${skipped} were already in the list or incomplete.`;
+      showToast(msg, added > 0 ? "success" : "info");
+      if (added > 0) loadAccounts();
+    } else {
+      showToast("Import failed: " + (res?.message || "unknown error"), "error");
+    }
+  } catch (err) {
+    showToast("Import failed: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ── Compact / grid view ───────────────────────────────────────────────────────
@@ -581,7 +904,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         ? config[configKey] !== false
         : !!config[configKey];
       el.addEventListener("change", async (e) => {
-        await window.electronAPI.setConfig({ [configKey]: e.target.checked });
+        const value = e.target.checked;
+        const res = await window.electronAPI
+          .setConfig({ [configKey]: value })
+          .catch((err) => ({ success: false, message: err.message }));
+        // A rejected change must not leave the switch showing it as applied.
+        if (res && res.success === false) {
+          el.checked = !value;
+          showToast(res.message || "Could not save the setting", "error");
+        }
       });
     }
 
@@ -620,42 +951,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // Vault settings
-    const vaultToggle = document.getElementById("vaultEnabledToggle");
-    const vaultSection = document.getElementById("vaultPasswordSection");
-    if (vaultToggle) {
-      vaultToggle.checked = config.vaultEnabled || false;
-      vaultSection.style.display = config.vaultEnabled ? "block" : "none";
-      vaultToggle.addEventListener("change", async (e) => {
-        if (!e.target.checked) {
-          await window.electronAPI.setConfig({
-            vaultEnabled: false,
-            vaultPasswordHash: "",
-          });
-          vaultSection.style.display = "none";
-          showToast("Vault disabled", "info");
-        } else {
-          vaultSection.style.display = "block";
-          showToast("Set a password below to activate the vault", "info");
-        }
-      });
-    }
-    document
-      .getElementById("saveVaultPasswordBtn")
-      ?.addEventListener("click", async () => {
-        const pw = document.getElementById("vaultPasswordSet")?.value?.trim();
-        if (!pw) {
-          showToast("Enter a password first", "error");
-          return;
-        }
-        const hash = await sha256(pw);
-        await window.electronAPI.setConfig({
-          vaultEnabled: true,
-          vaultPasswordHash: hash,
-        });
-        document.getElementById("vaultPasswordSet").value = "";
-        if (vaultToggle) vaultToggle.checked = true;
-        showToast("Vault password set!", "success");
-      });
+    await initVaultSettings(config);
 
     // Auto-accept in settings synced with header toggle
     const autoAcceptSettings = document.getElementById(
@@ -677,31 +973,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
 
     // Riot API Key
-    const riotApiKeyInput = document.getElementById("riotApiKeyInput");
-    const riotApiKeyNotice = document.getElementById("riotApiKeyNotice");
-
-    // No key is a supported setup now (OP.GG covers stats), so there's no
-    // warning to show either way.
-    function updateApiKeyNotice() {
-      if (riotApiKeyNotice) riotApiKeyNotice.style.display = "none";
-    }
-
-    if (riotApiKeyInput) {
-      riotApiKeyInput.value = config.riotApiKey || "";
-      updateApiKeyNotice(config.riotApiKey);
-
-      document
-        .getElementById("saveRiotApiKeyBtn")
-        ?.addEventListener("click", async () => {
-          const key = riotApiKeyInput.value.trim();
-          await window.electronAPI.setConfig({ riotApiKey: key });
-          updateApiKeyNotice(key);
-          showToast(
-            key ? "API key saved!" : "API key cleared",
-            key ? "success" : "info",
-          );
-        });
-    }
+    initRiotApiKeySettings(config);
 
     // Load accounts
     await loadAccounts();
@@ -1014,44 +1286,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Backup
   document
     .getElementById("exportAccountsBtn")
-    .addEventListener("click", async (e) => {
-      const btn = e.target.closest("button");
-      btn.disabled = true;
-      const res = await window.electronAPI.exportAccounts();
-      btn.disabled = false;
-      if (res.canceled) return;
-      if (res.success) {
-        showToast(`${res.count} account(s) exported!`, "success");
-      } else {
-        showToast(
-          "Export failed: " + (res.message || "unknown error"),
-          "error",
-        );
-      }
-    });
-
+    .addEventListener("click", (e) =>
+      exportAccountsFlow(e.target.closest("button")),
+    );
   document
     .getElementById("importAccountsBtn")
-    .addEventListener("click", async (e) => {
-      const btn = e.target.closest("button");
-      btn.disabled = true;
-      const res = await window.electronAPI.importAccounts();
-      btn.disabled = false;
-      if (res.canceled) return;
-      if (res.success) {
-        const msg =
-          res.added > 0
-            ? `${res.added} account(s) imported${res.skipped > 0 ? `, ${res.skipped} skipped (already exist)` : ""}!`
-            : `No new accounts — all ${res.skipped} already exist`;
-        showToast(msg, res.added > 0 ? "success" : "info");
-        if (res.added > 0) loadAccounts();
-      } else {
-        showToast(
-          "Import failed: " + (res.message || "unknown error"),
-          "error",
-        );
-      }
-    });
+    .addEventListener("click", (e) =>
+      importAccountsFlow(e.target.closest("button")),
+    );
 
   // Manual update check
   document
@@ -2675,7 +2917,17 @@ async function deleteAccount(username) {
     "Delete",
   );
   if (ok) {
-    await window.electronAPI.deleteAccount(username);
+    let res;
+    try {
+      res = await window.electronAPI.deleteAccount(username);
+    } catch (err) {
+      res = { success: false, message: err.message };
+    }
+    if (res && res.success === false) {
+      showToast(res.message || "Could not delete the account", "error");
+      loadAccounts();
+      return;
+    }
     // Otherwise a new account later reusing this username would briefly
     // render with this deleted account's stale cached tier/icon/level.
     delete statsCache[username];
