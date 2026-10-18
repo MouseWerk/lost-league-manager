@@ -10,15 +10,31 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 const cache    = new Map(); // key → { ts, value }
 const inFlight = new Map(); // key → Promise (dedupes concurrent identical lookups)
 
-// App region values → OP.GG region codes. OP.GG accepts the uppercase short
-// codes for everything the app offers; CN isn't covered (Tencent servers).
+// App region values and Riot platform ids → OP.GG region codes. CN isn't
+// covered (Tencent servers). LA1 is LAN, LA2 is LAS. Legacy SEA accounts go to
+// SG, the same server the op.gg profile link opens.
+const OPGG_REGIONS = {
+    na: 'NA', na1: 'NA',
+    euw: 'EUW', euw1: 'EUW',
+    eune: 'EUNE', eun1: 'EUNE',
+    kr: 'KR',
+    jp: 'JP', jp1: 'JP',
+    br: 'BR', br1: 'BR',
+    lan: 'LAN', la1: 'LAN',
+    las: 'LAS', la2: 'LAS',
+    oce: 'OCE', oc1: 'OCE',
+    tr: 'TR', tr1: 'TR',
+    ru: 'RU',
+    me: 'ME', me1: 'ME',
+    sg: 'SG', sg2: 'SG', sea: 'SG',
+    ph: 'PH', ph2: 'PH',
+    th: 'TH', th2: 'TH',
+    tw: 'TW', tw2: 'TW',
+    vn: 'VN', vn2: 'VN',
+};
+
 function toOpggRegion(region) {
-    const r = (region || '').toLowerCase().replace(/\d+$/, '');
-    if (!r || r === 'cn') return null;
-    if (r === 'eun') return 'EUNE';
-    if (r === 'la') return 'LAN';
-    if (r === 'oc') return 'OCE';
-    return r.toUpperCase();
+    return OPGG_REGIONS[(region || '').trim().toLowerCase()] || null;
 }
 
 // ── Response parser ──────────────────────────────────────────────────────────
@@ -91,25 +107,46 @@ const MAX_CONCURRENT = 4;
 let active = 0;
 const queue = [];
 async function withSlot(fn) {
+    // A released slot is handed straight to the next waiter (active stays the
+    // same), so a new caller can't slip in between and exceed the cap.
     if (active >= MAX_CONCURRENT) await new Promise(r => queue.push(r));
-    active++;
+    else active++;
     try { return await fn(); } finally {
-        active--;
-        queue.shift()?.();
+        const next = queue.shift();
+        if (next) next();
+        else active--;
     }
 }
 
+// After a 429 or a server error, OP.GG gets a short break instead of one
+// request per remaining card.
+const BUSY_COOLDOWN_MS = 60 * 1000;
+const BUSY_MESSAGE = 'OP.GG is busy, try again in a minute';
+let busyUntil = 0;
+
 function callTool(name, args) {
+    if (Date.now() < busyUntil) return Promise.reject(new Error(BUSY_MESSAGE));
     return withSlot(() => callToolNow(name, args));
 }
 
 async function callToolNow(name, args) {
-    const res = await axios.post(OPGG_MCP_URL,
-        { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
-        {
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
-            timeout: 15000,
-        });
+    let res;
+    try {
+        res = await axios.post(OPGG_MCP_URL,
+            { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } },
+            {
+                headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+                timeout: 15000,
+            });
+    } catch (e) {
+        const status = e.response?.status;
+        if (status === 429 || status >= 500) {
+            busyUntil = Date.now() + BUSY_COOLDOWN_MS;
+            throw new Error(BUSY_MESSAGE);
+        }
+        if (status) throw new Error(`OP.GG request failed (HTTP ${status})`);
+        throw new Error(`OP.GG is unreachable: ${e.message}`);
+    }
     const body = res.data;
     if (body?.error) {
         const msg = body.error.message || 'OP.GG request failed';
@@ -123,10 +160,17 @@ async function callToolNow(name, args) {
 
 function cached(key, fn) {
     const hit = cache.get(key);
-    if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return Promise.resolve(hit.value);
+    const age = hit ? Date.now() - hit.ts : -1;
+    if (hit && age >= 0 && age < CACHE_TTL_MS) return Promise.resolve(hit.value);
     if (inFlight.has(key)) return inFlight.get(key);
     const p = fn()
-        .then(value => { cache.set(key, { ts: Date.now(), value }); return value; })
+        .then(value => {
+            // Drop expired entries so the cache doesn't grow for the whole session.
+            const now = Date.now();
+            for (const [k, v] of cache) if (now - v.ts >= CACHE_TTL_MS) cache.delete(k);
+            cache.set(key, { ts: now, value });
+            return value;
+        })
         .finally(() => inFlight.delete(key));
     inFlight.set(key, p);
     return p;
@@ -274,4 +318,11 @@ async function getRecentMatches(gameName, tagLine, region, limit = 5) {
     });
 }
 
-module.exports = { getProfile, getRecentMatches, parseRiotIdInput, toOpggRegion, parseToolText };
+module.exports = {
+    getProfile, getRecentMatches, parseRiotIdInput, toOpggRegion, parseToolText,
+    // Clears the cache and the busy cooldown between tests.
+    _resetForTests() {
+        cache.clear();
+        busyUntil = 0;
+    },
+};
