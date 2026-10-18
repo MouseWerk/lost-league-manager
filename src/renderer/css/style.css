@@ -13,7 +13,16 @@
     --accent-blue: #58a6ff;
     --card-hover: rgba(255, 255, 255, 0.06);
     --shadow-premium: 0 20px 50px rgba(0, 0, 0, 0.4);
+    /* Neutral state tokens: selected/active/focus use these, never the accent. */
+    --bg-hover: rgba(255, 255, 255, 0.06);
+    --bg-active: rgba(255, 255, 255, 0.09);
+    --border-strong: rgba(255, 255, 255, 0.24);
+    --focus-ring: rgba(255, 255, 255, 0.55);
 }
+
+/* Keyboard focus: one neutral ring, only when focus came from the keyboard. */
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 * {
     box-sizing: border-box;
@@ -262,7 +271,6 @@ body {
 .add-account-sidebar-btn:hover {
     background: var(--primary-hover);
     transform: translateY(-1px);
-    box-shadow: 0 6px 20px rgba(10, 200, 185, 0.35);
 }
 
 .add-account-sidebar-btn:active {
@@ -306,9 +314,9 @@ body {
 }
 
 #websiteBtn:hover {
-    background: rgba(10, 200, 185, 0.12);
-    color: var(--primary);
-    border-color: rgba(10, 200, 185, 0.3);
+    background: var(--bg-active);
+    color: var(--text-main);
+    border-color: var(--border-strong);
 }
 
 .version-info {
@@ -391,7 +399,7 @@ body {
 
 .window-controls .icon-btn.close-btn:hover {
     background: var(--danger);
-    border-color: var(--danger);
+    border-color: transparent;
     color: #fff;
 }
 
@@ -514,9 +522,8 @@ body {
 .search-input::placeholder { color: var(--text-dim); opacity: 0.45; }
 
 .search-input:focus {
-    border-color: var(--primary);
+    border-color: var(--border-strong);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(10, 200, 185, 0.12);
 }
 
 .search-clear {
@@ -555,9 +562,8 @@ body {
 .sort-select option { background: #111116; }
 
 .sort-select:focus {
-    border-color: var(--primary);
+    border-color: var(--border-strong);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(10, 200, 185, 0.12);
 }
 
 /* ── Accounts grid ── */
@@ -663,8 +669,8 @@ body {
 }
 
 .account-card.is-active {
-    border-color: rgba(10, 200, 185, 0.3);
-    box-shadow: 0 0 0 1px rgba(10, 200, 185, 0.12), inset 0 0 40px rgba(10, 200, 185, 0.025);
+    background: var(--bg-active);
+    border-color: rgba(255, 255, 255, 0.1);
 }
 
 .text-content {
@@ -694,8 +700,7 @@ body {
     min-width: 7px;
     background: var(--primary);
     border-radius: 50%;
-    box-shadow: 0 0 7px rgba(10, 200, 185, 0.7);
-    animation: pulse-dot 2s ease-in-out infinite;
+    animation: pulse-dot 2s ease-in-out 3;
 }
 
 .account-warning-badge {
@@ -874,20 +879,19 @@ body {
 .icon-btn.play-btn:hover {
     background: var(--primary);
     color: #000;
-    border-color: var(--primary);
+    border-color: transparent;
 }
 
 .icon-btn.delete-btn:hover {
     background: var(--danger);
     color: #fff;
-    border-color: var(--danger);
+    border-color: transparent;
 }
 
 .icon-btn.copied,
 .icon-btn.copied:hover {
     color: var(--primary) !important;
-    border-color: rgba(10, 200, 185, 0.35) !important;
-    background: rgba(10, 200, 185, 0.1) !important;
+    background: var(--bg-active) !important;
 }
 
 /* ── Rank tier colors ── */
@@ -931,7 +935,6 @@ body {
     background-size: 200% 200%;
     -webkit-background-clip: text; background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: challenger-glow 3s ease infinite;
 }
 @keyframes challenger-glow {
     0%, 100% { background-position: 0% 50%; }
@@ -948,7 +951,7 @@ body {
     box-shadow: 0 0 6px rgba(10, 200, 185, 0.7);
     margin-left: auto;
     display: none;
-    animation: pulse-dot 2s ease-in-out infinite;
+    animation: pulse-dot 2s ease-in-out 3;
 }
 .lcu-nav-dot.visible { display: block; }
 
@@ -965,7 +968,7 @@ body {
 .gameflow-idle        { background: rgba(139,148,158,0.08); border-color: rgba(139,148,158,0.2); color: var(--text-dim); }
 .gameflow-lobby       { background: rgba(88,166,255,0.1);   border-color: rgba(88,166,255,0.25); color: #58a6ff; }
 .gameflow-queue       { background: rgba(88,166,255,0.1);   border-color: rgba(88,166,255,0.25); color: #58a6ff; }
-.gameflow-ready       { background: rgba(10,200,185,0.12);  border-color: rgba(10,200,185,0.35); color: var(--primary); animation: pulse-badge 1s ease infinite; }
+.gameflow-ready       { background: rgba(10,200,185,0.12);  border-color: rgba(10,200,185,0.35); color: var(--primary); animation: pulse-badge 1s ease 3; }
 .gameflow-champselect { background: rgba(157,77,255,0.1);   border-color: rgba(157,77,255,0.3);  color: #9d4dff; }
 .gameflow-ingame      { background: rgba(80,200,120,0.1);   border-color: rgba(80,200,120,0.3);  color: #50c878; }
 .gameflow-postgame    { background: rgba(139,148,158,0.08); border-color: rgba(139,148,158,0.2); color: var(--text-dim); }
@@ -1474,7 +1477,7 @@ body {
 .danger-btn:hover {
     background: var(--danger) !important;
     color: #fff !important;
-    border-color: var(--danger) !important;
+    border-color: transparent !important;
 }
 
 /* ── Form elements ── */
@@ -1529,10 +1532,9 @@ select.form-control option {
 .form-group select:focus,
 .form-group textarea:focus,
 .form-control:focus {
-    border-color: var(--primary);
+    border-color: var(--border-strong);
     background: rgba(255, 255, 255, 0.08);
     outline: none;
-    box-shadow: 0 0 0 3px rgba(10, 200, 185, 0.12);
 }
 
 .form-row { display: flex; gap: 14px; }
@@ -1573,7 +1575,6 @@ select.form-control option {
 .primary-btn:hover {
     background: var(--primary-hover);
     transform: translateY(-1px);
-    box-shadow: 0 4px 18px rgba(10, 200, 185, 0.3);
 }
 
 .primary-btn:active { transform: translateY(0); }
@@ -1896,7 +1897,6 @@ select.form-control option {
 
 .retry-launch-btn:hover {
     background: rgba(10, 200, 185, 0.2);
-    border-color: var(--primary);
 }
 
 .cancel-launch-btn {
@@ -1914,7 +1914,7 @@ select.form-control option {
 .cancel-launch-btn:hover {
     background: var(--danger);
     color: #fff;
-    border-color: var(--danger);
+    border-color: transparent;
 }
 
 /* ── Toasts ── */
@@ -2088,7 +2088,7 @@ select.form-control option {
     border-radius: 50%;
     background: var(--primary);
     box-shadow: 0 0 7px rgba(10, 200, 185, 0.7);
-    animation: pulse-dot 1.4s ease-in-out infinite;
+    animation: pulse-dot 1.4s ease-in-out 3;
 }
 
 .update-progress-pct {
@@ -2158,7 +2158,6 @@ select.form-control option {
 .update-install-btn:hover {
     background: var(--primary-hover);
     transform: translateY(-1px);
-    box-shadow: 0 6px 22px rgba(10, 200, 185, 0.4);
 }
 
 .update-install-btn:active { transform: translateY(0); }
@@ -2207,7 +2206,7 @@ select.form-control option {
 
 .update-pill:hover {
     transform: translateY(-2px);
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5), 0 0 32px rgba(10, 200, 185, 0.18);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
 }
 
 .update-pill.active { display: flex; }
@@ -2219,7 +2218,7 @@ select.form-control option {
     border-radius: 50%;
     background: var(--primary);
     box-shadow: 0 0 8px rgba(10, 200, 185, 0.8);
-    animation: pulse-dot 1.4s ease-in-out infinite;
+    animation: pulse-dot 1.4s ease-in-out 3;
 }
 
 /* ── Settings rows & toggle switches ── */
@@ -2334,9 +2333,8 @@ select.form-control option {
 }
 
 .auto-accept-switch input:checked + .slider {
-    background: linear-gradient(135deg, var(--primary), #079b8f);
-    border-color: var(--primary);
-    box-shadow: 0 0 18px rgba(10, 200, 185, 0.28);
+    background: var(--primary);
+    border-color: transparent;
 }
 
 .auto-accept-switch input:checked + .slider::before {
@@ -2965,7 +2963,7 @@ select.form-control option {
     outline: none;
     transition: border-color 0.2s;
 }
-.vault-lock-input:focus { border-color: var(--primary); }
+.vault-lock-input:focus { border-color: var(--border-strong); }
 .vault-lock-btn {
     background: var(--primary);
     color: #000;
@@ -3022,8 +3020,8 @@ select.form-control option {
     flex-shrink: 0;
 }
 .ov-ctx-dot.lobby   { background: #5865f2; box-shadow: 0 0 6px #5865f2; }
-.ov-ctx-dot.queue   { background: #faa61a; box-shadow: 0 0 6px #faa61a; animation: pulse-dot 1.5s ease-in-out infinite; }
-.ov-ctx-dot.game    { background: var(--primary); box-shadow: 0 0 6px var(--primary); animation: pulse-dot 2s ease-in-out infinite; }
+.ov-ctx-dot.queue   { background: #faa61a; animation: pulse-dot 1.5s ease-in-out 3; }
+.ov-ctx-dot.game    { background: var(--primary); animation: pulse-dot 2s ease-in-out 3; }
 .ov-ctx-title { font-size: 13px; font-weight: 700; color: #fff; flex: 1; }
 .ov-ctx-timer { font-size: 13px; font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; }
 .ov-ctx-sub   { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
@@ -3240,7 +3238,7 @@ select.form-control option {
     outline: none;
     transition: border-color 0.2s;
 }
-.champ-search-input:focus { border-color: var(--primary); }
+.champ-search-input:focus { border-color: var(--border-strong); }
 .champ-search-clear-sel {
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.1);
@@ -3253,7 +3251,7 @@ select.form-control option {
     flex-shrink: 0;
     transition: color 0.15s, background 0.15s;
 }
-.champ-search-clear-sel:hover { background: rgba(209,54,57,0.15); color: var(--danger); border-color: var(--danger); }
+.champ-search-clear-sel:hover { background: rgba(209,54,57,0.15); color: var(--danger); }
 .champ-search-grid {
     flex: 1;
     overflow-y: auto;
@@ -3276,7 +3274,7 @@ select.form-control option {
     text-align: center;
 }
 .champ-search-item:hover { background: rgba(255,255,255,0.07); }
-.champ-search-item.selected { background: rgba(10,200,185,0.12); border-color: var(--primary); }
+.champ-search-item.selected { background: var(--bg-active); }
 .champ-search-item img {
     width: 52px;
     height: 52px;
@@ -3318,9 +3316,9 @@ select.form-control option {
 }
 .stats-tab:hover { background: var(--card-hover); color: var(--text-main); }
 .stats-tab.active {
-    background: rgba(10,200,185,0.12);
-    border-color: var(--primary);
-    color: var(--primary);
+    background: var(--bg-active);
+    color: var(--text-main);
+    font-weight: 700;
 }
 
 .stats-tab-panel { display: none; flex: 1; min-height: 0; }
@@ -3387,7 +3385,7 @@ select.form-control option {
     text-align: center;
 }
 .stats-grid-item:hover { background: rgba(255,255,255,0.07); transform: translateY(-1px); }
-.stats-grid-item.selected { background: rgba(10,200,185,0.12); border-color: var(--primary); }
+.stats-grid-item.selected { background: var(--bg-active); }
 .stats-grid-item img {
     width: 44px;
     height: 44px;
@@ -3397,7 +3395,6 @@ select.form-control option {
     background: #111;
     transition: box-shadow 0.12s;
 }
-.stats-grid-item.selected img { box-shadow: 0 0 0 2px var(--primary); }
 .stats-grid-item span {
     font-size: 9px;
     color: #ccc;
@@ -3568,7 +3565,7 @@ select.form-control option {
 .level-slider-row input[type="range"]::-webkit-slider-thumb:hover,
 .level-slider-row input[type="range"]:active::-webkit-slider-thumb {
     transform: scale(1.15);
-    box-shadow: 0 0 0 5px rgba(10,200,185,0.25);
+    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.12);
 }
 .level-slider-row input[type="range"]::-moz-range-track {
     height: 6px;
@@ -3592,7 +3589,7 @@ select.form-control option {
 }
 .level-slider-row input[type="range"]::-moz-range-thumb:hover {
     transform: scale(1.15);
-    box-shadow: 0 0 0 5px rgba(10,200,185,0.25);
+    box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.12);
 }
 .level-slider-val {
     min-width: 32px;
@@ -3818,18 +3815,18 @@ select.form-control option {
 }
 .checkbox-group input[type="checkbox"]:checked {
     background: var(--primary);
-    border-color: var(--primary);
+    border-color: transparent;
 }
 .checkbox-group input[type="checkbox"]:checked::after { transform: translateY(-1px) rotate(-45deg) scale(1); }
-.checkbox-group input[type="checkbox"]:focus-visible { box-shadow: 0 0 0 3px rgba(10, 200, 185, 0.25); outline: none; }
+.checkbox-group input[type="checkbox"]:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .checkbox-group input[type="checkbox"]:disabled { cursor: not-allowed; }
 .checkbox-group:hover input[type="checkbox"]:not(:disabled):not(:checked) { border-color: rgba(255, 255, 255, 0.32); }
 
 /* ── Quick add (account form) ── */
 .quick-add {
     grid-column: 1 / -1;
-    background: linear-gradient(135deg, rgba(10, 200, 185, 0.07), rgba(10, 200, 185, 0.015) 60%);
-    border: 1px solid rgba(10, 200, 185, 0.18);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
     border-radius: 16px;
     padding: 16px 18px;
 }
@@ -3860,7 +3857,7 @@ select.form-control option {
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
 }
-.quick-add-client-btn:hover:not(:disabled) { background: rgba(10, 200, 185, 0.12); border-color: rgba(10, 200, 185, 0.4); }
+.quick-add-client-btn:hover:not(:disabled) { background: var(--bg-active); border-color: var(--border-strong); }
 .quick-add-client-btn:disabled { opacity: 0.5; cursor: wait; }
 .quick-add-client-btn i { color: var(--primary); margin-right: 4px; }
 .quick-add-row { display: flex; gap: 10px; }
@@ -3888,8 +3885,7 @@ select.form-control option {
 .quick-add-input-wrap input::placeholder { color: var(--text-dim); opacity: 0.6; }
 .quick-add-input-wrap input:focus {
     outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(10, 200, 185, 0.12);
+    border-color: var(--border-strong);
 }
 .quick-add-region.form-control { width: 108px; flex-shrink: 0; background-color: rgba(0, 0, 0, 0.25); }
 .quick-add-btn { min-width: 84px; padding: 11px 18px; }
@@ -3931,3 +3927,27 @@ select.form-control option {
 .qa-wr { margin-left: 8px; font-weight: 500; opacity: 0.8; }
 .qa-champs { margin: 0; }
 .qa-filled { color: var(--primary); font-size: 12px; font-weight: 600; white-space: nowrap; }
+
+/* Fields reset outline on :focus above; give keyboard focus the neutral ring back. */
+.form-group input:focus-visible,
+.form-group select:focus-visible,
+.form-group textarea:focus-visible,
+.form-control:focus-visible,
+.search-input:focus-visible,
+.sort-select:focus-visible,
+.vault-lock-input:focus-visible,
+.champ-search-input:focus-visible,
+.quick-add-input-wrap input:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+}
+
+/* Reduced motion: no looping or sliding animations, instant transitions. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
