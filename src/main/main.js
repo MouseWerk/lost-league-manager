@@ -57,9 +57,9 @@ app.whenReady().then(async () => {
         console.error('[Boot] Failed to load/migrate account data:', e.message);
         dialog.showErrorBox('Lost League Manager',
             `Failed to read your saved accounts/settings:\n${e.message}\n\n` +
-            'The app will still start, but your data may not load or save correctly ' +
-            'until this is resolved (check that accounts.json/config.json aren\'t locked ' +
-            'by another program).');
+            'The app will still start. If a file was damaged, a copy of it was kept next to it ' +
+            '(named above); otherwise check that accounts.json/config.json are not locked by ' +
+            'another program, such as antivirus or OneDrive.');
     }
 
     // Heal a stale/wrong lolPath (moved drive, reinstalled, first run) before

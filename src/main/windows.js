@@ -28,6 +28,9 @@ function createMainWindow() {
             preload: path.join(__dirname, '../preload/preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
+            // No DevTools in installed builds: its console can call every
+            // exposed IPC method, the vault gate in main notwithstanding.
+            devTools: !app.isPackaged,
         },
     });
 
@@ -74,6 +77,7 @@ function createOverlayWindow(owOverlay) {
             preload: path.join(__dirname, '../preload/overlay-preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
+            devTools: !app.isPackaged,
         },
     };
 

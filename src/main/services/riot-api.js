@@ -1,17 +1,8 @@
 const axios = require('axios');
-const state = require('../state');
 const championData = require('./champion-data');
 
-// The key is kept encrypted (safeStorage) by ./secrets. Older builds without
-// that module keep it in config, so fall back to that.
-let readStoredKey;
-try {
-    readStoredKey = require('./secrets').getRiotApiKey;
-    if (typeof readStoredKey !== 'function') throw new Error('secrets.getRiotApiKey missing');
-} catch (e) {
-    if (e.code !== 'MODULE_NOT_FOUND') console.error('[RiotAPI] secrets module failed to load:', e.message);
-    readStoredKey = () => state.config.riotApiKey;
-}
+// The key is kept encrypted (safeStorage) by ./secrets.
+const { getRiotApiKey: readStoredKey } = require('./secrets');
 
 // Every key read goes through module.exports.getApiKey so callers (and tests)
 // see one source of truth.
