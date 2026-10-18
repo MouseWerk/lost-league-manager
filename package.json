@@ -5,7 +5,8 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "ow-electron .",
-    "build": "ow-electron-builder"
+    "build": "ow-electron-builder",
+    "test": "node --test \"test/**/*.test.js\""
   },
   "author": "Lostgames",
   "license": "ISC",
@@ -36,6 +37,12 @@
     "directories": {
       "output": "dist"
     },
+    "files": [
+      "**/*",
+      "!test/**",
+      "!docs/**",
+      "!CLAUDE.md"
+    ],
     "extraResources": [
       "resources/**"
     ],
