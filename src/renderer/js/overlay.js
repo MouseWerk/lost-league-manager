@@ -1,3 +1,12 @@
+// Images that fail to load fall back to the logo or hide themselves, per their
+// data-fallback attribute. Inline onerror handlers are blocked by the CSP.
+document.addEventListener('error', (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.dataset.fallback) return;
+    if (img.dataset.fallback === 'hide') img.style.display = 'none';
+    else if (!img.src.endsWith('assets/logo.png')) img.src = 'assets/logo.png';
+}, true);
+
 // ── State ────────────────────────────────────────────────────────────────────
 let kills = 0, deaths = 0, assists = 0;
 let cs = 0, gold = 0, level = 1;
@@ -310,7 +319,7 @@ function renderBuildPanel() {
 
     ovBuildsContent.innerHTML = `
         <div class="ov-build-header">
-            <img class="ov-build-champ-icon" src="${champIcon}" onerror="this.src='assets/logo.png'">
+            <img class="ov-build-champ-icon" src="${champIcon}" data-fallback="logo">
             <span class="ov-build-champ-name">${escHtml(myChampKey)}</span>
             <span class="ov-build-mode">${escHtml(modeLabel)}</span>
             <span class="ov-build-source">op.gg</span>
@@ -321,7 +330,7 @@ function renderBuildPanel() {
 
 function buildRow(label, ids, isBoot) {
     const imgs = ids.map(id =>
-        `<img class="ov-build-item${isBoot ? ' ov-build-item--boot' : ''}" src="${itemIconUrl(id)}" data-tooltip="${id}" onerror="this.style.display='none'">`
+        `<img class="ov-build-item${isBoot ? ' ov-build-item--boot' : ''}" src="${itemIconUrl(id)}" data-tooltip="${id}" data-fallback="hide">`
     ).join('');
     return `<div class="ov-build-row"><span class="ov-build-label">${label}</span><div class="ov-build-items">${imgs}</div></div>`;
 }
@@ -373,7 +382,7 @@ function buildTeamCol(players, isBlue) {
         const wr    = rd?.ratio || '—';
 
         html += `<div class="ov-rp-row${isMe ? ' is-me' : ''}${dead ? ' is-dead' : ''}">
-            <img class="ov-rp-icon" src="${icon}" onerror="this.src='assets/logo.png'">
+            <img class="ov-rp-icon" src="${icon}" data-fallback="logo">
             <span class="ov-rp-name">${name}</span>
             <span class="ov-rp-badge ${cls}">${abbr}</span>
             <span class="ov-rp-wr">${wr}</span>

@@ -110,6 +110,19 @@ function escapeHtml(str) {
   );
 }
 
+// Images that fail to load fall back to the logo or hide themselves, per their
+// data-fallback attribute. Inline onerror handlers are blocked by the CSP.
+document.addEventListener(
+  "error",
+  (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.dataset.fallback) return;
+    if (img.dataset.fallback === "hide") img.style.display = "none";
+    else if (!img.src.endsWith("assets/logo.png")) img.src = "assets/logo.png";
+  },
+  true,
+);
+
 // Rank tier → numeric for sorting
 const TIER_ORDER = {
   challenger: 10,
@@ -716,7 +729,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ? "Dodging ranked will cost LP (−3 first dodge, −10 second in 16 hours) and apply a queue cooldown."
       : "Dodging will apply a queue cooldown (5 min first, 30 min second in 16 hours).";
     if (info.hasActivePenalty && info.penaltyMinutesRemaining) {
-      warningMsg += `\n\n⚠ You already have an active dodge penalty (${info.penaltyMinutesRemaining} min remaining) — this will extend it.`;
+      warningMsg += `\n\nNote: you already have an active dodge penalty (${info.penaltyMinutesRemaining} min remaining) — this will extend it.`;
     }
     const ok = await showConfirm("Dodge Queue?", warningMsg, "danger");
     if (!ok) return;
@@ -1189,8 +1202,11 @@ function renderAccounts() {
     empty.innerHTML = `
             <div class="empty-icon"><i class="fas fa-folder-open"></i></div>
             <p>No accounts added yet.</p>
-            <button class="primary-btn" onclick="document.getElementById('addAccountBtn').click()">Add Your First Account</button>
+            <button class="primary-btn empty-add-btn">Add Your First Account</button>
         `;
+    empty
+      .querySelector(".empty-add-btn")
+      .addEventListener("click", () => openModal());
     listEl.appendChild(empty);
     return;
   }
@@ -1328,18 +1344,31 @@ function formatMasteryPoints(n) {
 
 // ── Profile Modal ─────────────────────────────────────────────────────────────
 
-const TIER_EMBLEMS = {
-  iron: "🩶",
-  bronze: "🟤",
-  silver: "⚪",
-  gold: "🟡",
-  platinum: "🩵",
-  emerald: "🟢",
-  diamond: "💎",
-  master: "💜",
-  grandmaster: "🔴",
-  challenger: "🏆",
+// Tier → Font Awesome icon, colored by the matching .rank-<tier> class.
+const TIER_ICONS = {
+  iron: "fa-shield-halved",
+  bronze: "fa-shield-halved",
+  silver: "fa-shield-halved",
+  gold: "fa-shield-halved",
+  platinum: "fa-shield-halved",
+  emerald: "fa-shield-halved",
+  diamond: "fa-gem",
+  master: "fa-crown",
+  grandmaster: "fa-crown",
+  challenger: "fa-trophy",
 };
+
+function setTierEmblem(el, tier, fallback = "—") {
+  const t = (tier || "").toLowerCase().split(" ")[0];
+  const icon = TIER_ICONS[t];
+  if (!icon) {
+    el.textContent = fallback;
+    el.removeAttribute("aria-label");
+    return;
+  }
+  el.innerHTML = `<i class="fas ${icon} rank-${t}" aria-hidden="true"></i>`;
+  el.setAttribute("aria-label", t);
+}
 
 let _profileUsername = null;
 
@@ -1354,14 +1383,13 @@ function fillProfileRank(
   winLose,
   ratio,
 ) {
-  const t = (tier || "Unranked").toLowerCase().split(" ")[0];
   tierEl.textContent = tier || "Unranked";
   tierEl.className = `profile-rank-tier ${tierCls(tier)}`;
   lpEl.textContent = lp || "";
   recordEl.textContent = winLose
     ? `${winLose}${ratio ? "  ·  " + ratio : ""}`
     : "";
-  emblemEl.textContent = TIER_EMBLEMS[t] || "—";
+  setTierEmblem(emblemEl, tier);
 }
 
 function populateProfileModal(acc, stats) {
@@ -2507,7 +2535,7 @@ async function loadLiveView() {
   // Honor badge
   const honorBadge = document.getElementById("ovHonorBadge");
   if (honor?.honorLevel > 0) {
-    honorBadge.textContent = `⭐ Honor ${honor.honorLevel}`;
+    honorBadge.innerHTML = `<i class="fas fa-star" aria-hidden="true"></i> Honor ${escapeHtml(honor.honorLevel)}`;
     honorBadge.style.display = "";
   } else {
     honorBadge.style.display = "none";
@@ -2567,8 +2595,7 @@ async function loadLiveView() {
     if (lpEl) lpEl.textContent = lpStr;
     if (barEl) barEl.style.width = isApex ? "100%" : `${Math.min(rawLp, 100)}%`;
     if (recEl) recEl.textContent = `${w}W / ${l}L${wr}`;
-    if (emblemEl)
-      emblemEl.textContent = TIER_EMBLEMS[qd.tier.toLowerCase()] || "?";
+    if (emblemEl) setTierEmblem(emblemEl, qd.tier, "?");
     if (primary) {
       primary.textContent = `${tierStr} · ${lpStr}`;
       primary.className = `summoner-banner-rank ${cls}`;
@@ -2698,7 +2725,7 @@ async function loadLiveView() {
       const card = document.createElement("div");
       card.className = "mastery-card";
       card.innerHTML = `
-                <img class="mastery-champ-icon" src="${iconSrc}" onerror="this.src='assets/logo.png'">
+                <img class="mastery-champ-icon" src="${iconSrc}" data-fallback="logo">
                 <div class="mastery-champ-name">${champKey || "Unknown"}</div>
                 <div class="mastery-level-badge ${lvCls}">M${lv}</div>
                 <div class="mastery-pts">${pts}</div>
@@ -2781,7 +2808,7 @@ async function loadLiveView() {
       const itemsHtml = itemSlots
         .map((id) =>
           id
-            ? `<img class="match-item-icon" src="https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/item/${id}.png" onerror="this.style.display='none'">`
+            ? `<img class="match-item-icon" src="https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/item/${id}.png" data-fallback="hide">`
             : `<span class="match-item-icon empty"></span>`,
         )
         .join("");
@@ -2805,7 +2832,7 @@ async function loadLiveView() {
       const item = document.createElement("div");
       item.className = `match-item ${win ? "win" : "loss"}`;
       item.innerHTML = `
-                <img class="match-champ-icon" src="${champSrc}" onerror="this.src='assets/logo.png'">
+                <img class="match-champ-icon" src="${champSrc}" data-fallback="logo">
                 <span class="match-result-badge">${win ? "WIN" : "LOSS"}</span>
                 <div class="match-main">
                     <div class="match-kda-row">
@@ -3083,7 +3110,7 @@ function renderStatsChampDetail() {
   const detail = document.getElementById("statsChampDetail");
   detail.innerHTML = `
         <div class="champ-detail-header">
-            <img class="champ-detail-icon" src="${champ.iconUrl}" onerror="this.style.display='none'">
+            <img class="champ-detail-icon" src="${champ.iconUrl}" data-fallback="hide">
             <div class="champ-detail-info">
                 <div class="champ-detail-name">${champ.name}</div>
                 <div class="champ-detail-title">${title || ""}</div>
@@ -3223,7 +3250,7 @@ function selectStatsItem(item) {
 
   detail.innerHTML = `
         <div class="item-detail-header">
-            <img class="item-detail-icon" src="${item.icon}" onerror="this.style.display='none'">
+            <img class="item-detail-icon" src="${item.icon}" data-fallback="hide">
             <div class="item-detail-info">
                 <div class="item-detail-name">${item.name}</div>
                 <div class="item-gold-row">
