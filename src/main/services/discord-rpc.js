@@ -60,12 +60,13 @@ function connect() {
     client.on('ready', () => {
         connecting = false;
         console.log('[DiscordRPC] Connected as', client.user?.username ?? 'unknown user');
-        if (lastDetails) applyActivity(lastDetails);
+        if (lastDetails) applyActivity(lastDetails, { force: true });
     });
 
     client.on('disconnected', () => {
         connecting = false;
         console.log('[DiscordRPC] Disconnected, will retry');
+        appliedDetails = null;
         scheduleRetry();
     });
 
@@ -77,9 +78,14 @@ function connect() {
     });
 }
 
-function applyActivity(details) {
+let appliedDetails = null;
+
+function applyActivity(details, { force = false } = {}) {
     lastDetails = details;
     if (!isEnabled() || !client?.isConnected || !client.user) return;
+    // Re-sending the same status would reset its "elapsed" timer.
+    if (!force && details === appliedDetails) return;
+    appliedDetails = details;
     client.user.setActivity({
         details,
         startTimestamp: Date.now(),
@@ -113,6 +119,7 @@ function shutdown() {
     const toDestroy = client;
     client = null;
     lastDetails = null;
+    appliedDetails = null;
     if (toDestroy) toDestroy.destroy().catch(() => {});
 }
 

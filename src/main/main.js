@@ -63,12 +63,11 @@ app.whenReady().then(async () => {
         saveConfig();
     }
 
-    try {
-        await fetchChampionData();
-    } catch (e) {
-        console.error('[Boot] fetchChampionData failed:', e.message);
-    }
-    fetchItemData(); // non-blocking: item list populates shortly after startup
+    // Non-blocking: the window shows immediately instead of waiting on Data
+    // Dragon. Handlers that need the champion maps await championData.whenReady().
+    fetchChampionData()
+        .catch(e => console.error('[Boot] fetchChampionData failed:', e.message))
+        .then(() => fetchItemData());
 
     try {
         windows.createMainWindow();

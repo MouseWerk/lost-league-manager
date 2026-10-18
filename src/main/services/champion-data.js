@@ -2,19 +2,30 @@ const axios = require('axios');
 
 let championMap  = {};   // name.toLowerCase() → champId (int)
 let idToNameMap  = {};   // champId (int)  → DDragon key string  (e.g. "Ahri")
+let championIdByKey = {}; // DDragon key → champId (int)
 let idToImageMap = {};   // DDragon key    → champion icon URL
 let champList    = [];   // { id, name, key, iconUrl } sorted by name — for the UI picker
 let champFullData = {};  // DDragon key    → { title, tags, partype, info, stats }
 let latestVersion = '14.1.1';
 
+// Resolves once the first fetch attempt sequence finishes (success or not), so
+// callers that need the maps can wait for them without the app boot blocking
+// on Data Dragon before the window is even shown.
+let resolveReady;
+const ready = new Promise(r => { resolveReady = r; });
+function whenReady(timeoutMs = 15000) {
+    return Promise.race([ready, new Promise(r => setTimeout(r, timeoutMs))]);
+}
+
 async function fetchChampionData(attempt = 0) {
     const MAX_ATTEMPTS = 3;
     try {
-        const ver = await axios.get('https://ddragon.leagueoflegends.com/api/versions.json');
+        const ver = await axios.get('https://ddragon.leagueoflegends.com/api/versions.json', { timeout: 10000 });
         latestVersion = ver.data[0];
 
         const res  = await axios.get(
-            `https://ddragon.leagueoflegends.com/cdn/${latestVersion}/data/en_US/champion.json`
+            `https://ddragon.leagueoflegends.com/cdn/${latestVersion}/data/en_US/champion.json`,
+            { timeout: 15000 }
         );
         const data = res.data.data;
 
@@ -27,6 +38,7 @@ async function fetchChampionData(attempt = 0) {
             championMap[champ.name.toLowerCase()] = id;
             idToImageMap[champ.id] = iconUrl;
             idToNameMap[id] = champ.id;
+            championIdByKey[champ.id] = id;
             champList.push({ id, name: champ.name, key: champ.id, iconUrl });
             champFullData[champ.id] = {
                 name: champ.name,
@@ -40,6 +52,7 @@ async function fetchChampionData(attempt = 0) {
         champList.sort((a, b) => a.name.localeCompare(b.name));
 
         console.log(`[DDragon] Loaded ${Object.keys(championMap).length} champions (v${latestVersion})`);
+        resolveReady();
     } catch (e) {
         console.error(`[DDragon] Attempt ${attempt + 1}/${MAX_ATTEMPTS} failed: ${e.message}`);
         if (attempt < MAX_ATTEMPTS - 1) {
@@ -47,12 +60,12 @@ async function fetchChampionData(attempt = 0) {
             return fetchChampionData(attempt + 1);
         }
         console.warn('[DDragon] All attempts failed, overlay will use fallback version:', latestVersion);
+        resolveReady();
     }
 }
 
 function getChampionIdByKey(champKey) {
-    const entry = Object.entries(idToNameMap).find(([, k]) => k === champKey);
-    return entry ? parseInt(entry[0]) : null;
+    return championIdByKey[champKey] ?? null;
 }
 
 // Display name (lowercase) → authoritative DDragon key, e.g. "wukong" → "MonkeyKing",
@@ -68,6 +81,7 @@ function getNameToKeyMap() {
 
 module.exports = {
     fetchChampionData,
+    whenReady,
     getChampionMap:    () => championMap,
     getIdToNameMap:    () => idToNameMap,
     getIdToImageMap:   () => idToImageMap,

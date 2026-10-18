@@ -14,15 +14,21 @@ function fromInstallsJson() {
         if (!fs.existsSync(INSTALLS_JSON_PATH)) return null;
         const data = JSON.parse(fs.readFileSync(INSTALLS_JSON_PATH, 'utf8'));
 
+        const candidates = [];
         const leagueKeys = Object.keys(data).filter(k => k.startsWith('league_of_legends'));
-        if (leagueKeys.length === 0) return null;
         const key = leagueKeys.find(k => k.endsWith('.live')) || leagueKeys[0];
+        if (key && data[key]) candidates.push(data[key]);
+        // Current Riot Client versions only list League's folder as a key of
+        // associated_client (League dir → Riot Client exe).
+        for (const dir of Object.keys(data.associated_client || {})) {
+            if (/league of legends/i.test(dir)) candidates.push(dir);
+        }
 
-        const installDir = data[key];
-        if (!installDir) return null;
-
-        const exePath = path.join(installDir, 'LeagueClient.exe');
-        return fs.existsSync(exePath) ? exePath : null;
+        for (const installDir of candidates) {
+            const exePath = path.join(installDir, 'LeagueClient.exe');
+            if (fs.existsSync(exePath)) return exePath;
+        }
+        return null;
     } catch {
         return null;
     }

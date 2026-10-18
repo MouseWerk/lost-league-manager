@@ -119,8 +119,12 @@ function initOverwolf() {
             // overlay feature disabled — createOverlayWindow skipped
 
             try {
-                owOverlay.registerGames({ gameIds: [state.LOL_GEP_GAME_ID, state.LOL_OVERLAY_CLASS_ID] });
-                console.log('[Overlay] registerGames done for LoL');
+                // registerGames returns a promise — an un-awaited rejection here (e.g.
+                // 'game service utility error' on machines without the OW game
+                // service) surfaced as an UnhandledPromiseRejection on every boot.
+                Promise.resolve(owOverlay.registerGames({ gameIds: [state.LOL_GEP_GAME_ID, state.LOL_OVERLAY_CLASS_ID] }))
+                    .then(() => console.log('[Overlay] registerGames done for LoL'))
+                    .catch(err => console.warn('[Overlay] registerGames failed:', err?.message || err));
             } catch (err) {
                 console.error('[Overlay] registerGames failed:', err.message);
             }

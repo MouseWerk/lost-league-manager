@@ -14,9 +14,25 @@ function send(channel, ...args) {
     }
 }
 
+// Riot's own record of where the Riot Client lives (written by its installer),
+// so non-standard installs (Steam library, custom drives) are found reliably.
+function riotClientFromInstallsJson() {
+    try {
+        const file = path.join(process.env.ProgramData || 'C:\\ProgramData', 'Riot Games', 'RiotClientInstalls.json');
+        const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+        const leagueDir = path.dirname(state.config.lolPath || '').replace(/\\/g, '/').toLowerCase();
+        const associated = Object.entries(data.associated_client || {})
+            .find(([dir]) => dir.replace(/\/$/, '').toLowerCase() === leagueDir)?.[1];
+        return [associated, data.rc_live, data.rc_default].filter(Boolean).map(p => path.normalize(p));
+    } catch {
+        return [];
+    }
+}
+
 function discoverRiotClientPath() {
     const base = path.dirname(path.dirname(state.config.lolPath));
     const candidates = [
+        ...riotClientFromInstallsJson(),
         path.join(base, 'Riot Client', 'RiotClientServices.exe'),
         'C:\\Riot Games\\Riot Client\\RiotClientServices.exe',
         'D:\\Riot Games\\Riot Client\\RiotClientServices.exe',
@@ -42,9 +58,8 @@ async function executeAccountLaunch(username) {
     };
     send('launch-account-info', accountMeta);
 
-    if (account.minimizeOnLaunch && state.mainWindow) state.mainWindow.hide();
-    send('login-status', { message: 'Preparing...', progress: 5 });
-
+    // Checked before hiding the window — with minimizeOnLaunch on, failing
+    // after the hide left the user with no visible window or error.
     const password = decrypt(account.password);
     if (!password) {
         // Usually means this password was encrypted under a key tied to
@@ -53,6 +68,9 @@ async function executeAccountLaunch(username) {
         // password re-encrypts it under the current key.
         return { success: false, message: 'Saved password could not be read (often after a Windows update) — edit this account and re-enter its password, then try again' };
     }
+
+    if (account.minimizeOnLaunch && state.mainWindow) state.mainWindow.hide();
+    send('login-status', { message: 'Preparing...', progress: 5 });
 
     // Kill any in-progress login before overwriting state
     const oldChild = state.currentAccount?.loginChild;

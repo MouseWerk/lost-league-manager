@@ -228,17 +228,18 @@ function register() {
         kr: 'kr',
         jp: 'jp', jp1: 'jp',
         br: 'br', br1: 'br',
-        las: 'las', la1: 'las',
-        lan: 'lan', la2: 'lan',
+        las: 'las', la2: 'las',
+        lan: 'lan', la1: 'lan',
         oce: 'oce', oc1: 'oce',
         tr: 'tr', tr1: 'tr',
         ru: 'ru',
         sea: 'sg',
-        ph: 'sg', ph2: 'sg',
+        ph: 'ph', ph2: 'ph',
         sg: 'sg', sg2: 'sg',
-        th: 'sg', th2: 'sg',
-        tw: 'sg', tw2: 'sg',
-        vn: 'sg', vn2: 'sg',
+        th: 'th', th2: 'th',
+        tw: 'tw', tw2: 'tw',
+        vn: 'vn', vn2: 'vn',
+        me: 'me', me1: 'me',
     };
     // Builds the op.gg URL itself here rather than trusting a URL string from
     // the renderer — region and riotId are validated/encoded, so the result
@@ -259,8 +260,9 @@ function register() {
         if (action === 'minimize') state.mainWindow.minimize();
     });
 
-    ipcMain.handle('get-champion-list', () => {
-        const { getChampionList } = require('../services/champion-data');
+    ipcMain.handle('get-champion-list', async () => {
+        const { getChampionList, whenReady } = require('../services/champion-data');
+        await whenReady();
         return getChampionList();
     });
 

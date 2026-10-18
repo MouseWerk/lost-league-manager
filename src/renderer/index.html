@@ -537,13 +537,9 @@
                     <div class="setting-card">
                         <div class="setting-icon"><i class="fas fa-key"></i></div>
                         <div class="setting-info">
-                            <h3>Riot API Key</h3>
-                            <p class="desc">Used as a fallback for ranked stats when the League client is not running.</p>
-                            <div id="riotApiKeyNotice" class="api-key-notice">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                No API key set — ranked stats only work while the League client is open.
-                                Get a free key at <strong>developer.riotgames.com</strong>.
-                            </div>
+                            <h3>Riot API Key <span style="opacity:0.5;font-size:12px;font-weight:500">(optional)</span></h3>
+                            <p class="desc">Ranked stats, match history and Quick add work without a key via OP.GG. A personal key adds mastery points and is tried first when set.</p>
+                            <div id="riotApiKeyNotice" class="api-key-notice" style="display:none"></div>
                             <div class="setting-row" style="border-bottom:none;padding-bottom:0;gap:10px">
                                 <input type="password" id="riotApiKeyInput" class="form-control api-key-input"
                                     placeholder="RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
@@ -619,6 +615,30 @@
                 </div>
 
                 <div class="account-form-body">
+                    <!-- Quick add: look the summoner up on OP.GG / Riot API and fill the form -->
+                    <div class="quick-add" id="quickAdd">
+                        <div class="quick-add-head">
+                            <div>
+                                <div class="quick-add-title"><i class="fas fa-bolt"></i> <span id="quickAddTitle">Quick add</span></div>
+                                <div class="quick-add-sub">Paste a Riot ID or OP.GG link. Rank, icon, region and label fill in automatically.</div>
+                            </div>
+                            <button type="button" class="quick-add-client-btn" id="quickAddClientBtn" style="display:none"
+                                    data-tooltip="Use the account signed into the running League client">
+                                <i class="fas fa-desktop"></i> From League client
+                            </button>
+                        </div>
+                        <div class="quick-add-row">
+                            <div class="quick-add-input-wrap">
+                                <i class="fas fa-search"></i>
+                                <input type="text" id="quickAddInput" spellcheck="false" autocomplete="off"
+                                       placeholder="Name#TAG  or  op.gg/lol/summoners/euw/Name-TAG">
+                            </div>
+                            <select id="quickAddRegion" class="form-control quick-add-region" aria-label="Region"></select>
+                            <button type="button" class="primary-btn quick-add-btn" id="quickAddBtn">Find</button>
+                        </div>
+                        <div class="quick-add-result" id="quickAddResult"></div>
+                    </div>
+
                     <!-- Left column: credentials -->
                     <div class="account-form-section">
                         <div class="acct-section-title">Account Info</div>
@@ -627,7 +647,7 @@
                             <input type="text" id="newUsername">
                         </div>
                         <div class="form-group">
-                            <label>Password <span style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to keep)</span></label>
+                            <label>Password <span id="passwordKeepHint" style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to keep)</span></label>
                             <input type="password" id="newPassword">
                         </div>
                         <div class="form-group">
@@ -637,22 +657,8 @@
                         <div class="form-row">
                             <div class="form-group half">
                                 <label>Region</label>
-                                <select id="newRegion">
-                                    <option value="" disabled>Select region…</option>
-                                    <option value="euw">EUW</option>
-                                    <option value="eune">EUNE</option>
-                                    <option value="na">NA</option>
-                                    <option value="kr">KR</option>
-                                    <option value="jp">JP</option>
-                                    <option value="cn">CN</option>
-                                    <option value="br">BR</option>
-                                    <option value="tr">TR</option>
-                                    <option value="ru">RU</option>
-                                    <option value="lan">LAN</option>
-                                    <option value="las">LAS</option>
-                                    <option value="oce">OCE</option>
-                                    <option value="sea">SEA</option>
-                                </select>
+                                <!-- Options come from REGIONS in app.js -->
+                                <select id="newRegion"></select>
                             </div>
                             <div class="form-group half">
                                 <label>Label</label>
