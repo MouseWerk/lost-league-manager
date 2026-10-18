@@ -17,7 +17,40 @@ function whenReady(timeoutMs = 15000) {
     return Promise.race([ready, new Promise(r => setTimeout(r, timeoutMs))]);
 }
 
-async function fetchChampionData(attempt = 0) {
+// True once real Data Dragon data is in (not the fallback version).
+let loaded = false;
+let loadedListeners = [];
+function onLoaded(fn) {
+    if (loaded) fn();
+    else loadedListeners.push(fn);
+}
+
+// After a failed boot fetch (offline start), keep trying in the background:
+// 1 minute, doubling up to 10 minutes.
+const RETRY_FIRST_MS = 60 * 1000;
+const RETRY_MAX_MS = 10 * 60 * 1000;
+let retryDelayMs = RETRY_FIRST_MS;
+let retryTimer = null;
+let running = null;
+
+function fetchChampionData() {
+    if (loaded) return Promise.resolve();
+    if (!running) running = fetchAttempts(0).finally(() => { running = null; });
+    return running;
+}
+
+function scheduleRetry() {
+    if (retryTimer || loaded) return;
+    console.warn(`[DDragon] Retrying in ${Math.round(retryDelayMs / 1000)}s`);
+    retryTimer = setTimeout(() => {
+        retryTimer = null;
+        fetchChampionData();
+    }, retryDelayMs);
+    retryTimer.unref?.();
+    retryDelayMs = Math.min(retryDelayMs * 2, RETRY_MAX_MS);
+}
+
+async function fetchAttempts(attempt) {
     const MAX_ATTEMPTS = 3;
     try {
         const ver = await axios.get('https://ddragon.leagueoflegends.com/api/versions.json', { timeout: 10000 });
@@ -52,15 +85,22 @@ async function fetchChampionData(attempt = 0) {
         champList.sort((a, b) => a.name.localeCompare(b.name));
 
         console.log(`[DDragon] Loaded ${Object.keys(championMap).length} champions (v${latestVersion})`);
+        loaded = true;
         resolveReady();
+        const listeners = loadedListeners;
+        loadedListeners = [];
+        for (const fn of listeners) {
+            try { fn(); } catch (err) { console.error('[DDragon] onLoaded listener failed:', err.message); }
+        }
     } catch (e) {
         console.error(`[DDragon] Attempt ${attempt + 1}/${MAX_ATTEMPTS} failed: ${e.message}`);
         if (attempt < MAX_ATTEMPTS - 1) {
             await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
-            return fetchChampionData(attempt + 1);
+            return fetchAttempts(attempt + 1);
         }
-        console.warn('[DDragon] All attempts failed, overlay will use fallback version:', latestVersion);
+        console.warn('[DDragon] All attempts failed, using fallback version for now:', latestVersion);
         resolveReady();
+        scheduleRetry();
     }
 }
 
@@ -82,6 +122,8 @@ function getNameToKeyMap() {
 module.exports = {
     fetchChampionData,
     whenReady,
+    onLoaded,
+    isLoaded:          () => loaded,
     getChampionMap:    () => championMap,
     getIdToNameMap:    () => idToNameMap,
     getIdToImageMap:   () => idToImageMap,
