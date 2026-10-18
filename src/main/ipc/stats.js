@@ -205,7 +205,7 @@ async function getStats(region, riotId, force) {
                 const result = { ...lcuResult, masteryChampions: cached?.masteryChampions || [] };
                 if (cached?.topChampions) result.topChampions = cached.topChampions;
                 saveCachedStats(riotId, region, result);
-                recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp);
+                recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp, 'lcu');
                 return result;
             }
         } catch (e) {
@@ -223,7 +223,8 @@ async function getStats(region, riotId, force) {
         const result = await statsFromOnline(name, tag, region);
         console.log(`[Stats] ${riotId}: ${result.tier} ${result.lp} (${result.source})`);
         saveCachedStats(riotId, region, result);
-        recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp);
+        // The source lets rank history skip OP.GG data that lags a fresher entry.
+        recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp, result.source);
         return result;
     } catch (e) {
         console.error('[Stats] lookup error:', e.message);
