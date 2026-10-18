@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const axios = require('axios');
 const opgg = require('../src/main/services/opgg-api');
 
+test.beforeEach(() => opgg._resetForTests());
+
 // Shape of a real lol_get_summoner_profile response (trimmed), including an
 // escaped slash, nulls, nested constructors and lists.
 const PROFILE_TEXT = [
@@ -100,4 +102,59 @@ test('identical concurrent lookups share one request', async (t) => {
     const post = t.mock.method(axios, 'post', async () => mcpResult(PROFILE_TEXT));
     await Promise.all([opgg.getProfile('Same', 'ONE', 'na'), opgg.getProfile('same', 'one', 'na')]);
     assert.equal(post.mock.callCount(), 1);
+});
+
+test('toOpggRegion: LAS is la2, legacy SEA is SG, every app region is covered', () => {
+    assert.equal(opgg.toOpggRegion('la2'), 'LAS');
+    assert.equal(opgg.toOpggRegion('las'), 'LAS');
+    assert.equal(opgg.toOpggRegion('sea'), 'SG');
+    const appRegions = ['euw', 'eune', 'na', 'kr', 'jp', 'br', 'lan', 'las', 'oce', 'tr', 'ru', 'me', 'vn', 'tw', 'sg', 'ph', 'th', 'sea'];
+    for (const r of appRegions) assert.ok(opgg.toOpggRegion(r), r);
+    assert.equal(opgg.toOpggRegion('pbe'), null);
+});
+
+test('a busy OP.GG gets a readable message and a short break', async (t) => {
+    const post = t.mock.method(axios, 'post', async () => {
+        const err = new Error('Request failed with status code 429');
+        err.response = { status: 429 };
+        throw err;
+    });
+    await assert.rejects(opgg.getProfile('Busy', 'ONE', 'euw'), /OP\.GG is busy, try again in a minute/);
+    await assert.rejects(opgg.getProfile('Busy', 'TWO', 'euw'), /OP\.GG is busy/);
+    assert.equal(post.mock.callCount(), 1);
+});
+
+test('an OP.GG server error also pauses requests', async (t) => {
+    const post = t.mock.method(axios, 'post', async () => {
+        const err = new Error('Request failed with status code 503');
+        err.response = { status: 503 };
+        throw err;
+    });
+    await assert.rejects(opgg.getRecentMatches('Down', 'ONE', 'euw'), /OP\.GG is busy/);
+    await assert.rejects(opgg.getProfile('Down', 'TWO', 'euw'), /OP\.GG is busy/);
+    assert.equal(post.mock.callCount(), 1);
+});
+
+test('the concurrency cap holds while slots are handed over', async (t) => {
+    let active = 0;
+    let peak = 0;
+    let n = 0;
+    const spawned = [];
+    // New lookups arrive at every point of the release sequence.
+    const spawnAfter = async (hops) => {
+        for (let i = 0; i < hops; i++) await null;
+        spawned.push(opgg.getProfile(`Late${n++}`, 'TAG', 'euw'));
+    };
+    t.mock.method(axios, 'post', () => {
+        active++;
+        peak = Math.max(peak, active);
+        return new Promise(r => setImmediate(() => {
+            active--;
+            r(mcpResult(PROFILE_TEXT));
+            if (n < 40) for (let hops = 0; hops < 12; hops++) spawnAfter(hops);
+        }));
+    });
+    await Promise.all(Array.from({ length: 5 }, (_, i) => opgg.getProfile(`First${i}`, 'TAG', 'euw')));
+    while (spawned.length) await spawned.shift();
+    assert.ok(peak <= 4, `peak concurrency was ${peak}`);
 });
