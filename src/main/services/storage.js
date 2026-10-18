@@ -1,6 +1,6 @@
 const path = require('path');
 const state = require('../state');
-const { encrypt, decryptLegacy } = require('./encryption');
+const { encrypt, decrypt, isCurrentEncryption, hasMachineKey } = require('./encryption');
 const { loadJson, saveJson, takeCorruptNotices } = require('./json-store');
 
 function loadAccounts() {
@@ -35,18 +35,24 @@ function saveConfig() {
 function migratePasswords() {
     const accounts = loadAccounts();
     let migrated = 0;
-    for (const acc of accounts) {
-        if (acc.password && !acc.password.startsWith('v2:')) {
-            const plain = decryptLegacy(acc.password);
-            if (plain) {
-                acc.password = encrypt(plain);
-                migrated++;
-            }
+    // Re-encrypt everything that is not stored under the current machine key
+    // while the old key can still be reproduced: unprefixed values (static
+    // key), v2 (wmic-derived; wmic is being removed from Windows) and v3 values
+    // written with the static fallback key while MachineGuid was unreadable.
+    // Without the real machine key nothing is rewritten (it would only move
+    // the data onto the public fallback key); the next start tries again.
+    if (hasMachineKey()) {
+        for (const acc of accounts) {
+            if (!acc.password || isCurrentEncryption(acc.password)) continue;
+            const plain = decrypt(acc.password);
+            if (plain === null) continue;
+            acc.password = encrypt(plain);
+            migrated++;
         }
     }
     if (migrated > 0) {
         saveAccounts(accounts);
-        console.log(`[Auth] Migrated ${migrated} password(s) to machine-bound encryption`);
+        console.log(`[Auth] Re-encrypted ${migrated} password(s) with the machine-bound key`);
     }
 
     // main.js runs this inside its boot try/catch and shows the message in an
