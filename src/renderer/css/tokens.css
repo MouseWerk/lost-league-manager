@@ -100,14 +100,21 @@
     /* Focus, elevation */
     --focus-ring: rgba(23, 34, 52, 0.6);
     --shadow-pop: 0 12px 32px rgba(15, 22, 36, 0.16), 0 2px 6px rgba(15, 22, 36, 0.08);
-    --logo-tile: transparent;
+    /* The logo always sits on white; the ring keeps the tile visible on light grounds. */
+    --logo-tile: #FFFFFF;
+    --logo-ring: inset 0 0 0 1px rgba(23, 34, 52, 0.08);
 
-    /* Shape */
+    /* Shape: the only radii and control heights in use (guarded by test/css-guard.test.js) */
+    --radius-xs: 6px;
     --radius-sm: 8px;
     --radius: 10px;
     --radius-lg: 14px;
     --radius-xl: 18px;
     --radius-pill: 999px;
+    --control-xs: 28px;  /* badges, pills */
+    --control-sm: 32px;  /* navigation, tabs, chips, icon buttons */
+    --control: 38px;     /* buttons, fields, selects */
+    --control-lg: 44px;  /* main actions */
 }
 
 @media (prefers-color-scheme: dark) {
@@ -161,8 +168,7 @@
 
         --focus-ring: rgba(230, 235, 242, 0.65);
         --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
-        /* The logo's navy parts need a light tile on the dark ground. */
-        --logo-tile: #E6EBF2;
+        --logo-ring: none;
     }
 }
 
@@ -218,7 +224,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
     align-items: center;
     justify-content: center;
     gap: 8px;
-    height: 38px;
+    height: var(--control);
     padding: 0 16px;
     border-radius: var(--radius);
     border: 1px solid transparent;
@@ -259,8 +265,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: var(--control-sm);
+    height: var(--control-sm);
     flex-shrink: 0;
     border-radius: var(--radius-sm);
     border: 1px solid transparent;
@@ -292,7 +298,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .form-group textarea,
 .form-control {
     width: 100%;
-    min-height: 40px;
+    min-height: var(--control);
     padding: 9px 12px;
     border-radius: var(--radius);
     border: 1px solid var(--line);
@@ -319,6 +325,82 @@ select.form-control {
     background-repeat: no-repeat;
 }
 select option { background: var(--surface-raised); color: var(--ink); }
+
+/* Themed dropdowns (js/select-menu.js). The native select stays hidden as the
+   value holder; the button keeps the field's own classes for size and frame,
+   the list is drawn in the app's colors instead of the Windows popup. */
+.select-menu { position: relative; display: flex; min-width: 0; }
+.form-group .select-menu,
+.setting-inline .select-menu { width: 100%; }
+.select-native {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    pointer-events: none;
+}
+.select-menu .select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding-right: 12px;
+    background-image: none;
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+}
+.select-menu .select-trigger:hover:not(:disabled) { border-color: var(--line-strong); }
+.select-menu .select-trigger:disabled { cursor: default; opacity: 0.55; }
+.select-menu.is-open .select-trigger { border-color: var(--line-strong); }
+.select-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.select-trigger.is-placeholder .select-value { color: var(--subtle); }
+.select-chevron { flex-shrink: 0; font-size: 10px; color: var(--muted); transition: transform 0.15s ease; }
+.select-menu.is-open .select-chevron { transform: rotate(180deg); }
+
+.select-list {
+    position: fixed;
+    z-index: 2000;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    overflow-y: auto;
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+    box-shadow: 0 0 0 1px var(--line), var(--shadow-pop);
+    font-size: 14px;
+    animation: select-in 0.12s ease-out;
+}
+.select-list.opens-up { animation-name: select-in-up; }
+.select-list:focus { outline: none; }
+.select-option {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: var(--control-sm);
+    padding: 0 32px 0 10px;
+    border-radius: var(--radius-sm);
+    color: var(--ink);
+    white-space: nowrap;
+    cursor: pointer;
+}
+.select-option.is-active { background: var(--bg-hover); }
+.select-option.is-selected { font-weight: 600; }
+.select-option.is-selected::after {
+    content: "";
+    position: absolute;
+    right: 13px;
+    top: 50%;
+    width: 5px;
+    height: 9px;
+    border: solid var(--ink);
+    border-width: 0 2px 2px 0;
+    transform: translateY(-60%) rotate(45deg);
+}
+.select-option[aria-disabled="true"] { color: var(--subtle); cursor: default; }
+@keyframes select-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes select-in-up { from { opacity: 0; transform: translateY(4px); } }
 
 .form-group input:focus,
 .form-group select:focus,
@@ -354,7 +436,7 @@ select option { background: var(--surface-raised); color: var(--ink); }
     height: 18px;
     min-width: 18px;
     margin: 0;
-    border-radius: 5px;
+    border-radius: var(--radius-xs);
     border: 1.5px solid var(--line-strong);
     background: var(--surface-raised);
     display: inline-grid;
@@ -421,7 +503,7 @@ select option { background: var(--surface-raised); color: var(--ink); }
     display: inline-flex;
     align-items: center;
     padding: 1px 7px;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     background: var(--bg);
     color: var(--muted);
     font-size: 11px;

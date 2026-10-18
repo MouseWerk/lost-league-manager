@@ -45,8 +45,8 @@
     position: absolute;
     top: 14px;
     right: 14px;
-    width: 32px;
-    height: 32px;
+    width: var(--control-sm);
+    height: var(--control-sm);
     border: 0;
     border-radius: var(--radius-sm);
     background: transparent;
@@ -71,7 +71,7 @@
 /* What's new */
 .patch-notes-content { width: 460px; }
 .patch-notes-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; padding-right: 36px; }
-.patch-notes-badge { width: 48px; height: 48px; flex-shrink: 0; border-radius: 12px; background: var(--logo-tile); display: flex; align-items: center; justify-content: center; }
+.patch-notes-badge { width: 48px; height: 48px; flex-shrink: 0; border-radius: var(--radius-lg); background: var(--logo-tile); box-shadow: var(--logo-ring); display: flex; align-items: center; justify-content: center; }
 .patch-notes-badge img { width: 40px; height: 40px; }
 .patch-notes-badge i { color: var(--primary); font-size: 20px; }
 .patch-notes-header h2 { margin: 0; }
@@ -108,7 +108,7 @@
     box-shadow: var(--shadow-pop);
 }
 .launch-account-header { display: flex; align-items: center; gap: 14px; width: 100%; }
-.launch-acc-icon { width: 48px; height: 48px; border-radius: 12px; object-fit: cover; flex-shrink: 0; }
+.launch-acc-icon { width: 48px; height: 48px; border-radius: var(--radius-lg); object-fit: cover; flex-shrink: 0; background: var(--logo-tile); }
 .launch-acc-details { min-width: 0; }
 .launch-acc-label {
     font-family: var(--font-display);
@@ -133,8 +133,8 @@
 .launch-overlay.needs-attention .launch-spinner { display: none; }
 .launch-status { width: 100%; text-align: center; color: var(--ink); line-height: 1.45; }
 .launch-overlay.needs-attention .launch-status { color: var(--ink); font-weight: 500; }
-.launch-progress-track { width: 100%; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
-.launch-progress-bar { width: 0; height: 100%; border-radius: 3px; background: var(--primary); transition: width 0.4s ease; }
+.launch-progress-track { width: 100%; height: 5px; border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
+.launch-progress-bar { width: 0; height: 100%; border-radius: var(--radius-pill); background: var(--primary); transition: width 0.4s ease; }
 .launch-btn-row { display: flex; gap: 8px; width: 100%; justify-content: center; }
 .retry-launch-btn,
 .cancel-launch-btn {
@@ -142,7 +142,7 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    height: 38px;
+    height: var(--control);
     padding: 0 18px;
     border-radius: var(--radius);
     font-size: 14px;
@@ -187,8 +187,8 @@
 .update-card-label { color: var(--muted); font-size: 13px; }
 .update-card-version { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
 .update-card-close {
-    width: 30px;
-    height: 30px;
+    width: var(--control-sm);
+    height: var(--control-sm);
     border: 0;
     border-radius: var(--radius-sm);
     background: transparent;
@@ -200,8 +200,8 @@
 .update-status-row { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
 .update-pulse-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); animation: dot-pulse 1.4s ease-in-out 3; }
 .update-progress-pct { margin-left: auto; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.update-progress-track { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.update-progress-bar { width: 0; height: 100%; border-radius: 2px; background: var(--primary); transition: width 0.4s ease; }
+.update-progress-track { height: 4px; border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
+.update-progress-bar { width: 0; height: 100%; border-radius: var(--radius-pill); background: var(--primary); transition: width 0.4s ease; }
 .update-card-actions { display: flex; flex-direction: column; gap: 6px; }
 .update-install-btn,
 .update-later-btn {
@@ -210,7 +210,7 @@
     justify-content: center;
     gap: 8px;
     width: 100%;
-    height: 38px;
+    height: var(--control);
     border-radius: var(--radius);
     font-size: 14px;
     font-weight: 600;
@@ -229,7 +229,7 @@
     display: none;
     align-items: center;
     gap: 8px;
-    height: 36px;
+    height: var(--control);
     padding: 0 14px;
     border-radius: var(--radius-pill);
     background: var(--ink);
@@ -257,15 +257,15 @@
 .install-overlay.active { display: flex; animation: fade-in 0.25s ease-out; }
 .install-bg-glow { display: none; }
 .install-content { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
-.install-logo { width: 72px; height: 72px; padding: 8px; border-radius: 18px; background: var(--logo-tile); }
+.install-logo { width: 72px; height: 72px; padding: 8px; border-radius: var(--radius-xl); background: var(--logo-tile); box-shadow: var(--logo-ring); }
 .install-title { font-family: var(--font-display); font-variation-settings: 'opsz' 72; font-weight: 600; font-size: 28px; }
 .install-version-line { color: var(--muted); }
 .install-rings { position: relative; width: 44px; height: 44px; margin: 10px 0 4px; }
 .install-ring { position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--primary); animation: spin 0.9s linear infinite; }
 .install-ring-2,
 .install-ring-3 { display: none; }
-.install-progress-track { width: 220px; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
-.install-progress-fill { width: 40%; height: 100%; border-radius: 2px; background: var(--primary); animation: install-slide 1.6s ease-in-out infinite; }
+.install-progress-track { width: 220px; height: 4px; border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
+.install-progress-fill { width: 40%; height: 100%; border-radius: var(--radius-pill); background: var(--primary); animation: install-slide 1.6s ease-in-out infinite; }
 @keyframes install-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 .install-sub { color: var(--muted); font-size: 13px; }
 
@@ -290,14 +290,14 @@
     text-align: center;
     -webkit-app-region: no-drag;
 }
-.vault-lock-logo { width: 72px; height: 72px; padding: 8px; border-radius: 18px; background: var(--logo-tile); margin-bottom: 6px; }
+.vault-lock-logo { width: 72px; height: 72px; padding: 8px; border-radius: var(--radius-xl); background: var(--logo-tile); box-shadow: var(--logo-ring); margin-bottom: 6px; }
 .vault-lock-title { font-family: var(--font-display); font-variation-settings: 'opsz' 72; font-weight: 600; font-size: 28px; }
 .vault-lock-sub { margin: 0 0 8px; color: var(--muted); }
 .vault-lock-input-wrap { display: flex; gap: 8px; width: 100%; }
 .vault-lock-input {
     flex: 1;
     min-width: 0;
-    height: 42px;
+    height: var(--control-lg);
     padding: 0 14px;
     border-radius: var(--radius);
     border: 1px solid var(--line);
@@ -308,7 +308,7 @@
 .vault-lock-input:focus { border-color: var(--line-strong); outline: none; }
 .vault-lock-input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .vault-lock-btn {
-    height: 42px;
+    height: var(--control-lg);
     padding: 0 18px;
     border: 0;
     border-radius: var(--radius);

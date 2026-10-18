@@ -114,3 +114,26 @@ test('no animation runs forever', () => {
         .filter(o => !/spin|shimmer|skeleton|loading|launch-spinner|install/i.test(o));
     assert.deepEqual(offenders, []);
 });
+
+// One scale for shapes and control sizes (tokens.css): free values made
+// buttons, fields and cards drift apart. The overlay window's own sheet
+// (overlay.css, overlay disabled) is not part of the app's design.
+const APP_RULES = allRules.filter(r => r.file !== 'overlay.css');
+
+test('every border radius comes from the radius tokens', () => {
+    const offenders = APP_RULES.flatMap(r => Object.entries(r.decls)
+        .filter(([p, v]) => /^border(-[a-z]+)*-radius$/.test(p) && !/^(var\(--radius(-[a-z]+)?\)|50%|0|inherit)$/.test(v))
+        .map(([p, v]) => `${r.file}: ${r.selector} { ${p}: ${v} }`));
+    assert.deepEqual(offenders, []);
+});
+
+test('buttons, fields, tabs and chips use the control height scale', () => {
+    const CONTROL = /(btn|button|input|select|search|chip|-tab\b|\.ov-tab|\.stats-tab|nav-link|about-link|form-control|close|clear|region-chip|scale-btn|gameflow-badge|honor-badge|member-chip|update-pill|champ-search-back|champ-search-clear-sel|champ-picker-btn)/;
+    const NOT_CONTROL = /(-icon|img|logo|spinner|ring|skeleton|thumb|track|fill|preview|dot|checkbox|switch|slider|::(before|after))/;
+    const offenders = APP_RULES
+        .filter(r => CONTROL.test(r.selector) && !NOT_CONTROL.test(r.selector.replace(/\.icon-btn/g, '')))
+        .flatMap(r => Object.entries(r.decls)
+            .filter(([p, v]) => /^(min-)?height$/.test(p) && /^\d+px$/.test(v))
+            .map(([p, v]) => `${r.file}: ${r.selector} { ${p}: ${v} }`));
+    assert.deepEqual(offenders, []);
+});
