@@ -63,12 +63,9 @@
                                 <p id="accountsSummary" class="view-sub"></p>
                                 <span id="accountCount" class="account-count" hidden></span>
                             </div>
-                            <div class="view-header-actions">
-                                <button id="addAccountBtn" class="secondary-btn"><i class="fas fa-plus" aria-hidden="true"></i> Add account</button>
-                            </div>
                         </div>
+                        <!-- Find, sort, add: one row above the list, next to what it acts on. -->
                         <div class="accounts-toolbar">
-                            <div id="regionFilters" class="region-filters" role="group" aria-label="Filter by server"></div>
                             <div class="search-box">
                                 <i class="fas fa-magnifying-glass search-icon" aria-hidden="true"></i>
                                 <input type="text" id="accountSearch" class="search-input" aria-label="Search accounts" placeholder="Search by name or Riot ID">
@@ -82,7 +79,9 @@
                                 <option value="region">Server</option>
                                 <option value="lastUsed">Recently used</option>
                             </select>
+                            <button id="addAccountBtn" class="primary-btn add-account-btn"><i class="fas fa-plus" aria-hidden="true"></i> Add account</button>
                         </div>
+                        <div id="regionFilters" class="region-filters" role="group" aria-label="Filter by server"></div>
                         <div id="accountsList" class="accounts-list">
                             <!-- Account rows injected here -->
                         </div>

@@ -98,12 +98,12 @@
   function growStat(base, perLevel, level) {
     return (base || 0) + (perLevel || 0) * (level - 1) * statGrowthFactor(level);
   }
-  // Bonus attack speed per level is a percentage of the attack speed ratio.
-  // Data Dragon only has the base value, which equals the ratio for most
-  // champions, so it stands in for the ratio (a few champions differ slightly).
-  function attackSpeedAt(base, perLevelPct, level) {
+  // Bonus attack speed per level is a percentage of the attack speed ratio
+  // (from Community Dragon). Without it the base value stands in, which is
+  // equal for most champions.
+  function attackSpeedAt(base, perLevelPct, level, ratio) {
     const bonusPct = (perLevelPct || 0) * (level - 1) * statGrowthFactor(level);
-    return (base || 0) * (1 + bonusPct / 100);
+    return (base || 0) + (ratio > 0 ? ratio : base || 0) * (bonusPct / 100);
   }
 
   // ── Rank sparkline ─────────────────────────────────────────────────────────

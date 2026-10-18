@@ -106,9 +106,8 @@
 .champ-detail-info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .champ-detail-name {
     font-family: var(--font-display);
-    font-variation-settings: 'opsz' 72;
-    font-weight: 600;
-    font-size: 28px;
+    font-weight: 700;
+    font-size: 24px;
     line-height: 1.05;
 }
 .champ-detail-title { color: var(--muted); }
@@ -188,8 +187,8 @@
 }
 .stat-card-icon { color: var(--muted); font-size: 14px; }
 .stat-card-label { color: var(--muted); font-size: 12px; }
-.stat-card-value { font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
-.stat-card.primary .stat-card-value { font-family: var(--font-display); font-size: 24px; font-weight: 600; }
+.stat-card-value { font-family: var(--font-display); font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
+.stat-card.primary .stat-card-value { font-family: var(--font-display); font-size: 21px; font-weight: 700; }
 
 .stats-note { margin: 14px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
 
@@ -199,9 +198,8 @@
 .item-detail-info { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .item-detail-name {
     font-family: var(--font-display);
-    font-variation-settings: 'opsz' 72;
-    font-weight: 600;
-    font-size: 26px;
+    font-weight: 700;
+    font-size: 22px;
     line-height: 1.1;
 }
 .item-gold-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -220,7 +218,7 @@
 
 .efficiency-block { margin-bottom: 18px; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--bg); }
 .efficiency-label-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; color: var(--muted); font-size: 13px; }
-.efficiency-pct { font-family: var(--font-display); font-weight: 700; font-size: 22px; }
+.efficiency-pct { font-family: var(--font-display); font-weight: 700; font-size: 19px; }
 .efficiency-bar-track { height: 8px; border-radius: var(--radius-xs); background: var(--line); overflow: hidden; }
 .efficiency-bar-fill { height: 100%; border-radius: var(--radius-xs); }
 .eff-good { color: var(--success); }
@@ -235,7 +233,7 @@
 .item-stat-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: var(--radius); background: var(--bg); font-size: 13px; }
 .item-stat-label { flex: 1; color: var(--ink); }
 .item-stat-value { font-weight: 700; color: var(--ink); }
-.item-stat-gold { min-width: 54px; text-align: right; color: var(--warning); font-size: 12px; font-weight: 600; }
+.item-stat-gold { font-family: var(--font-display); min-width: 54px; text-align: right; color: var(--warning); font-size: 12px; font-weight: 600; }
 
 .item-description { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 13px; line-height: 1.5; user-select: text; }
 .item-description-header { margin-top: 10px; color: var(--ink); font-weight: 600; }

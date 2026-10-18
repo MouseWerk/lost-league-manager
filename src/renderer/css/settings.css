@@ -48,9 +48,8 @@
     align-items: center;
     gap: 10px;
     font-family: var(--font-display);
-    font-variation-settings: 'opsz' 48;
-    font-weight: 600;
-    font-size: 22px;
+    font-weight: 700;
+    font-size: 19px;
     line-height: 1.15;
 }
 .optional-tag { color: var(--muted); font-family: var(--font-ui); font-size: 13px; font-weight: 500; }
@@ -155,7 +154,7 @@
 .about-row { display: flex; align-items: center; gap: 14px; padding: 8px 0 16px; }
 .about-logo { width: 48px; height: 48px; border-radius: var(--radius-lg); }
 .about-logo .logo { width: 40px; height: 40px; }
-.about-name { font-family: var(--font-display); font-weight: 600; font-size: 18px; }
+.about-name { font-family: var(--font-display); font-weight: 700; font-size: 18px; }
 .about-version { color: var(--muted); font-size: 13px; }
 .about-links { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 0; border-top: 1px solid var(--line); }
 .about-link {
@@ -202,6 +201,6 @@
     font-size: 16px;
 }
 .setting-info { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.setting-info h3 { font-family: var(--font-display); font-variation-settings: 'opsz' 36; font-weight: 600; font-size: 18px; }
+.setting-info h3 { font-family: var(--font-display); font-weight: 700; font-size: 18px; }
 .setting-info .desc { margin: 0 0 8px; color: var(--muted); font-size: 13px; line-height: 1.45; }
 .setting-info button { margin-top: auto; }

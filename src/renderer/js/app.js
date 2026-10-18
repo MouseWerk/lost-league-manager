@@ -61,6 +61,16 @@ const PATCH_NOTES = {
       body: "Choose Light, Dark or System in Settings > Appearance. System follows Windows.",
     },
     {
+      icon: "fas fa-medal",
+      title: "Ranked emblems",
+      body: "Ranks show the emblems from the League client, in the account list, the account panel and the Live view.",
+    },
+    {
+      icon: "fas fa-calculator",
+      title: "More exact stat viewer",
+      body: "Attack speed per level uses each champion's real ratio, and item gold value now counts ability haste, lethality, penetration and more.",
+    },
+    {
       icon: "fas fa-table-list",
       title: "Your accounts at a glance",
       body: "Accounts are a list now. Pick one to see its rank, recent games and notes beside it, and play it from there. Filter by server with one click.",
@@ -1876,19 +1886,7 @@ function applyStatsToCard(cardEl, stats) {
   const rankEl = cardEl.querySelector(".rank");
   if (rankEl && !acc?.customRank) {
     const tierName = (stats.tier || "unranked").split(" ")[0].toLowerCase();
-    const valid = [
-      "iron",
-      "bronze",
-      "silver",
-      "gold",
-      "platinum",
-      "emerald",
-      "diamond",
-      "master",
-      "grandmaster",
-      "challenger",
-    ];
-    const cls = valid.includes(tierName) ? `rank-${tierName}` : "rank-unranked";
+    const cls = TIERS.includes(tierName) ? `rank-${tierName}` : "rank-unranked";
     rankEl.className = `rank card-rank ${cls}`;
     const unavailable = stats.tier === "N/A";
     const tierDisplay = unavailable
@@ -1899,7 +1897,8 @@ function applyStatsToCard(cardEl, stats) {
     if (unavailable && stats.error) rankEl.dataset.tooltip = stats.error;
     else delete rankEl.dataset.tooltip;
     // Tier/LP can come from OP.GG or an imported backup's cached stats.
-    rankEl.innerHTML = `<span class="card-tier">${escapeHtml(tierDisplay)}</span>${stats.lp ? `<span class="card-lp">${escapeHtml(stats.lp)}</span>` : ""}`;
+    const emblem = unavailable ? "" : tierEmblemSrc(stats.tier);
+    rankEl.innerHTML = `${emblem ? `<img class="card-emblem" src="${emblem}" alt="">` : ""}<span class="card-rank-text"><span class="card-tier">${escapeHtml(tierDisplay)}</span>${stats.lp ? `<span class="card-lp">${escapeHtml(stats.lp)}</span>` : ""}</span>`;
   }
   if (acc && cardEl.dataset.username === _profileUsername) populateProfileModal(acc, stats);
   const iconEl = cardEl.querySelector(".summoner-icon");
@@ -1952,30 +1951,24 @@ function formatMasteryPoints(n) {
 
 // ── Profile Modal ─────────────────────────────────────────────────────────────
 
-// Tier → Font Awesome icon, colored by the matching .rank-<tier> class.
-const TIER_ICONS = {
-  iron: "fa-shield-halved",
-  bronze: "fa-shield-halved",
-  silver: "fa-shield-halved",
-  gold: "fa-shield-halved",
-  platinum: "fa-shield-halved",
-  emerald: "fa-shield-halved",
-  diamond: "fa-gem",
-  master: "fa-crown",
-  grandmaster: "fa-crown",
-  challenger: "fa-trophy",
-};
+// The ranked emblems from the League client (assets/ranks, see README there).
+const TIERS = ["iron", "bronze", "silver", "gold", "platinum", "emerald", "diamond", "master", "grandmaster", "challenger"];
+
+// "Gold II", "GOLD", "gold" -> "assets/ranks/gold.png"; "" for anything else.
+function tierEmblemSrc(tier) {
+  const t = String(tier || "").toLowerCase().split(" ")[0];
+  return TIERS.includes(t) ? `assets/ranks/${t}.png` : "";
+}
 
 function setTierEmblem(el, tier, fallback = "—") {
-  const t = (tier || "").toLowerCase().split(" ")[0];
-  const icon = TIER_ICONS[t];
-  if (!icon) {
+  const src = tierEmblemSrc(tier);
+  if (!src) {
     el.textContent = fallback;
     el.removeAttribute("aria-label");
     return;
   }
-  el.innerHTML = `<i class="fas ${icon} rank-${t}" aria-hidden="true"></i>`;
-  el.setAttribute("aria-label", t);
+  el.innerHTML = `<img class="tier-emblem" src="${src}" alt="">`;
+  el.setAttribute("aria-label", String(tier).split(" ")[0].toLowerCase());
 }
 
 let _profileUsername = null;
@@ -4075,7 +4068,7 @@ function computeStatCards(fullData, level) {
   const { partype, stats } = fullData;
   const hasResource =
     (stats.mp > 0 || stats.mpperlevel > 0) && partype && partype !== "None";
-  const as = attackSpeedAt(stats.attackspeed, stats.attackspeedperlevel, level);
+  const as = attackSpeedAt(stats.attackspeed, stats.attackspeedperlevel, level, fullData.attackSpeedRatio);
   return [
     { id: "hp", group: "vitality", icon: "fa-heart", label: "Health", primary: true,
       value: Math.round(growStat(stats.hp, stats.hpperlevel, level)) },
@@ -4170,7 +4163,7 @@ function renderStatsChampDetail() {
                 </div>
             `;
         }).join("")}
-        <p class="stats-note">Attack speed uses the base value as the attack speed ratio; for a few champions the real level 18 value differs slightly.</p>
+        ${fullData.attackSpeedRatio ? "" : `<p class="stats-note">The attack speed ratio could not be loaded, so attack speed per level uses the base value; for a few champions the real value differs slightly.</p>`}
     `;
 
   const slider = document.getElementById("statsLevelSlider");
@@ -4307,7 +4300,7 @@ function selectStatsItem(item) {
             <div class="efficiency-bar-track">
                 <div class="efficiency-bar-fill ${effClass(pct)}" style="width:${Math.min(pct, 100)}%"></div>
             </div>
-            <div class="efficiency-note">Based on stat value (${escapeHtml(item.statsGoldValue)}g) vs. item cost (${escapeHtml(item.gold.total)}g). Active/passive effects add value beyond raw stats.${item.efficiencyIncomplete ? " Some of its stats (such as ability haste, lethality or penetration) have no gold value in Data Dragon, so the real efficiency is higher." : ""}</div>
+            <div class="efficiency-note">Based on stat value (${escapeHtml(item.statsGoldValue)}g) vs. item cost (${escapeHtml(item.gold.total)}g). Active/passive effects add value beyond raw stats.${item.efficiencyIncomplete ? " Some of its stats (such as adaptive force or gold per 10 seconds) have no gold value, so the real efficiency is higher." : ""}</div>
         </div>
 
         ${
