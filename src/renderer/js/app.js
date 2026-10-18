@@ -61,9 +61,19 @@ const PATCH_NOTES = {
       body: "Ranked stats and match history now come from OP.GG when you have no key (or it expired). Accounts signed into the client get their Riot ID linked automatically.",
     },
     {
+      icon: "fas fa-right-to-bracket",
+      title: "Safer launching",
+      body: "One launch at a time, Cancel works in every step, and the app checks which account actually signed in. Passwords with umlauts work.",
+    },
+    {
+      icon: "fas fa-lock",
+      title: "Stronger vault and backups",
+      body: "Your Riot API key is stored encrypted by Windows, the vault blocks the tray and shortcuts while locked, and backups are protected with a password you choose.",
+    },
+    {
       icon: "fas fa-gauge-high",
       title: "Faster and steadier",
-      body: "The window opens without waiting on downloads, scrolling is lighter, LAN/LAS stats point at the right server, and a stale League lockfile no longer resets your Discord status every few seconds.",
+      body: "The window opens without waiting on downloads, the Live view follows the game phase, ranks refresh, and sort by rank, drag-and-drop and the Stat Viewer slider work as they should.",
     },
   ],
   "1.6.0": [
