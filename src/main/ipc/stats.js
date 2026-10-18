@@ -4,7 +4,7 @@ const { loadAccounts, saveAccounts } = require('../services/storage');
 const riotApi = require('../services/riot-api');
 const opgg = require('../services/opgg-api');
 const championData = require('../services/champion-data');
-const { recordRankSnapshot, getRankHistory } = require('../services/rank-history');
+const { recordRankSnapshot, getRankHistory, parseRecord } = require('../services/rank-history');
 
 const CACHE_MAX_AGE_MS = 30 * 60 * 1000;
 
@@ -207,7 +207,7 @@ async function getStats(region, riotId, force) {
                 const result = { ...lcuResult, masteryChampions: cached?.masteryChampions || [] };
                 if (cached?.topChampions) result.topChampions = cached.topChampions;
                 saveCachedStats(riotId, region, result);
-                recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp, 'lcu');
+                recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp, 'lcu', parseRecord(result.winLose));
                 return result;
             }
         } catch (e) {
@@ -226,7 +226,7 @@ async function getStats(region, riotId, force) {
         console.log(`[Stats] ${riotId}: ${result.tier} ${result.lp} (${result.source})`);
         saveCachedStats(riotId, region, result);
         // The source lets rank history skip OP.GG data that lags a fresher entry.
-        recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp, result.source);
+        recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp, result.source, parseRecord(result.winLose));
         return result;
     } catch (e) {
         console.error('[Stats] lookup error:', e.message);

@@ -61,6 +61,16 @@ const PATCH_NOTES = {
       body: "Choose Light, Dark or System in Settings > Appearance. System follows Windows.",
     },
     {
+      icon: "fas fa-users",
+      title: "Lobby check",
+      body: "The Live view shows the ranks of your party, your champion select and, once the game starts, all ten players, with one click to OP.GG multi-search.",
+    },
+    {
+      icon: "fas fa-bullseye",
+      title: "Today and your goal",
+      body: "Each account shows the LP and games of today. Set a goal rank in Edit and watch the progress beside the account.",
+    },
+    {
       icon: "fas fa-medal",
       title: "Ranked emblems",
       body: "Ranks show the emblems from the League client, in the account list, the account panel and the Live view.",
@@ -172,6 +182,8 @@ const {
   growStat,
   attackSpeedAt,
   sparklinePoints,
+  dailySummary,
+  goalProgress,
   lobbyMemberLabel,
   normalizeLoginStatus,
   needsLaunchAttention,
@@ -998,10 +1010,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Vault lock — must resolve before anything is shown
     await initVault(config);
 
+    // First start: the setup dialog instead of What's new (a new user has
+    // nothing to compare against), so this version's notes count as seen.
+    const firstStart = await shouldShowOnboarding(config);
+    if (firstStart) {
+      window.electronAPI.setConfig({ lastSeenPatchNotesVersion: version });
+      openOnboarding(config);
+    }
     // Patch notes — after the vault lock so it never covers/precedes it.
     // Shows once per version: missing/mismatched lastSeenPatchNotesVersion
     // means this version hasn't been acknowledged yet on this machine.
-    if (PATCH_NOTES[version] && config.lastSeenPatchNotesVersion !== version) {
+    else if (PATCH_NOTES[version] && config.lastSeenPatchNotesVersion !== version) {
       showPatchNotesModal(version);
     }
     document
@@ -1206,6 +1225,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     setActiveAccount(null); // nobody is signed in without a client
   });
   window.electronAPI.onLcuGameflow(handleGameflowEvent);
+  // Champion select changes (a player joins, swaps): refresh the lobby check.
+  window.electronAPI.onChampSelectUpdate?.((session) => {
+    const key = (session?.myTeam || []).map((m) => `${m.cellId}:${m.puuid || ""}`).join(",");
+    if (key !== _lobbyCheckTeamKey && currentView === "liveView") {
+      _lobbyCheckTeamKey = key;
+      clearTimeout(_lobbyCheckTimer);
+      _lobbyCheckTimer = setTimeout(loadLobbyCheck, 1200);
+    }
+  });
+  document.getElementById("ovPlayersOpgg").addEventListener("click", () => {
+    const ids = _lobbyCheck?.players?.filter((p) => !p.hidden && p.tagLine).map((p) => `${p.gameName}#${p.tagLine}`) || [];
+    window.electronAPI.openOpggMultisearch(_lobbyCheck?.region, ids).then((res) => {
+      if (!res?.success) showToast("OP.GG has no page for this server.", "error");
+    });
+  });
 
   // Dodge / Accept buttons
   document.getElementById("ovDodgeBtn").addEventListener("click", async () => {
@@ -1482,6 +1516,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     .addEventListener("click", saveAccount);
   initChampionPicker();
   initQuickAdd();
+  initOnboarding();
 
   // Change League Client path
   document
@@ -1570,6 +1605,206 @@ function showToast(message, type = "info") {
 const MAX_TOASTS = 3;
 
 // ── Dialog layers ─────────────────────────────────────────────────────────
+// ── First start ──────────────────────────────────────────────────────────────
+// Four steps: welcome, League install, first account, a few settings. Shown
+// once, when no account is saved yet; Skip, Escape and Finish all end it.
+let _obStep = 0;
+let _obProfile = null; // the looked-up Riot ID, if any
+let _obToken = 0;
+
+async function shouldShowOnboarding(config) {
+  if (config.onboardingDone) return false;
+  const accounts = await window.electronAPI.getAccounts().catch(() => null);
+  const list = Array.isArray(accounts) ? accounts : accounts?.accounts;
+  if (Array.isArray(list) && list.length) {
+    // Someone who already has accounts never needs it.
+    window.electronAPI.setConfig({ onboardingDone: true });
+    return false;
+  }
+  return Array.isArray(list);
+}
+
+function showObStep(n) {
+  _obStep = n;
+  const box = document.getElementById("onboarding");
+  box.querySelectorAll(".ob-step").forEach((s) => (s.hidden = Number(s.dataset.step) !== n));
+  box.querySelectorAll(".ob-steps span").forEach((d, i) => d.classList.toggle("is-done", i <= n));
+  const first = box.querySelector(`.ob-step[data-step="${n}"]`).querySelector("input:not([type=checkbox]), .primary-btn");
+  first?.focus();
+}
+
+function renderObPath(config) {
+  const found = !!config.lolPathFound;
+  document.getElementById("obPathBox").classList.toggle("is-missing", !found);
+  document.getElementById("obPathIcon").className = `fas ${found ? "fa-circle-check" : "fa-triangle-exclamation"}`;
+  document.getElementById("obPathStatus").textContent = found ? "League found" : "League not found";
+  document.getElementById("obPath").textContent = found
+    ? config.lolPath
+    : "Choose LeagueClient.exe in your League of Legends folder.";
+  document.getElementById("obPathBtn").textContent = found ? "Change" : "Choose";
+}
+
+function openOnboarding(config) {
+  const box = document.getElementById("onboarding");
+  document.getElementById("obRegion").innerHTML = REGIONS.map(
+    ([v, label]) => `<option value="${v}">${label}</option>`,
+  ).join("");
+  document.getElementById("obRegion").value = "euw";
+  document.getElementById("obClientBtn").hidden = !lcuConnected;
+  document.getElementById("obAutoAccept").checked = !!config.autoAccept;
+  document.getElementById("obQueueToast").checked = config.toastOnQueuePop !== false;
+  document.getElementById("obStartWithWindows").checked = !!config.startWithWindows;
+  renderObPath(config);
+  openLayer(box, { onEscape: () => finishOnboarding(false) });
+  showObStep(0);
+}
+
+async function finishOnboarding(applySettings) {
+  const box = document.getElementById("onboarding");
+  const patch = { onboardingDone: true };
+  if (applySettings) {
+    patch.autoAccept = document.getElementById("obAutoAccept").checked;
+    patch.toastOnQueuePop = document.getElementById("obQueueToast").checked;
+    patch.startWithWindows = document.getElementById("obStartWithWindows").checked;
+  }
+  await window.electronAPI.setConfig(patch).catch(() => null);
+  if (applySettings) {
+    const toggle = document.getElementById("autoAcceptToggle");
+    if (toggle) toggle.checked = patch.autoAccept;
+    ["toastOnQueuePop", "startWithWindows"].forEach((k) => {
+      const el = document.getElementById(`${k}Toggle`);
+      if (el) el.checked = patch[k];
+    });
+  }
+  closeLayer(box);
+}
+
+function renderObFound(p) {
+  const el = document.getElementById("obFound");
+  el.hidden = false;
+  el.className = "ob-found";
+  const emblem = tierEmblemSrc(p.tier);
+  // Name and rank come from OP.GG or the Riot API: escaped.
+  el.innerHTML = `
+      <img src="${escapeHtml(p.iconSrc || "assets/logo.png")}" alt="">
+      <div><div class="ob-found-name">${escapeHtml(p.riotId)}</div>
+      <div class="ob-found-rank ${tierClass((p.tier || "").split(" ")[0])}">${escapeHtml([p.tier || "Unranked", p.lp].filter(Boolean).join(" "))}</div></div>
+      ${emblem ? `<img class="ob-found-emblem" src="${emblem}" alt="">` : ""}`;
+  const img = el.querySelector("img");
+  img.addEventListener("error", () => (img.src = "assets/logo.png"));
+}
+
+async function obFind() {
+  const input = document.getElementById("obRiotId").value.trim();
+  if (!input) return document.getElementById("obRiotId").focus();
+  const token = ++_obToken;
+  const btn = document.getElementById("obFindBtn");
+  btn.disabled = true;
+  const res = await window.electronAPI
+    .lookupSummoner(input, document.getElementById("obRegion").value)
+    .catch((e) => ({ success: false, message: e.message }));
+  btn.disabled = false;
+  if (token !== _obToken) return;
+  const el = document.getElementById("obFound");
+  if (!res?.success) {
+    _obProfile = null;
+    el.hidden = false;
+    el.className = "ob-found is-error";
+    el.textContent = res?.message || "No player found with that Riot ID.";
+    return;
+  }
+  _obProfile = res;
+  document.getElementById("obRegion").value = res.region;
+  renderObFound(res);
+  document.getElementById("obUsername").focus();
+}
+
+async function obFromClient() {
+  const res = await window.electronAPI.getClientSummoner().catch(() => null);
+  if (!res?.success) return;
+  if (res.username) document.getElementById("obUsername").value = res.username;
+  document.getElementById("obRiotId").value = res.riotId;
+  if (res.region) document.getElementById("obRegion").value = res.region;
+  await obFind();
+  if (res.username) document.getElementById("obPassword").focus();
+}
+
+async function obSaveAccount() {
+  const username = document.getElementById("obUsername").value.trim();
+  const password = document.getElementById("obPassword").value;
+  const errEl = document.getElementById("obAccountError");
+  errEl.textContent = "";
+  if (!username || !password) {
+    errEl.textContent = "Enter the login name and password you use in the Riot Client.";
+    return;
+  }
+  const p = _obProfile;
+  const typed = document.getElementById("obRiotId").value.trim();
+  const data = {
+    username,
+    password,
+    riotId: p?.riotId || (/^[^#]+#[^#]+$/.test(typed) ? typed : ""),
+    region: p?.region || document.getElementById("obRegion").value,
+    label: p?.gameName || (p?.riotId || typed).split("#")[0] || username,
+  };
+  const btn = document.getElementById("obSaveBtn");
+  btn.disabled = true;
+  const res = await window.electronAPI.addAccount(data).catch((e) => ({ success: false, message: e.message }));
+  btn.disabled = false;
+  if (!res?.success) {
+    errEl.textContent = res?.message || "The account could not be saved.";
+    return;
+  }
+  document.getElementById("obPassword").value = "";
+  await loadAccounts();
+  selectAccount(username);
+  showObStep(3);
+}
+
+function initOnboarding() {
+  const box = document.getElementById("onboarding");
+  box.addEventListener("click", (e) => {
+    const action = e.target.closest("[data-ob]")?.dataset.ob;
+    if (action === "next") showObStep(_obStep + 1);
+    else if (action === "back") showObStep(_obStep - 1);
+    else if (action === "later") showObStep(3);
+    else if (action === "skip") finishOnboarding(false);
+    else if (action === "finish") finishOnboarding(true);
+  });
+  document.getElementById("obPathBtn").addEventListener("click", async () => {
+    const result = await window.electronAPI.openFileDialog({
+      title: "Select LeagueClient.exe",
+      filters: [{ name: "Executables", extensions: ["exe"] }],
+      properties: ["openFile"],
+    });
+    if (result.canceled || !result.filePaths.length) return;
+    const res = await window.electronAPI.setConfig({ lolPath: result.filePaths[0] });
+    if (!res?.success) return showToast(res?.message || "That is not LeagueClient.exe.", "error");
+    document.getElementById("lolPathDisplay").innerText = result.filePaths[0];
+    renderObPath({ lolPathFound: true, lolPath: result.filePaths[0] });
+  });
+  document.getElementById("obFindBtn").addEventListener("click", obFind);
+  document.getElementById("obClientBtn").addEventListener("click", obFromClient);
+  document.getElementById("obSaveBtn").addEventListener("click", obSaveAccount);
+  const riotInput = document.getElementById("obRiotId");
+  riotInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      obFind();
+    }
+  });
+  riotInput.addEventListener("paste", () => setTimeout(() => /op\.gg\//i.test(riotInput.value) && obFind(), 0));
+  ["obUsername", "obPassword"].forEach((id) =>
+    document.getElementById(id).addEventListener("input", () => (document.getElementById("obAccountError").textContent = "")),
+  );
+  document.getElementById("obPassword").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      obSaveAccount();
+    }
+  });
+}
+
 // One stack of open layers (modals, the launch overlay, the vault lock).
 // The topmost one gets focus and Escape; everything behind it is inert (no
 // Tab, no clicks), and focus returns to where it was when the layer closes.
@@ -2056,6 +2291,52 @@ function formatRankHistoryLabel(entry) {
 
 // history entries are { ts, tier, division, lp, score }, oldest first, already
 // deduped server-side (see rank-history.js) so each point is a real change.
+// "DIAMOND IV" -> "Diamond IV"
+function goalLabel(goalRank) {
+  return String(goalRank || "").toLowerCase().replace(/^\w/, (c) => c.toUpperCase()).replace(/\b(i{1,3}|iv)\b/g, (d) => d.toUpperCase());
+}
+
+// The goal-rank options: every division up to Diamond, then the apex tiers.
+function goalRankOptions() {
+  const opts = ['<option value="">No goal</option>'];
+  for (const t of TIERS) {
+    const name = t.toUpperCase();
+    const divs = ["master", "grandmaster", "challenger"].includes(t) ? [""] : ["IV", "III", "II", "I"];
+    for (const d of divs) {
+      const value = `${name} ${d}`.trim();
+      opts.push(`<option value="${value}">${goalLabel(value)}</option>`);
+    }
+  }
+  return opts.join("");
+}
+
+// LP and games since midnight, as far as the app has seen them.
+function renderToday(history) {
+  const wrap = document.getElementById("profileTodayWrap");
+  const day = dailySummary(history);
+  wrap.hidden = !day;
+  if (!day) return;
+  const lpEl = document.getElementById("profileTodayLp");
+  lpEl.textContent = `${day.lp > 0 ? "+" : ""}${day.lp} LP`;
+  lpEl.className = `profile-today-lp${day.lp > 0 ? " is-up" : day.lp < 0 ? " is-down" : ""}`;
+  document.getElementById("profileTodayRecord").textContent =
+    day.wins === null ? "" : `${day.wins}W ${day.losses}L`;
+  wrap.title = "Counted from the ranks the app has loaded today.";
+}
+
+function renderGoal(acc, history) {
+  const wrap = document.getElementById("profileGoalWrap");
+  const g = acc.goalRank ? goalProgress(history, acc.goalRank) : null;
+  wrap.hidden = !g;
+  if (!g) return;
+  document.getElementById("profileGoalRank").textContent = goalLabel(acc.goalRank);
+  document.getElementById("profileGoalRank").className = `profile-goal-rank ${tierClass(acc.goalRank.split(" ")[0])}`;
+  document.getElementById("profileGoalLeft").textContent =
+    g.current === null ? "No rank yet" : g.reached ? "Reached" : `${g.left} LP to go`;
+  document.getElementById("profileGoalBar").style.width = `${g.reached ? 100 : g.pct}%`;
+  wrap.classList.toggle("is-reached", g.reached);
+}
+
 function renderRankSparkline(history) {
   const wrap = document.getElementById("profileRankHistoryWrap");
   const svg = document.getElementById("profileRankSparkline");
@@ -2133,9 +2414,14 @@ async function selectAccount(username) {
   // Rank history is a cheap local read (no rate limit / network concerns),
   // so it's always fetched fresh rather than reusing statsCache below.
   document.getElementById("profileRankHistoryWrap").style.display = "none";
+  document.getElementById("profileTodayWrap").hidden = true;
+  renderGoal(acc, []);
   if (acc.riotId) {
     window.electronAPI.getRankHistory(acc.riotId).then((history) => {
-      if (_profileUsername === username) renderRankSparkline(history);
+      if (_profileUsername !== username) return;
+      renderRankSparkline(history);
+      renderToday(history);
+      renderGoal(acc, history);
     });
   }
 
@@ -2631,6 +2917,7 @@ function openModal(account = null) {
     document.getElementById("isFavouriteToggle").checked =
       account.isFavourite || false;
     document.getElementById("newCustomRank").value = account.customRank || "";
+    document.getElementById("newGoalRank").value = account.goalRank || "";
     document.getElementById("newCustomAvatar").value =
       account.customAvatar || "";
 
@@ -2653,6 +2940,7 @@ function openModal(account = null) {
     document.getElementById("minimizeOnLaunchToggle").checked = false;
     document.getElementById("isFavouriteToggle").checked = false;
     document.getElementById("newCustomRank").value = "";
+    document.getElementById("newGoalRank").value = "";
     document.getElementById("newCustomAvatar").value = "";
 
     document.getElementById("newUsername").disabled = false;
@@ -2687,6 +2975,7 @@ function populateRegionSelects() {
   document.getElementById("newRegion").innerHTML =
     `<option value="" disabled>Select region…</option>${opts}`;
   document.getElementById("quickAddRegion").innerHTML = opts;
+  document.getElementById("newGoalRank").innerHTML = goalRankOptions();
 }
 
 function resetQuickAdd() {
@@ -3060,6 +3349,7 @@ async function saveAccountForm() {
     minimizeOnLaunch,
     isFavourite: document.getElementById("isFavouriteToggle").checked,
     customRank: document.getElementById("newCustomRank").value.trim(),
+    goalRank: document.getElementById("newGoalRank").value,
     customAvatar: document.getElementById("newCustomAvatar").value.trim(),
   };
 
@@ -3408,7 +3698,101 @@ function updateContextButtons(phase) {
   bar.style.display = showDodge || showAccept ? "flex" : "none";
 }
 
+// ── Lobby check ──────────────────────────────────────────────────────────────
+// Ranks of the players around you, where the game shows their names: your
+// party in the lobby, champion select of queues with visible names, and all
+// ten players once the game runs. Ranked champion select hides names, and
+// they stay hidden here (Riot policy).
+const LOBBY_CHECK_PHASES = ["Lobby", "ChampSelect", "GameStart", "InProgress"];
+const POSITION_NAMES = {
+  TOP: "Top", JUNGLE: "Jungle", MIDDLE: "Mid", BOTTOM: "Bot", UTILITY: "Support",
+  top: "Top", jungle: "Jungle", middle: "Mid", bottom: "Bot", utility: "Support",
+};
+let _lobbyCheck = null;
+let _lobbyCheckGen = 0;
+let _lobbyCheckTimer = null;
+let _lobbyCheckTeamKey = "";
+let _lobbyCheckRetries = 0;
+
+function hideLobbyCheck() {
+  clearTimeout(_lobbyCheckTimer);
+  _lobbyCheck = null;
+  _lobbyCheckTeamKey = "";
+  document.getElementById("ovPlayers").hidden = true;
+}
+
+async function loadLobbyCheck() {
+  const gen = ++_lobbyCheckGen;
+  const res = await window.electronAPI.getLobbyCheck().catch(() => null);
+  if (gen !== _lobbyCheckGen) return;
+  if (!res?.connected || !LOBBY_CHECK_PHASES.includes(res.phase)) return hideLobbyCheck();
+  // The game publishes its player list a few seconds into loading.
+  if (!res.players.length && (res.phase === "InProgress" || res.phase === "GameStart") && _lobbyCheckRetries < 6) {
+    _lobbyCheckRetries++;
+    clearTimeout(_lobbyCheckTimer);
+    _lobbyCheckTimer = setTimeout(loadLobbyCheck, 8000);
+  } else if (res.players.length) {
+    _lobbyCheckRetries = 0;
+  }
+  _lobbyCheck = res;
+  renderLobbyCheck(res);
+}
+
+function lobbyPlayerRow(p) {
+  const row = document.createElement("div");
+  row.className = `ov-player${p.isSelf ? " is-self" : ""}${p.hidden ? " is-hidden" : ""}`;
+  const src = p.hidden ? "" : tierEmblemSrc(p.tier);
+  // Names, champions and ranks come from the client or OP.GG: textContent only.
+  row.innerHTML = `
+      ${src ? `<img class="ov-player-emblem" src="${src}" alt="">` : '<span class="ov-player-emblem is-empty"></span>'}
+      <div class="ov-player-name"><span class="ov-player-game"></span><span class="ov-player-tag"></span>
+        <div class="ov-player-sub"></div></div>
+      <div class="ov-player-rank"></div>
+      <div class="ov-player-wr"></div>`;
+  const sub = [p.isSelf ? "You" : "", p.champion || "", POSITION_NAMES[p.position] || ""].filter(Boolean).join(", ");
+  if (p.hidden) {
+    row.querySelector(".ov-player-game").textContent = "Hidden player";
+    row.querySelector(".ov-player-sub").textContent = POSITION_NAMES[p.position] || "";
+    return row;
+  }
+  row.querySelector(".ov-player-game").textContent = p.gameName;
+  row.querySelector(".ov-player-tag").textContent = p.tagLine ? `#${p.tagLine}` : "";
+  row.querySelector(".ov-player-sub").textContent = sub;
+  const rankEl = row.querySelector(".ov-player-rank");
+  rankEl.textContent = p.failed ? "Not found" : [p.tier || "Unranked", p.lp].filter(Boolean).join(" ");
+  rankEl.className = `ov-player-rank ${p.failed ? "rank-unranked" : tierClass((p.tier || "").split(" ")[0])}`;
+  row.querySelector(".ov-player-wr").textContent = p.ratio ? `${p.ratio} WR` : "";
+  return row;
+}
+
+function renderLobbyCheck(res) {
+  const box = document.getElementById("ovPlayers");
+  const mine = res.players.filter((p) => p.team !== "enemy");
+  const enemy = res.players.filter((p) => p.team === "enemy");
+  if (!res.players.length) {
+    box.hidden = res.phase === "Lobby";
+  } else {
+    box.hidden = false;
+  }
+  const inGame = res.phase === "InProgress" || res.phase === "GameStart";
+  document.getElementById("ovPlayersTitle").textContent =
+    res.phase === "Lobby" ? "Your party" : inGame ? "Your team" : "Champion select";
+  const hidden = res.players.some((p) => p.hidden);
+  document.getElementById("ovPlayersNote").textContent = hidden
+    ? "Ranked champion select hides names. Ranks show once the game starts."
+    : !res.players.length && inGame ? "Waiting for the game to load the players." : "";
+  const fill = (el, list) => {
+    el.innerHTML = "";
+    list.forEach((p) => el.appendChild(lobbyPlayerRow(p)));
+  };
+  fill(document.getElementById("ovPlayersMine"), mine);
+  fill(document.getElementById("ovPlayersEnemy"), enemy);
+  document.getElementById("ovPlayersEnemyWrap").hidden = !enemy.length;
+  document.getElementById("ovPlayersOpgg").hidden = !res.players.some((p) => !p.hidden && p.tagLine);
+}
+
 function setLcuOffline() {
+  hideLobbyCheck();
   document.getElementById("lcuOffline").style.display = "";
   document.getElementById("lcuOnline").style.display = "none";
   updateGameflowBadge(null);
@@ -3699,6 +4083,8 @@ async function loadLiveView() {
   } else {
     ctxEl.style.display = "none";
   }
+  if (LOBBY_CHECK_PHASES.includes(phase)) loadLobbyCheck();
+  else hideLobbyCheck();
 
   // ── Champion mastery ───────────────────────────────────────────────────────
   const masteryEl = document.getElementById("ovMastery");

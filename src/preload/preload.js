@@ -79,6 +79,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     openExternal:   (url) => ipcRenderer.invoke('open-external', url),
     openOpgg:       (region, riotId) => ipcRenderer.invoke('open-opgg', region, riotId),
+    openOpggMultisearch: (region, riotIds) => ipcRenderer.invoke('open-opgg-multisearch', region, riotIds),
+    getLobbyCheck:  () => ipcRenderer.invoke('get-lobby-check'),
     openPatchNotes: () => ipcRenderer.invoke('open-patch-notes'),
     getChampionList: () => ipcRenderer.invoke('get-champion-list'),
     getChampionFullData: (champKey) => ipcRenderer.invoke('get-champion-full-data', champKey),

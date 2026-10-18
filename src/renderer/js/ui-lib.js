@@ -121,6 +121,58 @@
     }));
   }
 
+  // ── Today and goal ─────────────────────────────────────────────────────────
+  // Ladder position on the same scale as the main process's rank history
+  // (src/main/services/rank-history.js): 400 per tier, 100 per division.
+  const LADDER = ["iron", "bronze", "silver", "gold", "platinum", "emerald", "diamond", "master", "grandmaster", "challenger"];
+  function ladderScore(tierText, lp = 0) {
+    const parts = String(tierText || "").trim().toLowerCase().split(/\s+/);
+    const idx = LADDER.indexOf(parts[0]);
+    if (idx === -1) return null;
+    const div = APEX_TIERS.has(parts[0]) ? 0 : (DIVISION_ORDER[parts[1]] || 1) - 1; // IV = 0 ... I = 3
+    return idx * 400 + div * 100 + (Number(lp) || 0);
+  }
+
+  // LP and games since local midnight, from rank history entries
+  // ({ ts, score, wins?, losses? }, oldest first). The day starts from the
+  // last entry before midnight, or the first one of the day. null when the
+  // day has no entries.
+  function dailySummary(history, now = Date.now()) {
+    if (!Array.isArray(history) || !history.length) return null;
+    const midnight = new Date(now);
+    midnight.setHours(0, 0, 0, 0);
+    const start = midnight.getTime();
+    const today = history.filter((e) => e.ts >= start && e.ts <= now);
+    if (!today.length) return null;
+    const before = history.filter((e) => e.ts < start);
+    const base = before.length ? before[before.length - 1] : today[0];
+    const last = today[today.length - 1];
+    const out = { lp: last.score - base.score, wins: null, losses: null };
+    if ([base.wins, base.losses, last.wins, last.losses].every(Number.isInteger)) {
+      const w = last.wins - base.wins;
+      const l = last.losses - base.losses;
+      // A season reset makes the counts drop; then the day's games are unknown.
+      if (w >= 0 && l >= 0) Object.assign(out, { wins: w, losses: l });
+    }
+    if (out.lp === 0 && !out.wins && !out.losses) return null;
+    return out;
+  }
+
+  // Progress toward a goal rank ("DIAMOND IV", "MASTER"), from the first
+  // history entry (or one tier below the goal) to the goal.
+  function goalProgress(history, goalRank) {
+    const goal = ladderScore(goalRank, 0);
+    if (goal === null) return null;
+    const list = Array.isArray(history) ? history : [];
+    const current = list.length ? list[list.length - 1].score : null;
+    if (current === null) return { goal, current: null, left: null, pct: 0, reached: false };
+    let start = list[0].score;
+    if (start >= goal) start = Math.min(current, goal - 400);
+    const span = Math.max(1, goal - start);
+    const pct = Math.max(0, Math.min(100, Math.round(((current - start) / span) * 100)));
+    return { goal, current, left: Math.max(0, goal - current), pct, reached: current >= goal };
+  }
+
   // ── Live view ──────────────────────────────────────────────────────────────
   // Lobby members carry gameName/tagLine since the Riot ID migration; the old
   // summoner name fields are often empty.
@@ -179,6 +231,9 @@
     growStat,
     attackSpeedAt,
     sparklinePoints,
+    ladderScore,
+    dailySummary,
+    goalProgress,
     lobbyMemberLabel,
     normalizeLoginStatus,
     needsLaunchAttention,

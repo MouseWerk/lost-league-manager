@@ -53,6 +53,15 @@ function opggProfileUrl(region, riotId) {
     return `https://www.op.gg/lol/summoners/${slug}/${encodeURIComponent(name)}-${encodeURIComponent(tag)}`;
 }
 
+// OP.GG multi-search for up to 10 players of one server.
+function opggMultisearchUrl(region, riotIds) {
+    const slug = REGION_TO_OPGG[(region || '').toLowerCase()];
+    if (!slug || !Array.isArray(riotIds)) return null;
+    const ids = riotIds.filter(id => typeof id === 'string' && /^[^#,]{1,32}#[^#,]{1,10}$/.test(id.trim())).slice(0, 10);
+    if (!ids.length) return null;
+    return `https://www.op.gg/lol/multisearch/${slug}?summoners=${encodeURIComponent(ids.map(i => i.trim()).join(','))}`;
+}
+
 function register() {
     ipcMain.handle('accept-match', async () => {
         // Checked separately from the request's own null-on-failure return so a
@@ -306,4 +315,4 @@ function register() {
     });
 }
 
-module.exports = { register, opggProfileUrl };
+module.exports = { register, opggProfileUrl, opggMultisearchUrl };

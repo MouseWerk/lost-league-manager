@@ -2,12 +2,12 @@ const { ipcMain, screen } = require('electron');
 const lcu = require('../lcu');
 const state = require('../state');
 const championData = require('../services/champion-data');
-const axios = require('axios');
 const riotApi = require('../services/riot-api');
 const opgg = require('../services/opgg-api');
 const { getBuilds } = require('../services/builds-api');
 const { saveConfig } = require('../services/storage');
 const { recordHonorLevel } = require('../services/honor-watch');
+const { liveClientGet } = require('../services/live-client');
 // App region of the running client (cached per LCU connection), or null /
 // "unknown:<raw>" when it can't be mapped (PBE, ...).
 const { getClientRegion } = require('./stats');
@@ -44,6 +44,61 @@ function formatLcuRanked(q) {
         winLose: `${w}W ${l}L`,
         ratio:   w + l > 0 ? `${Math.round(w / (w + l) * 100)}%` : '',
     };
+}
+
+const EMPTY_RANK = { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
+// Marks a lookup that couldn't be resolved (as opposed to a resolved-but-
+// actually-unranked player) so callers know it's worth retrying.
+const FAILED_RANK = { ...EMPTY_RANK, failed: true };
+
+// Solo rank of any player by Riot ID (or legacy summoner name): the LCU
+// first, then the online sources for the client's server.
+async function soloRankForPlayer(p) {
+    const key = p.tagLine ? `${p.gameName || p.summonerName}#${p.tagLine}` : (p.gameName || p.summonerName);
+    try {
+        let summoner = null;
+
+        if (p.gameName && p.tagLine) {
+            try {
+                summoner = await lcu.request('GET',
+                    `/lol-summoner/v2/summoners/by-riot-id/${encodeURIComponent(p.gameName)}/${encodeURIComponent(p.tagLine)}`
+                );
+            } catch { /* try fallback */ }
+        }
+
+        if (!summoner?.puuid && p.summonerName) {
+            try {
+                const res = await lcu.request('GET',
+                    `/lol-summoner/v1/summoners?name=${encodeURIComponent(p.summonerName)}`
+                );
+                summoner = Array.isArray(res) ? res[0] : res;
+            } catch { /* skip */ }
+        }
+
+        if (summoner?.puuid) {
+            const ranked = await lcu.request('GET', `/lol-ranked/v1/ranked-stats/${summoner.puuid}`);
+            return formatLcuRanked(ranked?.RANKED_SOLO_5x5) || { ...EMPTY_RANK };
+        }
+
+        // The LCU hasn't cached this Riot ID locally yet (common for
+        // lobby/champ-select players it hasn't looked up before). Fall back to
+        // the online sources instead of silently reporting "Unranked", but
+        // only for a server they cover.
+        if (p.gameName && p.tagLine) {
+            const region = await getClientRegion();
+            if (!region || !ONLINE_REGION.test(region) || region === 'cn') return { ...FAILED_RANK };
+            try {
+                return await onlineSoloRank(p.gameName, p.tagLine, region);
+            } catch (e) {
+                console.log(`[Ranked] ${key} online fallback failed:`, e.message);
+                return { ...FAILED_RANK };
+            }
+        }
+        return { ...FAILED_RANK };
+    } catch (e) {
+        console.log(`[Ranked] ${key}:`, e.message);
+        return { ...FAILED_RANK };
+    }
 }
 
 function register() {
@@ -126,68 +181,13 @@ function register() {
         const results = {};
         if (!lcu.connected || !Array.isArray(players)) return results;
 
-        const EMPTY = { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
-        // Marks a lookup that couldn't be resolved (as opposed to a resolved-but-
-        // actually-unranked player) so the overlay knows it's worth retrying.
-        const FAILED = { ...EMPTY, failed: true };
-
         await Promise.allSettled(players.map(async (p) => {
             const name = p.gameName || p.summonerName;
             if (!name) return;
             // Key by full Riot ID (name#tag) so two players sharing a game name but
             // different taglines don't clobber each other's cached ranked data.
             const key = p.tagLine ? `${name}#${p.tagLine}` : name;
-            try {
-                let summoner = null;
-
-                if (p.gameName && p.tagLine) {
-                    try {
-                        summoner = await lcu.request('GET',
-                            `/lol-summoner/v2/summoners/by-riot-id/${encodeURIComponent(p.gameName)}/${encodeURIComponent(p.tagLine)}`
-                        );
-                    } catch { /* try fallback */ }
-                }
-
-                if (!summoner?.puuid && p.summonerName) {
-                    try {
-                        const res = await lcu.request('GET',
-                            `/lol-summoner/v1/summoners?name=${encodeURIComponent(p.summonerName)}`
-                        );
-                        summoner = Array.isArray(res) ? res[0] : res;
-                    } catch { /* skip */ }
-                }
-
-                if (summoner?.puuid) {
-                    const ranked   = await lcu.request('GET', `/lol-ranked/v1/ranked-stats/${summoner.puuid}`);
-                    const soloData = ranked?.RANKED_SOLO_5x5;
-                    results[key]   = formatLcuRanked(soloData) || EMPTY;
-                    return;
-                }
-
-                // The LCU hasn't cached this Riot ID locally yet (common for
-                // lobby/champ-select opponents it hasn't looked up before). Fall
-                // back to the online sources instead of silently reporting
-                // "Unranked" — but only for a server they cover.
-                if (p.gameName && p.tagLine) {
-                    const region = await getClientRegion();
-                    if (!region || !ONLINE_REGION.test(region) || region === 'cn') {
-                        results[key] = FAILED;
-                        return;
-                    }
-                    try {
-                        results[key] = await onlineSoloRank(p.gameName, p.tagLine, region);
-                    } catch (e) {
-                        console.log(`[Overlay Ranked] ${key} online fallback failed:`, e.message);
-                        results[key] = FAILED;
-                    }
-                    return;
-                }
-
-                results[key] = FAILED;
-            } catch (e) {
-                console.log(`[Overlay Ranked] ${key}:`, e.message);
-                results[key] = FAILED;
-            }
+            results[key] = await soloRankForPlayer(p);
         }));
 
         return results;
@@ -268,14 +268,14 @@ function register() {
             } else if (gameflow === 'Matchmaking') {
                 queueSearch = await lcu.request('GET', '/lol-matchmaking/v1/search');
             } else if (gameflow === 'InProgress') {
-                // Live client data runs on port 2999, no auth required. The
-                // game clock is in gamestats, HP in activeplayer.
+                // Live client data (port 2999, HTTPS, no auth). The game clock
+                // is in gamestats, HP in activeplayer.
                 try {
                     const [player, stats] = await Promise.all([
-                        axios.get('http://127.0.0.1:2999/liveclientdata/activeplayer', { timeout: 2000 }),
-                        axios.get('http://127.0.0.1:2999/liveclientdata/gamestats', { timeout: 2000 }),
+                        liveClientGet('activeplayer'),
+                        liveClientGet('gamestats'),
                     ]);
-                    liveGame = { ...player.data, gameTime: stats.data?.gameTime };
+                    liveGame = { ...player, gameTime: stats?.gameTime };
                 } catch { /* client data not available yet */ }
             }
 
@@ -310,4 +310,4 @@ function register() {
     });
 }
 
-module.exports = { register };
+module.exports = { register, soloRankForPlayer, formatLcuRanked };

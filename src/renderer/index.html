@@ -126,6 +126,21 @@
                                 <div class="profile-rank-label">Flex<span id="profileFlexRecord" class="profile-rank-record"></span></div>
                             </div>
 
+                            <div id="profileTodayWrap" class="profile-today" hidden>
+                                <span class="profile-today-label">Today</span>
+                                <span id="profileTodayLp" class="profile-today-lp"></span>
+                                <span id="profileTodayRecord" class="profile-today-record"></span>
+                            </div>
+
+                            <div id="profileGoalWrap" class="profile-goal" hidden>
+                                <div class="profile-goal-head">
+                                    <span class="profile-goal-label">Goal</span>
+                                    <span id="profileGoalRank" class="profile-goal-rank"></span>
+                                    <span id="profileGoalLeft" class="profile-goal-left"></span>
+                                </div>
+                                <div class="profile-lp-track"><div id="profileGoalBar" class="profile-lp-fill"></div></div>
+                            </div>
+
                             <div id="profileRankHistoryWrap" class="profile-rank-history-wrap" style="display:none">
                                 <div class="profile-rank-history-header">
                                     <span class="profile-rank-history-label">Rank history</span>
@@ -251,6 +266,20 @@
                                     <span id="ovCtxGameTimer" class="ov-ctx-timer">0:00</span>
                                 </div>
                                 <div id="ovCtxGameStats" class="ov-ctx-sub"></div>
+                            </div>
+                        </div>
+
+                        <!-- Lobby check: ranks of the players whose names the game shows. -->
+                        <div id="ovPlayers" class="ov-players" hidden>
+                            <div class="ov-players-head">
+                                <span id="ovPlayersTitle" class="ov-players-title">Your party</span>
+                                <span id="ovPlayersNote" class="ov-players-note"></span>
+                                <button id="ovPlayersOpgg" type="button" class="secondary-btn ov-players-opgg">OP.GG multi-search</button>
+                            </div>
+                            <div id="ovPlayersMine" class="ov-players-list"></div>
+                            <div id="ovPlayersEnemyWrap" hidden>
+                                <div class="ov-players-sub">Enemy team</div>
+                                <div id="ovPlayersEnemy" class="ov-players-list"></div>
                             </div>
                         </div>
                     </div>
@@ -773,6 +802,11 @@
 
                         <div class="acct-section-title spaced">Display</div>
                         <div class="form-group">
+                            <label for="newGoalRank">Goal rank <span class="field-hint">progress shows beside the account</span></label>
+                            <!-- Options come from goalRankOptions() in app.js -->
+                            <select id="newGoalRank"></select>
+                        </div>
+                        <div class="form-group">
                             <label for="newCustomRank">Custom rank <span class="field-hint">replaces the looked-up rank</span></label>
                             <input type="text" id="newCustomRank" placeholder="Gold II">
                         </div>
@@ -910,6 +944,78 @@
                 </button>
                 <button id="patchNotesGotItBtn" class="primary-btn" style="flex:1">Got it</button>
             </div>
+        </div>
+    </div>
+
+    <!-- First start: welcome, League install, first account, a few settings. -->
+    <div id="onboarding" class="modal" role="dialog" aria-modal="true" aria-labelledby="obTitle">
+        <div class="modal-content onboarding-content">
+            <div class="ob-steps" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+
+            <section class="ob-step" data-step="0">
+                <img class="ob-logo" src="assets/logo.png" alt="">
+                <h2 id="obTitle">Welcome to Lost League</h2>
+                <p class="ob-text">Save your League logins once, then switch accounts in one click. Ranks, recent games and the running client come along.</p>
+                <p class="ob-text">Setup takes about a minute.</p>
+                <div class="modal-actions">
+                    <button type="button" class="secondary-btn" data-ob="skip">Skip setup</button>
+                    <button type="button" class="primary-btn" data-ob="next">Get started</button>
+                </div>
+            </section>
+
+            <section class="ob-step" data-step="1" hidden>
+                <h2>Your League install</h2>
+                <p class="ob-text">Lost League starts League from here.</p>
+                <div id="obPathBox" class="ob-path">
+                    <i id="obPathIcon" class="fas fa-circle-check" aria-hidden="true"></i>
+                    <div class="ob-path-main">
+                        <div id="obPathStatus" class="ob-path-status"></div>
+                        <div id="obPath" class="ob-path-file"></div>
+                    </div>
+                    <button type="button" id="obPathBtn" class="secondary-btn">Choose</button>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="secondary-btn" data-ob="back">Back</button>
+                    <button type="button" class="primary-btn" data-ob="next">Continue</button>
+                </div>
+            </section>
+
+            <section class="ob-step" data-step="2" hidden>
+                <h2>Add your first account</h2>
+                <p class="ob-text">Type the Riot ID or paste an OP.GG link; rank, icon and server fill in.</p>
+                <div class="ob-row">
+                    <input type="text" id="obRiotId" class="form-control" spellcheck="false" autocomplete="off" placeholder="Name#TAG  or  op.gg link" aria-label="Riot ID or OP.GG link">
+                    <select id="obRegion" class="form-control ob-region" aria-label="Server"></select>
+                    <button type="button" id="obFindBtn" class="secondary-btn">Find</button>
+                </div>
+                <button type="button" id="obClientBtn" class="ob-link" hidden>Use the account signed into the client</button>
+                <div id="obFound" class="ob-found" hidden></div>
+                <div class="form-group">
+                    <label for="obUsername">Login name <span class="field-hint">what you type into the Riot Client</span></label>
+                    <input type="text" id="obUsername" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="form-group">
+                    <label for="obPassword">Password <span class="field-hint">stored encrypted on this PC</span></label>
+                    <input type="password" id="obPassword" autocomplete="off">
+                </div>
+                <div id="obAccountError" class="ob-error" role="alert"></div>
+                <div class="modal-actions">
+                    <button type="button" class="secondary-btn" data-ob="later">Add later</button>
+                    <button type="button" id="obSaveBtn" class="primary-btn">Save account</button>
+                </div>
+            </section>
+
+            <section class="ob-step" data-step="3" hidden>
+                <h2>A few choices</h2>
+                <p class="ob-text">You can change these any time in Settings.</p>
+                <label class="checkbox-group"><input type="checkbox" id="obAutoAccept"> Accept matches automatically</label>
+                <label class="checkbox-group"><input type="checkbox" id="obQueueToast" checked> Notify me when a match is found</label>
+                <label class="checkbox-group"><input type="checkbox" id="obStartWithWindows"> Start with Windows</label>
+                <div class="modal-actions">
+                    <button type="button" class="secondary-btn" data-ob="back">Back</button>
+                    <button type="button" class="primary-btn" data-ob="finish">Finish</button>
+                </div>
+            </section>
         </div>
     </div>
 

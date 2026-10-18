@@ -167,6 +167,35 @@
     font-size: 13px;
 }
 
+/* Lobby check: the players around you and their solo rank */
+.ov-players { padding: 16px 18px; border-radius: var(--radius-xl); background: var(--surface); }
+.ov-players-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ov-players-title { font-weight: 600; font-size: 15px; }
+.ov-players-note { flex: 1; min-width: 0; color: var(--muted); font-size: 13px; }
+.ov-players-opgg { height: var(--control-sm); padding: 0 12px; font-size: 13px; }
+.ov-players-sub { margin: 14px 0 8px; color: var(--muted); font-size: 13px; }
+.ov-players-list { display: flex; flex-direction: column; gap: 4px; }
+.ov-player {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) minmax(0, auto) 64px;
+    align-items: center;
+    column-gap: 12px;
+    min-height: var(--control-lg);
+    padding: 4px 10px 4px 6px;
+    border-radius: var(--radius);
+    background: var(--bg);
+}
+.ov-player.is-self { background: var(--bg-active); }
+.ov-player-emblem { width: 30px; height: 30px; object-fit: contain; }
+.ov-player-emblem.is-empty { border-radius: 50%; background: var(--line); transform: scale(0.5); }
+.ov-player-name { min-width: 0; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-player-name .ov-player-tag { color: var(--muted); font-weight: 400; }
+.ov-player-sub { color: var(--muted); font-size: 12px; font-weight: 400; }
+.ov-player-rank { font-family: var(--font-display); font-weight: 700; font-size: 14px; white-space: nowrap; text-align: right; }
+.ov-player-rank.rank-unranked { color: var(--muted); font-weight: 500; }
+.ov-player-wr { color: var(--muted); font-size: 12px; text-align: right; white-space: nowrap; }
+.ov-player.is-hidden .ov-player-name { color: var(--subtle); font-weight: 500; }
+
 /* Champions by mastery */
 .mastery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
 .mastery-card {

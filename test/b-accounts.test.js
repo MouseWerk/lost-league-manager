@@ -226,3 +226,10 @@ test('a reorder that cannot be saved reports the error', async (t) => {
     assert.equal(res.success, false);
     assert.match(res.message, /EBUSY/);
 });
+
+test('the goal rank is saved with the account and capped in length', async () => {
+    await invoke('add-account', { username: 'goal-test', password: 'pw', goalRank: 'DIAMOND IV' });
+    assert.equal(readJson('accounts.json').find(a => a.username === 'goal-test').goalRank, 'DIAMOND IV');
+    await invoke('update-account', { username: 'goal-test', goalRank: 'x'.repeat(100) });
+    assert.equal(readJson('accounts.json').find(a => a.username === 'goal-test').goalRank, 'DIAMOND IV');
+});
