@@ -1845,6 +1845,9 @@ select.form-control option {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* A failed launch waits for Try Again or Close: nothing is loading. */
+.launch-overlay.needs-attention .launch-spinner { display: none; }
+
 .launch-status {
     font-size: 17px;
     font-weight: 700;

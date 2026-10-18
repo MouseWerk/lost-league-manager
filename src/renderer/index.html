@@ -803,7 +803,7 @@
     </div>
 
     <!-- Launch Overlay -->
-    <div id="launchOverlay" class="launch-overlay">
+    <div id="launchOverlay" class="launch-overlay" role="dialog" aria-modal="true" aria-labelledby="launchAccLabel" aria-describedby="launchStatus">
         <div class="launch-content">
             <div class="launch-account-header">
                 <img id="launchAccIcon" src="assets/logo.png" class="launch-acc-icon">
@@ -813,7 +813,7 @@
                 </div>
             </div>
             <div class="launch-spinner"></div>
-            <div id="launchStatus" class="launch-status">Initializing...</div>
+            <div id="launchStatus" class="launch-status" aria-live="polite">Initializing...</div>
             <div class="launch-progress-track">
                 <div id="launchProgress" class="launch-progress-bar"></div>
             </div>
