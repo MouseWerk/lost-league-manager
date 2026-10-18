@@ -21,6 +21,39 @@ async function setAppearOffline() {
     }
 }
 
+// If the signed-in account is saved here without a Riot ID/region, fill them
+// in from the client so its card gets rank/icon/stats with no manual setup.
+async function linkRiotIdFromClient() {
+    const { loadAccounts, saveAccounts } = require('./services/storage');
+    const { broadcastAccountsUpdate } = require('./windows');
+    const { LCU_REGION_TO_APP } = require('./ipc/stats');
+
+    const username = state.currentAccount?.username
+        || (await lcu.request('GET', '/lol-login/v1/session'))?.username;
+    if (!username) return;
+
+    const accounts = loadAccounts();
+    const acc = accounts.find(a => a.username.toLowerCase() === username.toLowerCase());
+    if (!acc || (acc.riotId && acc.region)) return;
+
+    // The summoner endpoint 404s for a few seconds while the client boots.
+    let me = null;
+    for (let i = 0; i < 6 && !me?.gameName; i++) {
+        me = await lcu.request('GET', '/lol-summoner/v1/current-summoner');
+        if (!me?.gameName) await new Promise(r => setTimeout(r, 5000));
+        if (!lcu.connected) return;
+    }
+    if (!me?.gameName) return;
+    const rl = await lcu.request('GET', '/riotclient/region-locale');
+    const region = LCU_REGION_TO_APP[(rl?.region || rl?.webRegion || '').toLowerCase()] || '';
+
+    if (!acc.riotId) acc.riotId = `${me.gameName}#${me.tagLine}`;
+    if (!acc.region && region) acc.region = region;
+    saveAccounts(accounts);
+    broadcastAccountsUpdate();
+    console.log(`[LCU] Linked ${acc.username} → ${acc.riotId} (${acc.region || '?'})`);
+}
+
 function registerLcuEvents() {
     lcu.clearHandlers(); // prevent accumulation if called more than once
 
@@ -42,6 +75,8 @@ function registerLcuEvents() {
                 }
             }
         } catch { /* not critical */ }
+
+        linkRiotIdFromClient().catch(e => console.log('[LCU] Riot ID auto-link skipped:', e.message));
 
         try {
             const phase = await lcu.request('GET', '/lol-gameflow/v1/gameflow-phase');

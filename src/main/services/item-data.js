@@ -4,6 +4,12 @@ const championData = require('./champion-data');
 let itemList = []; // processed, purchasable items sorted by name
 let latestVersion = '14.1.1';
 
+let resolveReady;
+const ready = new Promise(r => { resolveReady = r; });
+function whenReady(timeoutMs = 20000) {
+    return Promise.race([ready, new Promise(r => setTimeout(r, timeoutMs))]);
+}
+
 // ── Community-standard gold values per stat point ────────────────────────────
 // Approximate values used by the wider LoL community to estimate item
 // "gold efficiency" (stat value ÷ item cost). Percent-based stats are stored
@@ -93,7 +99,7 @@ async function fetchItemData(attempt = 0) {
     const MAX_ATTEMPTS = 3;
     try {
         latestVersion = championData.getLatestVersion();
-        const res  = await axios.get(`https://ddragon.leagueoflegends.com/cdn/${latestVersion}/data/en_US/item.json`);
+        const res  = await axios.get(`https://ddragon.leagueoflegends.com/cdn/${latestVersion}/data/en_US/item.json`, { timeout: 15000 });
         const data = res.data.data;
 
         const list = [];
@@ -132,6 +138,7 @@ async function fetchItemData(attempt = 0) {
         itemList = deduped;
 
         console.log(`[DDragon] Loaded ${itemList.length} purchasable items (v${latestVersion})`);
+        resolveReady();
     } catch (e) {
         console.error(`[DDragon] Item fetch attempt ${attempt + 1}/${MAX_ATTEMPTS} failed: ${e.message}`);
         if (attempt < MAX_ATTEMPTS - 1) {
@@ -139,10 +146,12 @@ async function fetchItemData(attempt = 0) {
             return fetchItemData(attempt + 1);
         }
         console.warn('[DDragon] All item fetch attempts failed, item list unavailable.');
+        resolveReady();
     }
 }
 
 module.exports = {
     fetchItemData,
+    whenReady,
     getItemList: () => itemList,
 };

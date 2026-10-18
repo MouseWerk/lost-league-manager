@@ -15,7 +15,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     launchAccount: (username) => ipcRenderer.invoke('launch-account', username),
     launchLeagueClient: () => ipcRenderer.invoke('launch-league-client'),
     cancelLaunch: () => ipcRenderer.invoke('cancel-launch'),
-    getStats: (region, riotId) => ipcRenderer.invoke('get-stats', { region, riotId }),
+    getStats: (region, riotId, force = false) => ipcRenderer.invoke('get-stats', { region, riotId, force }),
+    lookupSummoner: (input, region) => ipcRenderer.invoke('lookup-summoner', { input, region }),
+    getClientSummoner: () => ipcRenderer.invoke('get-client-summoner'),
     getMatchHistory: (region, riotId) => ipcRenderer.invoke('get-match-history', { region, riotId }),
     getRankHistory: (riotId) => ipcRenderer.invoke('get-rank-history', riotId),
 

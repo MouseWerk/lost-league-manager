@@ -11,8 +11,8 @@ const REGION_TO_PLATFORM = {
     kr: 'kr',
     sea: 'sea',
     br: 'br1', br1: 'br1',
-    las: 'la1', la1: 'la1',
-    lan: 'la2', la2: 'la2',
+    lan: 'la1', la1: 'la1', // LA1 = Latin America North
+    las: 'la2', la2: 'la2', // LA2 = Latin America South
     oce: 'oc1', oc1: 'oc1',
     tr: 'tr1', tr1: 'tr1',
     ru: 'ru',
@@ -22,13 +22,14 @@ const REGION_TO_PLATFORM = {
     th: 'th2', th2: 'th2',
     tw: 'tw2', tw2: 'tw2',
     vn: 'vn2', vn2: 'vn2',
+    me: 'me1', me1: 'me1',
     cn: 'cn',
 };
 
 // Maps platform → regional routing host for account-v1
 const PLATFORM_TO_REGIONAL = {
     na1: 'americas', br1: 'americas', la1: 'americas', la2: 'americas',
-    euw1: 'europe', eun1: 'europe', tr1: 'europe', ru: 'europe',
+    euw1: 'europe', eun1: 'europe', tr1: 'europe', ru: 'europe', me1: 'europe',
     kr: 'asia', jp1: 'asia',
     sea: 'sea', oc1: 'sea', ph2: 'sea', sg2: 'sea', th2: 'sea', tw2: 'sea', vn2: 'sea',
 };

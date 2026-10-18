@@ -35,6 +35,23 @@ const OPGG_ICON_SVG = `<svg viewBox="0 0 16 16" width="1em" height="1em" aria-hi
 // Keyed by exact package.json version string; a version with no entry here
 // (or one the user has already seen) shows nothing.
 const PATCH_NOTES = {
+  "1.7.0": [
+    {
+      icon: "fas fa-bolt",
+      title: "Quick add",
+      body: "Paste a Riot ID or OP.GG link when adding an account. Rank, icon, region and label fill in automatically, or import straight from the running League client.",
+    },
+    {
+      icon: "fas fa-key",
+      title: "No Riot API key needed",
+      body: "Ranked stats and match history now come from OP.GG when you have no key (or it expired). Accounts signed into the client get their Riot ID linked automatically.",
+    },
+    {
+      icon: "fas fa-gauge-high",
+      title: "Faster and steadier",
+      body: "The window opens without waiting on downloads, scrolling is lighter, LAN/LAS stats point at the right server, and a stale League lockfile no longer resets your Discord status every few seconds.",
+    },
+  ],
   "1.6.0": [
     {
       icon: "fas fa-layer-group",
@@ -58,6 +75,40 @@ const PATCH_NOTES = {
     },
   ],
 };
+
+// Region values stored on accounts (lowercase) → display label. Shared by the
+// account form's region select and the quick-add lookup.
+const REGIONS = [
+  ["euw", "EUW"],
+  ["eune", "EUNE"],
+  ["na", "NA"],
+  ["kr", "KR"],
+  ["jp", "JP"],
+  ["br", "BR"],
+  ["lan", "LAN"],
+  ["las", "LAS"],
+  ["oce", "OCE"],
+  ["tr", "TR"],
+  ["ru", "RU"],
+  ["me", "ME"],
+  ["vn", "VN"],
+  ["tw", "TW"],
+  ["sg", "SG"],
+  ["ph", "PH"],
+  ["th", "TH"],
+  ["sea", "SEA (legacy)"],
+  ["cn", "CN"],
+];
+
+let lcuConnected = false;
+
+function escapeHtml(str) {
+  return String(str ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+  );
+}
 
 // Rank tier → numeric for sorting
 const TIER_ORDER = {
@@ -531,10 +582,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const riotApiKeyInput = document.getElementById("riotApiKeyInput");
     const riotApiKeyNotice = document.getElementById("riotApiKeyNotice");
 
-    function updateApiKeyNotice(key) {
-      if (riotApiKeyNotice) {
-        riotApiKeyNotice.style.display = key ? "none" : "flex";
-      }
+    // No key is a supported setup now (OP.GG covers stats), so there's no
+    // warning to show either way.
+    function updateApiKeyNotice() {
+      if (riotApiKeyNotice) riotApiKeyNotice.style.display = "none";
     }
 
     if (riotApiKeyInput) {
@@ -634,10 +685,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // LCU connect / disconnect
   window.electronAPI.onLcuConnected(() => {
+    lcuConnected = true;
+    document.getElementById("quickAddClientBtn").style.display = "";
     document.getElementById("lcuNavDot").classList.add("visible");
     loadLiveView();
   });
   window.electronAPI.onLcuDisconnected(() => {
+    lcuConnected = false;
+    document.getElementById("quickAddClientBtn").style.display = "none";
     document.getElementById("lcuNavDot").classList.remove("visible");
     setLcuOffline();
   });
@@ -998,6 +1053,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     .getElementById("saveAccountBtn")
     .addEventListener("click", saveAccount);
   initChampionPicker();
+  initQuickAdd();
 
   // Change League Client path
   document
@@ -1176,7 +1232,7 @@ function renderAccounts() {
               }
               statsCache[acc.username] = stats;
               applyStatsToCard(el, stats);
-              if (currentSort === "rank") renderAccounts();
+              if (currentSort === "rank") scheduleRankResort();
             })
             .catch((err) => {
               if (_renderGen !== gen) return;
@@ -1186,6 +1242,16 @@ function renderAccounts() {
       }
     }
   }
+}
+
+// Stats arrive one card at a time; re-sorting by rank after each one used to
+// rebuild the whole list N times. Coalesce into a single re-render.
+let _resortTimer = null;
+function scheduleRankResort() {
+  clearTimeout(_resortTimer);
+  _resortTimer = setTimeout(() => {
+    if (currentSort === "rank") renderAccounts();
+  }, 400);
 }
 
 function applyStatsToCard(cardEl, stats) {
@@ -1222,23 +1288,36 @@ function applyStatsToCard(cardEl, stats) {
   }
 
   const masteryEl = cardEl.querySelector(".card-mastery");
-  if (
-    masteryEl &&
-    Array.isArray(stats.masteryChampions) &&
-    stats.masteryChampions.length
-  ) {
-    // icon/name come from DDragon (main process), not user input — safe to
-    // interpolate. Only the mastery points display gets rounded down here.
-    masteryEl.innerHTML = stats.masteryChampions
+  const badges = championBadges(stats);
+  if (masteryEl && badges.length) {
+    // Names can come from OP.GG (external) — escape everything interpolated.
+    masteryEl.innerHTML = badges
       .map(
-        (c) => `
-            <div class="mastery-badge" data-tooltip="${c.name} — ${formatMasteryPoints(c.points)} pts (Mastery ${c.level})">
-                ${c.icon ? `<img src="${c.icon}" alt="">` : ""}
+        (b) => `
+            <div class="mastery-badge" data-tooltip="${escapeHtml(b.tip)}">
+                ${b.icon ? `<img src="${escapeHtml(b.icon)}" alt="" loading="lazy">` : ""}
             </div>
         `,
       )
       .join("");
   }
+}
+
+// Mastery (Riot API) when available, otherwise most-played this season (OP.GG).
+function championBadges(stats) {
+  if (Array.isArray(stats?.masteryChampions) && stats.masteryChampions.length) {
+    return stats.masteryChampions.map((c) => ({
+      icon: c.icon,
+      tip: `${c.name} — ${formatMasteryPoints(c.points)} pts (Mastery ${c.level})`,
+    }));
+  }
+  if (Array.isArray(stats?.topChampions) && stats.topChampions.length) {
+    return stats.topChampions.map((c) => ({
+      icon: c.icon,
+      tip: `${c.name} — ${c.games} games, ${c.games ? Math.round((c.wins / c.games) * 100) : 0}% WR this season`,
+    }));
+  }
+  return [];
 }
 
 function formatMasteryPoints(n) {
@@ -1533,7 +1612,7 @@ function createAccountCard(account) {
                 </div>
                 <div class="card-meta">
                     <span class="username card-username"></span>
-                    ${region ? `<span class="region-badge">${region}</span>` : ""}
+                    ${region ? `<span class="region-badge">${escapeHtml(region)}</span>` : ""}
                     ${lastUsedText ? `<span class="last-used">${lastUsedText}</span>` : ""}
                 </div>
                 <div class="rank card-rank"></div>
@@ -1797,8 +1876,183 @@ function openModal(account = null) {
     document.getElementById("newCustomAvatar").value = "";
 
     document.getElementById("newUsername").disabled = false;
+
+    // Most people keep accounts on one server — preselect the last one used.
+    const lastRegion = allAccounts.map((a) => a.region).filter(Boolean).pop();
+    if (lastRegion) document.getElementById("newRegion").value = lastRegion;
   }
+
+  document.getElementById("passwordKeepHint").style.display = isEditing
+    ? ""
+    : "none";
+  resetQuickAdd();
+
+  // The form isn't a nav destination — don't leave the previous tab lit.
+  document
+    .querySelectorAll(".nav-btn")
+    .forEach((b) => b.classList.remove("active"));
   showView("accountFormView");
+  if (!isEditing) document.getElementById("quickAddInput").focus();
+}
+
+// ── Quick add (OP.GG / Riot API lookup) ─────────────────────────────────────
+
+let quickAddProfile = null; // last successful lookup — seeds statsCache on save
+let _quickAddToken = 0;
+
+function populateRegionSelects() {
+  const opts = REGIONS.map(
+    ([v, label]) => `<option value="${v}">${label}</option>`,
+  ).join("");
+  document.getElementById("newRegion").innerHTML =
+    `<option value="" disabled>Select region…</option>${opts}`;
+  document.getElementById("quickAddRegion").innerHTML = opts;
+}
+
+function resetQuickAdd() {
+  _quickAddToken++;
+  quickAddProfile = null;
+  const input = document.getElementById("quickAddInput");
+  input.value = isEditing ? document.getElementById("newRiotId").value : "";
+  document.getElementById("quickAddResult").innerHTML = "";
+  document.getElementById("quickAddResult").className = "quick-add-result";
+  document.getElementById("quickAddTitle").textContent = isEditing
+    ? "Link summoner"
+    : "Quick add";
+  document.getElementById("quickAddRegion").value =
+    document.getElementById("newRegion").value || "euw";
+  document.getElementById("quickAddClientBtn").style.display = lcuConnected
+    ? ""
+    : "none";
+  setQuickAddBusy(false);
+}
+
+function setQuickAddBusy(busy) {
+  const btn = document.getElementById("quickAddBtn");
+  btn.disabled = busy;
+  btn.innerHTML = busy ? '<i class="fas fa-spinner fa-spin"></i>' : "Find";
+}
+
+function renderQuickAddResult(p) {
+  const el = document.getElementById("quickAddResult");
+  el.className = "quick-add-result is-found";
+  const tierName = (p.tier || "unranked").split(" ")[0].toLowerCase();
+  const rankCls = TIER_ORDER[tierName] ? `rank-${tierName}` : "rank-unranked";
+  const champs = championBadges(p)
+    .map(
+      (b) =>
+        `<div class="mastery-badge" data-tooltip="${escapeHtml(b.tip)}">${b.icon ? `<img src="${escapeHtml(b.icon)}" alt="">` : ""}</div>`,
+    )
+    .join("");
+  const [name, tag] = (p.riotId || "").split("#");
+  el.innerHTML = `
+      <div class="qa-icon-wrap">
+          <img class="qa-icon" src="${escapeHtml(p.iconSrc || "assets/logo.png")}" alt="">
+          ${p.level ? `<span class="qa-level">${escapeHtml(p.level)}</span>` : ""}
+      </div>
+      <div class="qa-main">
+          <div class="qa-name">${escapeHtml(name)}<span class="qa-tag">#${escapeHtml(tag)}</span>
+              <span class="region-badge">${escapeHtml((p.region || "").toUpperCase())}</span></div>
+          <div class="qa-rank"><span class="${rankCls}">${escapeHtml(p.tier || "Unranked")}</span>${p.lp ? ` · ${escapeHtml(p.lp)}` : ""}${p.ratio ? `<span class="qa-wr">${escapeHtml(p.winLose)} · ${escapeHtml(p.ratio)}</span>` : ""}</div>
+      </div>
+      <div class="mastery-badges qa-champs">${champs}</div>
+      <div class="qa-filled"><i class="fas fa-check"></i> Filled in</div>`;
+  const img = el.querySelector(".qa-icon");
+  img.addEventListener("error", () => (img.src = "assets/logo.png"));
+}
+
+function renderQuickAddError(message) {
+  const el = document.getElementById("quickAddResult");
+  el.className = "quick-add-result is-error";
+  el.innerHTML = `<i class="fas fa-circle-exclamation"></i><span></span>`;
+  el.querySelector("span").textContent = message;
+}
+
+async function quickAddFind() {
+  const input = document.getElementById("quickAddInput").value.trim();
+  if (!input) {
+    document.getElementById("quickAddInput").focus();
+    return;
+  }
+  const region = document.getElementById("quickAddRegion").value;
+  const token = ++_quickAddToken;
+  setQuickAddBusy(true);
+  const resultEl = document.getElementById("quickAddResult");
+  resultEl.className = "quick-add-result is-loading";
+  resultEl.innerHTML = `<div class="qa-skeleton"></div><span>Looking up on OP.GG…</span>`;
+
+  let res;
+  try {
+    res = await window.electronAPI.lookupSummoner(input, region);
+  } catch (e) {
+    res = { success: false, message: e.message };
+  }
+  if (token !== _quickAddToken) return; // superseded by a newer search / reset
+  setQuickAddBusy(false);
+
+  if (!res?.success) {
+    quickAddProfile = null;
+    renderQuickAddError(res?.message || "Lookup failed");
+    return;
+  }
+
+  quickAddProfile = res;
+  document.getElementById("quickAddRegion").value = res.region;
+  document.getElementById("newRiotId").value = res.riotId;
+  document.getElementById("newRegion").value = res.region;
+  const labelEl = document.getElementById("newLabel");
+  if (!labelEl.value.trim()) labelEl.value = res.gameName || res.riotId.split("#")[0];
+  renderQuickAddResult(res);
+
+  const userEl = document.getElementById("newUsername");
+  if (!isEditing && !userEl.value) userEl.focus();
+}
+
+async function quickAddFromClient() {
+  const btn = document.getElementById("quickAddClientBtn");
+  btn.disabled = true;
+  try {
+    const res = await window.electronAPI.getClientSummoner();
+    if (!res?.success) {
+      renderQuickAddError(res?.message || "Could not read the League client");
+      return;
+    }
+    const userEl = document.getElementById("newUsername");
+    if (!isEditing && res.username && !userEl.value) userEl.value = res.username;
+    document.getElementById("quickAddInput").value = res.riotId;
+    if (res.region) document.getElementById("quickAddRegion").value = res.region;
+    await quickAddFind();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function initQuickAdd() {
+  populateRegionSelects();
+  const input = document.getElementById("quickAddInput");
+  document.getElementById("quickAddBtn").addEventListener("click", quickAddFind);
+  document
+    .getElementById("quickAddClientBtn")
+    .addEventListener("click", quickAddFromClient);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      quickAddFind();
+    }
+  });
+  // A pasted OP.GG link carries its own region — search straight away.
+  input.addEventListener("paste", () => {
+    setTimeout(() => {
+      if (/op\.gg\//i.test(input.value)) quickAddFind();
+    }, 0);
+  });
+  // Pasting an OP.GG link into the plain Riot ID field works too.
+  document.getElementById("newRiotId").addEventListener("change", (e) => {
+    if (/op\.gg\//i.test(e.target.value)) {
+      input.value = e.target.value;
+      quickAddFind();
+    }
+  });
 }
 
 function closeModal() {
@@ -1958,12 +2212,21 @@ function initChampionPicker() {
 }
 
 async function saveAccount() {
-  const username = document.getElementById("newUsername").value;
+  const username = document.getElementById("newUsername").value.trim();
   const password = document.getElementById("newPassword").value;
-  const label = document.getElementById("newLabel").value;
+  const label = document.getElementById("newLabel").value.trim();
   const note = document.getElementById("newNotes").value;
-  const riotId = document.getElementById("newRiotId").value;
+  const riotId = document
+    .getElementById("newRiotId")
+    .value.trim()
+    .replace(/\s*#\s*/, "#");
   const region = document.getElementById("newRegion").value;
+
+  if (riotId && !/^[^#]+#[^#]+$/.test(riotId)) {
+    showToast("Riot ID must look like Name#TAG (or use Quick add above)", "error");
+    shakeModal();
+    return;
+  }
 
   const appearOffline = document.getElementById("appearOfflineToggle").checked;
   const autoSkin = document.getElementById("autoSkinToggle").checked;
@@ -2020,6 +2283,12 @@ async function saveAccount() {
   }
 
   if (res.success) {
+    // Show the looked-up rank/icon immediately instead of refetching it.
+    if (quickAddProfile && quickAddProfile.riotId === riotId) {
+      statsCache[username] = quickAddProfile;
+    } else if (isEditing) {
+      delete statsCache[username]; // Riot ID/region may have changed
+    }
     showToast(isEditing ? "Account updated!" : "Account added!", "success");
     closeModal();
     loadAccounts();

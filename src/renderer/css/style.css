@@ -125,7 +125,6 @@ body {
     background: radial-gradient(circle, rgba(10, 200, 185, 0.1) 0%, transparent 70%);
     z-index: -1;
     pointer-events: none;
-    filter: blur(80px);
 }
 
 .bg-glow-bottom {
@@ -135,7 +134,6 @@ body {
     background: radial-gradient(circle, rgba(62, 139, 255, 0.08) 0%, transparent 70%);
     z-index: -1;
     pointer-events: none;
-    filter: blur(80px);
 }
 
 /* ── App container ── */
@@ -159,7 +157,6 @@ body {
     display: flex;
     flex-direction: column;
     padding: 40px 24px;
-    backdrop-filter: blur(40px);
     z-index: 100;
 }
 
@@ -604,7 +601,7 @@ body {
 .accounts-grid.compact .mastery-badges { margin-top: 2px; }
 .accounts-grid.compact .mastery-badge  { width: 16px; height: 16px; border-radius: 4px; }
 .accounts-grid.compact .icon-btn { width: 26px; height: 26px; font-size: 10px; border-radius: 7px; }
-.accounts-grid.compact .card-actions { gap: 4px; width: 86px; /* 3 × 26px icon-btn + 2 × 4px gap */ }
+.accounts-grid.compact .card-actions { gap: 4px; width: 116px; /* 4 × 26px icon-btn + 3 × 4px gap */ }
 
 .account-card {
     background: var(--glass-bg);
@@ -617,7 +614,6 @@ body {
     align-items: center;
     gap: 12px;
     transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
-    backdrop-filter: blur(25px);
     pointer-events: auto;
 }
 
@@ -803,11 +799,12 @@ body {
     /* flex-wrap (not a 3-col grid) so an odd 7th button (OP.GG, only shown
        when the account has a Riot ID) wraps to its own row without a lone
        grid `1fr` cell stretching to fill the full row width. Explicit width
-       keeps wrapping at 3-per-row regardless of button count. */
+       keeps wrapping at 4-per-row (two tidy rows for 6-7 buttons, instead
+       of a lone Delete button on a third row). */
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
-    width: 112px; /* 3 × 32px icon-btn + 2 × 8px gap */
+    width: 152px; /* 4 × 32px icon-btn + 3 × 8px gap */
     gap: 8px;
     flex-shrink: 0;
 }
@@ -3799,3 +3796,138 @@ select.form-control option {
     margin-top: 4px;
 }
 .item-description-header:first-child { margin-top: 0; }
+
+/* ── Themed checkboxes (replaces the default white Chromium box) ── */
+.checkbox-group input[type="checkbox"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    display: inline-grid;
+    place-content: center;
+    transition: background 0.15s, border-color 0.15s;
+}
+.checkbox-group input[type="checkbox"]::after {
+    content: "";
+    width: 9px;
+    height: 5px;
+    border-left: 2px solid #000;
+    border-bottom: 2px solid #000;
+    transform: translateY(-1px) rotate(-45deg) scale(0);
+    transition: transform 0.12s;
+}
+.checkbox-group input[type="checkbox"]:checked {
+    background: var(--primary);
+    border-color: var(--primary);
+}
+.checkbox-group input[type="checkbox"]:checked::after { transform: translateY(-1px) rotate(-45deg) scale(1); }
+.checkbox-group input[type="checkbox"]:focus-visible { box-shadow: 0 0 0 3px rgba(10, 200, 185, 0.25); outline: none; }
+.checkbox-group input[type="checkbox"]:disabled { cursor: not-allowed; }
+.checkbox-group:hover input[type="checkbox"]:not(:disabled):not(:checked) { border-color: rgba(255, 255, 255, 0.32); }
+
+/* ── Quick add (account form) ── */
+.quick-add {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, rgba(10, 200, 185, 0.07), rgba(10, 200, 185, 0.015) 60%);
+    border: 1px solid rgba(10, 200, 185, 0.18);
+    border-radius: 16px;
+    padding: 16px 18px;
+}
+.quick-add-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.quick-add-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-main);
+}
+.quick-add-title i { color: var(--primary); margin-right: 4px; }
+.quick-add-sub { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
+.quick-add-client-btn {
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-main);
+    border-radius: 9px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.quick-add-client-btn:hover:not(:disabled) { background: rgba(10, 200, 185, 0.12); border-color: rgba(10, 200, 185, 0.4); }
+.quick-add-client-btn:disabled { opacity: 0.5; cursor: wait; }
+.quick-add-client-btn i { color: var(--primary); margin-right: 4px; }
+.quick-add-row { display: flex; gap: 10px; }
+.quick-add-input-wrap { position: relative; flex: 1; min-width: 0; }
+.quick-add-input-wrap i {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-dim);
+    font-size: 13px;
+    pointer-events: none;
+}
+.quick-add-input-wrap input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #fff;
+    padding: 11px 14px 11px 38px;
+    border-radius: 11px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.quick-add-input-wrap input::placeholder { color: var(--text-dim); opacity: 0.6; }
+.quick-add-input-wrap input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(10, 200, 185, 0.12);
+}
+.quick-add-region.form-control { width: 108px; flex-shrink: 0; background-color: rgba(0, 0, 0, 0.25); }
+.quick-add-btn { min-width: 84px; padding: 11px 18px; }
+.quick-add-btn:disabled { opacity: 0.7; cursor: wait; transform: none; box-shadow: none; }
+
+.quick-add-result:empty { display: none; }
+.quick-add-result {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid var(--glass-border);
+    font-size: 13px;
+    animation: qa-in 0.18s ease-out;
+}
+@keyframes qa-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+.quick-add-result.is-error { color: #ff8a8a; border-color: rgba(255, 90, 90, 0.25); background: rgba(255, 60, 60, 0.06); gap: 10px; }
+.quick-add-result.is-loading { color: var(--text-dim); gap: 12px; }
+.qa-skeleton {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.1), rgba(255,255,255,0.04));
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite linear;
+}
+.qa-icon-wrap { position: relative; flex-shrink: 0; }
+.qa-icon { width: 44px; height: 44px; border-radius: 11px; display: block; object-fit: cover; border: 1px solid rgba(255, 255, 255, 0.08); }
+.qa-level {
+    position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+    background: #111116; border: 1px solid rgba(255, 255, 255, 0.12);
+    font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 6px; color: var(--text-main);
+}
+.qa-main { min-width: 0; flex: 1; }
+.qa-name { font-weight: 700; color: var(--text-main); font-size: 14px; display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qa-tag { color: var(--text-dim); font-weight: 500; margin-right: 4px; }
+.qa-rank { margin-top: 3px; font-weight: 600; color: var(--text-dim); }
+.qa-wr { margin-left: 8px; font-weight: 500; opacity: 0.8; }
+.qa-champs { margin: 0; }
+.qa-filled { color: var(--primary); font-size: 12px; font-weight: 600; white-space: nowrap; }
