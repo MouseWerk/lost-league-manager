@@ -8,7 +8,7 @@ const path = require('path');
 
 const RENDERER = path.join(__dirname, '..', 'src', 'renderer');
 const PAGES = ['index.html', 'overlay.html'];
-const SOURCES = [...PAGES, 'js/app.js', 'js/overlay.js'];
+const SOURCES = [...PAGES, 'js/app.js', 'js/ui-lib.js', 'js/overlay.js'];
 const read = (rel) => fs.readFileSync(path.join(RENDERER, rel), 'utf8');
 
 test('no emojis in UI sources', () => {
@@ -30,6 +30,34 @@ test('every page sets a strict Content-Security-Policy', () => {
         assert.ok(!/script-src[^;]*'unsafe-(inline|eval)'/.test(csp), `${page}: unsafe script source`);
         assert.match(csp, /object-src 'none'/, `${page}: object-src`);
     }
+});
+
+// Markup built in app.js must not interpolate a raw property (`${stats.lp}`,
+// `${m.championIcon}`): stats, match history and Data Dragon text come from
+// outside (OP.GG, imported backups) and go through escapeHtml(...) instead.
+// Plain local variables (numbers, constant class names) are allowed.
+function rawMemberInterpolations(source) {
+    const member = /\$\{\s*[A-Za-z_$][\w$]*(?:\??\.[\w$]+|\[[^\]]+\])+\s*\}/;
+    const offenders = [];
+    source.split('\n').forEach((line, i) => {
+        if (line.includes('<') && member.test(line)) offenders.push(`${i + 1}: ${line.trim().slice(0, 100)}`);
+    });
+    return offenders;
+}
+
+test('markup in app.js escapes every interpolated property', () => {
+    assert.deepEqual(rawMemberInterpolations(read('js/app.js')), []);
+    // The check itself catches the shapes it is meant for.
+    assert.equal(rawMemberInterpolations('el.innerHTML = `<span>${stats.lp}</span>`;').length, 1);
+    assert.equal(rawMemberInterpolations('el.innerHTML = `<img src="${m?.icon}">`;').length, 1);
+    assert.equal(rawMemberInterpolations('el.innerHTML = `<span>${escapeHtml(stats.lp)}</span>`;').length, 0);
+});
+
+test('index.html loads ui-lib.js before app.js', () => {
+    const html = read('index.html');
+    const lib = html.indexOf('<script src="js/ui-lib.js"></script>');
+    const app = html.indexOf('<script src="js/app.js"></script>');
+    assert.ok(lib !== -1 && app !== -1 && lib < app, 'ui-lib.js must be a src= script before app.js');
 });
 
 test('no inline scripts, styles or event-handler attributes', () => {
