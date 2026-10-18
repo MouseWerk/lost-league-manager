@@ -30,8 +30,9 @@
     width: 34px;
     height: 34px;
     flex-shrink: 0;
-    border-radius: 9px;
+    border-radius: var(--radius-sm);
     background: var(--logo-tile);
+    box-shadow: var(--logo-ring);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -52,7 +53,7 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    height: 34px;
+    height: var(--control-sm);
     padding: 0 12px;
     border: 0;
     border-radius: var(--radius-sm);
@@ -90,7 +91,7 @@
 .auto-accept-control .label-text { user-select: none; }
 
 .window-controls { display: flex; align-items: center; gap: 2px; margin-left: 4px; }
-.window-controls .icon-btn { width: 32px; height: 32px; }
+.window-controls .icon-btn { width: var(--control-sm); height: var(--control-sm); }
 .window-controls .icon-btn.close-btn:hover { background: var(--danger); color: var(--on-danger); }
 
 /* ── Views ──────────────────────────────────────────────────────────────── */

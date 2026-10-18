@@ -24,7 +24,7 @@
 .region-filters { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .region-filters[hidden] { display: none; }
 .region-chip {
-    height: 30px;
+    height: var(--control-sm);
     padding: 0 12px;
     border: 0;
     border-radius: var(--radius-pill);
@@ -43,7 +43,7 @@
 .search-icon { position: absolute; left: 12px; color: var(--subtle); font-size: 13px; pointer-events: none; }
 .search-input {
     width: 100%;
-    height: 36px;
+    height: var(--control);
     padding: 0 32px 0 34px;
     border-radius: var(--radius);
     border: 1px solid var(--line);
@@ -57,10 +57,10 @@
 .search-clear {
     position: absolute;
     right: 6px;
-    width: 24px;
-    height: 24px;
+    width: var(--control-xs);
+    height: var(--control-xs);
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     background: transparent;
     color: var(--muted);
     cursor: pointer;
@@ -68,7 +68,7 @@
 .search-clear:hover { background: var(--bg-hover); color: var(--ink); }
 
 .sort-select {
-    height: 36px;
+    height: var(--control);
     padding: 0 32px 0 12px;
     border-radius: var(--radius);
     border: 1px solid var(--line);
@@ -104,7 +104,7 @@
     align-items: center;
     column-gap: 14px;
     padding: 10px 10px 10px 12px;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
     cursor: pointer;
     transition: background-color 0.12s ease;
 }
@@ -117,10 +117,10 @@
 .summoner-icon {
     width: 42px;
     height: 42px;
-    border-radius: 11px;
+    border-radius: var(--radius);
     object-fit: cover;
     display: block;
-    background: var(--surface);
+    background: var(--logo-tile);
 }
 .level-badge {
     position: absolute;
@@ -128,7 +128,7 @@
     left: 50%;
     transform: translateX(-50%);
     padding: 0 5px;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     background: var(--surface-raised);
     color: var(--muted);
     font-size: 10px;
@@ -172,7 +172,7 @@
 .mastery-badge {
     width: 24px;
     height: 24px;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     overflow: hidden;
     background: var(--surface);
     flex-shrink: 0;
@@ -222,14 +222,14 @@
 
 .profile-header { display: flex; align-items: center; gap: 14px; }
 .profile-icon-wrap { position: relative; width: 60px; height: 60px; flex-shrink: 0; }
-.profile-icon { width: 60px; height: 60px; border-radius: 15px; object-fit: cover; display: block; background: var(--bg); }
+.profile-icon { width: 60px; height: 60px; border-radius: var(--radius-lg); object-fit: cover; display: block; background: var(--logo-tile); }
 .profile-level-badge {
     position: absolute;
     bottom: -6px;
     left: 50%;
     transform: translateX(-50%);
     padding: 0 6px;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     background: var(--bg);
     color: var(--muted);
     font-size: 11px;
@@ -278,8 +278,8 @@
 }
 .is-flex .profile-rank-tier { font-size: 16px; font-weight: 600; }
 .profile-rank-lp { margin-left: auto; font-weight: 600; font-size: 14px; }
-.profile-lp-track { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
-.profile-lp-fill { height: 100%; width: 0; border-radius: 3px; background: currentColor; transition: width 0.3s ease; }
+.profile-lp-track { height: 5px; border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
+.profile-lp-fill { height: 100%; width: 0; border-radius: var(--radius-pill); background: currentColor; transition: width 0.3s ease; }
 .profile-rank-label { display: flex; gap: 8px; color: var(--muted); font-size: 12px; }
 .profile-rank-record { margin-left: auto; }
 
@@ -306,7 +306,7 @@
 }
 .match-pill.win { background: var(--win); color: var(--win-ink); }
 .match-pill.loss { background: var(--loss); color: var(--loss-ink); }
-.match-pill img { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; }
+.match-pill img { width: 26px; height: 26px; border-radius: var(--radius-xs); object-fit: cover; }
 
 .profile-notes {
     padding: 10px 12px;
@@ -319,12 +319,12 @@
 }
 
 .profile-actions { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
-.profile-play { height: 46px; border-radius: 12px; font-size: 15px; }
+.profile-play { height: 46px; border-radius: var(--radius-lg); font-size: 15px; }
 .profile-play span { overflow: hidden; text-overflow: ellipsis; }
 .profile-secondary-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.profile-secondary-actions .secondary-btn { flex: 1 1 auto; height: 34px; padding: 0 10px; font-size: 13px; font-weight: 500; }
+.profile-secondary-actions .secondary-btn { flex: 1 1 auto; height: var(--control-sm); padding: 0 10px; font-size: 13px; font-weight: 500; }
 .profile-secondary-actions .secondary-btn[hidden] { display: none; }
-.profile-secondary-actions .delete-btn { width: 34px; height: 34px; border: 1px solid var(--line); }
+.profile-secondary-actions .delete-btn { width: var(--control-sm); height: var(--control-sm); border: 1px solid var(--line); }
 
 /* ── Add / edit form ──────────────────────────────────────────────────────── */
 #accountFormView { position: relative; }
@@ -379,7 +379,7 @@
 .quick-add-sub { margin-top: 2px; color: var(--muted); font-size: 13px; }
 .quick-add-client-btn {
     flex-shrink: 0;
-    height: 34px;
+    height: var(--control-sm);
     padding: 0 12px;
     border-radius: var(--radius);
     border: 1px solid var(--line);
@@ -397,7 +397,7 @@
 .quick-add-input-wrap i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--subtle); font-size: 13px; pointer-events: none; }
 .quick-add-input-wrap input {
     width: 100%;
-    height: 42px;
+    height: var(--control-lg);
     padding: 0 14px 0 38px;
     border-radius: var(--radius);
     border: 1px solid var(--line);
@@ -408,8 +408,8 @@
 .quick-add-input-wrap input::placeholder { color: var(--subtle); }
 .quick-add-input-wrap input:focus { outline: none; border-color: var(--line-strong); }
 .quick-add-input-wrap input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
-.quick-add-region.form-control { width: 116px; flex-shrink: 0; min-height: 42px; }
-.quick-add-btn { min-width: 86px; height: 42px; }
+.quick-add-region.form-control { width: 116px; flex-shrink: 0; min-height: var(--control-lg); }
+.quick-add-btn { min-width: 86px; height: var(--control-lg); }
 .quick-add-btn:disabled { opacity: 0.7; cursor: wait; }
 
 .quick-add-result:empty { display: none; }
@@ -424,16 +424,16 @@
 }
 .quick-add-result.is-error { background: var(--danger-soft); color: var(--danger); gap: 10px; }
 .quick-add-result.is-loading { color: var(--muted); gap: 12px; }
-.qa-skeleton { width: 40px; height: 40px; border-radius: 10px; background: var(--line); animation: loading-pulse 1.2s ease-in-out infinite; }
+.qa-skeleton { width: 40px; height: 40px; border-radius: var(--radius); background: var(--line); animation: loading-pulse 1.2s ease-in-out infinite; }
 .qa-icon-wrap { position: relative; flex-shrink: 0; }
-.qa-icon { width: 44px; height: 44px; border-radius: 11px; display: block; object-fit: cover; }
+.qa-icon { width: 44px; height: 44px; border-radius: var(--radius); display: block; object-fit: cover; background: var(--logo-tile); }
 .qa-level {
     position: absolute;
     bottom: -6px;
     left: 50%;
     transform: translateX(-50%);
     padding: 0 5px;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     background: var(--surface-raised);
     color: var(--muted);
     font-size: 10px;
@@ -453,7 +453,7 @@
 .champ-picker-trigger { display: flex; align-items: center; gap: 8px; }
 .champ-picker-preview {
     flex: 1;
-    min-height: 40px;
+    min-height: var(--control);
     display: flex;
     align-items: center;
     gap: 9px;
@@ -463,10 +463,10 @@
     background: var(--bg);
 }
 .champ-picker-placeholder { color: var(--muted); font-size: 13px; }
-.champ-picker-preview img { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; }
+.champ-picker-preview img { width: 28px; height: 28px; border-radius: var(--radius-xs); object-fit: cover; }
 .champ-picker-name { font-size: 13px; font-weight: 500; }
 .champ-picker-btn {
-    height: 40px;
+    height: var(--control);
     padding: 0 14px;
     border-radius: var(--radius);
     border: 1px solid var(--line);
@@ -490,7 +490,7 @@
 .champ-search-header { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-shrink: 0; }
 .champ-search-back,
 .champ-search-clear-sel {
-    height: 38px;
+    height: var(--control);
     padding: 0 12px;
     border-radius: var(--radius);
     border: 1px solid var(--line);
@@ -502,7 +502,7 @@
 .champ-search-clear-sel:hover { color: var(--danger); background: var(--danger-soft); }
 .champ-search-input {
     flex: 1;
-    height: 38px;
+    height: var(--control);
     padding: 0 12px;
     border-radius: var(--radius);
     border: 1px solid var(--line);
@@ -531,7 +531,7 @@
 }
 .champ-search-item:hover { background: var(--bg-hover); }
 .champ-search-item.selected { background: var(--bg-active); }
-.champ-search-item img { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; display: block; }
+.champ-search-item img { width: 52px; height: 52px; border-radius: var(--radius-sm); object-fit: cover; display: block; }
 .champ-search-item span { max-width: 68px; font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .champ-search-item.selected span { color: var(--ink); font-weight: 600; }
 

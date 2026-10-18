@@ -6,7 +6,7 @@
 .gameflow-badge {
     display: inline-flex;
     align-items: center;
-    height: 28px;
+    height: var(--control-xs);
     padding: 0 12px;
     border-radius: var(--radius-pill);
     background: var(--bg-active);
@@ -47,7 +47,7 @@
 
 .ov-tab-bar { display: flex; gap: 2px; margin-bottom: 16px; }
 .ov-tab {
-    height: 34px;
+    height: var(--control-sm);
     padding: 0 14px;
     border: 0;
     border-radius: var(--radius-sm);
@@ -75,14 +75,14 @@
     background: var(--surface);
 }
 .summoner-banner-icon-wrap { position: relative; width: 64px; height: 64px; flex-shrink: 0; }
-.summoner-banner-icon { width: 64px; height: 64px; border-radius: 16px; object-fit: cover; display: block; }
+.summoner-banner-icon { width: 64px; height: 64px; border-radius: var(--radius-lg); object-fit: cover; display: block; background: var(--logo-tile); }
 .summoner-banner-level {
     position: absolute;
     bottom: -6px;
     left: 50%;
     transform: translateX(-50%);
     padding: 0 6px;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     background: var(--bg);
     color: var(--muted);
     font-size: 11px;
@@ -111,7 +111,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 28px;
+    height: var(--control-xs);
     padding: 0 12px;
     border-radius: var(--radius-pill);
     background: var(--bg);
@@ -142,8 +142,8 @@
     line-height: 1.15;
 }
 .ov-ranked-lp { font-weight: 600; font-size: 14px; }
-.ov-lp-track { height: 5px; margin: 4px 0 2px; border-radius: 3px; background: var(--line); overflow: hidden; }
-.ov-lp-fill { height: 100%; border-radius: 3px; background: var(--primary); transition: width 0.3s ease; }
+.ov-lp-track { height: 5px; margin: 4px 0 2px; border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
+.ov-lp-fill { height: 100%; border-radius: var(--radius-pill); background: var(--primary); transition: width 0.3s ease; }
 .ov-ranked-record { color: var(--muted); font-size: 12px; }
 
 /* Lobby / queue / game context */
@@ -161,7 +161,7 @@
 .ov-ctx-member-chip {
     display: inline-flex;
     align-items: center;
-    height: 28px;
+    height: var(--control-xs);
     padding: 0 10px;
     border-radius: var(--radius-pill);
     background: var(--bg);
@@ -180,7 +180,7 @@
     background: var(--surface);
     text-align: center;
 }
-.mastery-champ-icon { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; }
+.mastery-champ-icon { width: 56px; height: 56px; border-radius: var(--radius-lg); object-fit: cover; }
 .mastery-champ-name { font-weight: 600; font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mastery-level-badge {
     padding: 1px 8px;
@@ -211,7 +211,7 @@
     border-radius: var(--radius-lg);
     background: var(--surface);
 }
-.match-champ-icon { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; }
+.match-champ-icon { width: 44px; height: 44px; border-radius: var(--radius); object-fit: cover; }
 .match-result-badge {
     justify-self: start;
     padding: 2px 9px;
@@ -236,7 +236,7 @@
 .match-sub { display: flex; flex-wrap: wrap; gap: 6px; color: var(--muted); font-size: 12px; }
 .match-sub-sep { color: var(--line-strong); }
 .match-items { display: flex; gap: 3px; margin-top: 2px; }
-.match-item-icon { width: 22px; height: 22px; border-radius: 5px; background: var(--bg); object-fit: cover; display: block; }
+.match-item-icon { width: 22px; height: 22px; border-radius: var(--radius-xs); background: var(--bg); object-fit: cover; display: block; }
 .match-item-icon.empty { display: inline-block; }
 .match-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; color: var(--muted); font-size: 12px; text-align: right; }
 .match-queue { color: var(--ink); font-weight: 500; }
