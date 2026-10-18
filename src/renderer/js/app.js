@@ -15,9 +15,23 @@ let allAccounts = [];
 let activeAccountUsername = null;
 let currentQuery = "";
 let currentSort = "default";
-const statsCache = {}; // username → { tier, lp, iconSrc, level }
-let _renderGen = 0; // incremented each renderAccounts() call; cancels stale stat callbacks
-let _shownStatErrors = new Set(); // deduplicates error toasts within a render cycle
+// username → { stats, key, at } (makeStatsEntry in ui-lib.js). An entry is
+// only used while its key still matches the account's region|Riot ID, and it
+// is fetched again after STATS_TTL_MS. Errors are never stored here.
+const statsCache = {};
+// username → { key, at, stats } of the last failed lookup: shown on the card
+// and not retried for STATS_RETRY_MS, so a re-render (rank resort, search)
+// does not turn one failure into a request loop.
+const statsFailures = {};
+const STATS_RETRY_MS = 60 * 1000;
+const statsInFlight = new Map(); // username → key of the request in flight
+// Error text → when it was last shown, so the same failure toasts once per
+// STATS_ERROR_TOAST_GAP_MS instead of on every render.
+const shownStatErrors = new Map();
+const STATS_ERROR_TOAST_GAP_MS = 10 * 60 * 1000;
+// Riot API development keys allow 20 requests per second; each card costs
+// several, so card lookups start this far apart.
+const STATS_STAGGER_MS = 150;
 
 // Small "OP" monogram badge standing in for the OP.GG logo on the opgg-btn —
 // not their actual mark (avoids hotlinking/trademark-asset copying), but
@@ -109,8 +123,103 @@ const {
   TIER_ORDER,
   rankScore,
   reorderList,
+  statsKey,
+  shouldCacheStats,
+  makeStatsEntry,
+  statsEntryState,
   sparklinePoints,
 } = window.UiLib;
+
+// Cached stats for an account, fresh or stale, or null when there is nothing
+// usable (never fetched, or the Riot ID/region changed since).
+function getCachedStats(acc) {
+  if (!acc) return null;
+  const entry = statsCache[acc.username];
+  return statsEntryState(entry, acc, Date.now()) === "missing"
+    ? null
+    : entry.stats;
+}
+
+function cacheStats(acc, stats) {
+  if (shouldCacheStats(stats)) {
+    statsCache[acc.username] = makeStatsEntry(stats, acc, Date.now());
+    delete statsFailures[acc.username];
+  } else if (stats) {
+    statsFailures[acc.username] = { key: statsKey(acc), at: Date.now(), stats };
+  }
+}
+
+// Drops cache entries of deleted accounts and of accounts whose Riot ID or
+// region changed (edit, LCU auto-link, import), so a card never shows the
+// previous summoner's rank.
+function pruneStatsCache() {
+  const byName = new Map(allAccounts.map((a) => [a.username, a]));
+  for (const store of [statsCache, statsFailures]) {
+    for (const username of Object.keys(store)) {
+      const acc = byName.get(username);
+      if (!acc || store[username].key !== statsKey(acc)) delete store[username];
+    }
+  }
+}
+
+function recentStatsFailure(acc) {
+  const f = statsFailures[acc.username];
+  if (!f || f.key !== statsKey(acc)) return null;
+  const age = Date.now() - f.at;
+  return age >= 0 && age < STATS_RETRY_MS ? f : null;
+}
+
+function toastStatError(message) {
+  const last = shownStatErrors.get(message);
+  if (last && Date.now() - last < STATS_ERROR_TOAST_GAP_MS) return;
+  shownStatErrors.set(message, Date.now());
+  showToast(message, "error");
+}
+
+function findAccountCard(username) {
+  for (const card of document.querySelectorAll("#accountsList .account-card")) {
+    if (card.dataset.username === username) return card;
+  }
+  return null;
+}
+
+// Asks the main process for one account's stats unless a request for the
+// same region|Riot ID is already running. The result is cached even when the
+// list was re-rendered in the meantime, and applied to whichever card shows
+// that account now.
+function requestCardStats(acc, delay) {
+  const username = acc.username;
+  const key = statsKey(acc);
+  if (statsInFlight.get(username) === key) return;
+  statsInFlight.set(username, key);
+  const done = () => {
+    if (statsInFlight.get(username) === key) statsInFlight.delete(username);
+  };
+  const current = () => {
+    const a = allAccounts.find((x) => x.username === username);
+    return a && statsKey(a) === key ? a : null;
+  };
+  setTimeout(() => {
+    const target = current();
+    if (!target) return done(); // deleted or edited while waiting
+    window.electronAPI
+      .getStats(target.region, target.riotId)
+      .then((stats) => {
+        done();
+        const acc2 = current();
+        if (!acc2 || !stats) return;
+        if (stats.error) toastStatError(stats.error);
+        cacheStats(acc2, stats);
+        const card = findAccountCard(username);
+        if (card) applyStatsToCard(card, stats);
+        if (currentSort === "rank") scheduleRankResort();
+      })
+      .catch((err) => {
+        done();
+        console.error("[Stats]", username, err);
+      });
+  }, delay);
+}
 
 // Images that fail to load fall back to the logo or hide themselves, per their
 // data-fallback attribute. Inline onerror handlers are blocked by the CSP.
@@ -184,7 +293,7 @@ function getFilteredSorted() {
       // keeps the saved order for equal ranks.
       list.sort(
         (a, b) =>
-          rankScore(statsCache[b.username]) - rankScore(statsCache[a.username]),
+          rankScore(getCachedStats(b)) - rankScore(getCachedStats(a)),
       );
       break;
   }
@@ -662,7 +771,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       .filter(Boolean)
       .join(" · ");
     const icon = document.getElementById("launchAccIcon");
-    const cached = statsCache[info.username];
+    const cached = getCachedStats(
+      allAccounts.find((a) => a.username === info.username),
+    );
     if (cached?.iconSrc) icon.src = cached.iconSrc;
     else icon.src = "assets/logo.png";
     // Reset retry button on each new launch
@@ -966,13 +1077,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   const clearBtn = document.getElementById("searchClearBtn");
   const sortSelect = document.getElementById("accountSort");
 
+  // Rebuilding every card per keystroke is wasted work while typing.
+  let searchTimer = null;
   searchInput.addEventListener("input", () => {
-    currentQuery = searchInput.value.trim();
-    clearBtn.style.display = currentQuery ? "block" : "none";
-    renderAccounts();
+    clearBtn.style.display = searchInput.value.trim() ? "block" : "none";
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      currentQuery = searchInput.value.trim();
+      renderAccounts();
+    }, 150);
   });
 
   clearBtn.addEventListener("click", () => {
+    clearTimeout(searchTimer);
     searchInput.value = "";
     currentQuery = "";
     clearBtn.style.display = "none";
@@ -1153,12 +1270,12 @@ async function loadAccounts() {
     window.electronAPI.getAccounts(),
     window.electronAPI.getCurrentAccount(),
   ]);
+  if (!Array.isArray(allAccounts)) allAccounts = [];
+  pruneStatsCache();
   renderAccounts();
 }
 
 function renderAccounts() {
-  const gen = ++_renderGen; // any callback from a previous render is now stale
-  _shownStatErrors = new Set();
   hideTooltip(); // the hovered element is about to be torn out from under the cursor
   // A drag in progress loses its source card here; its dragend would fire on
   // the detached node and never clear the state.
@@ -1196,42 +1313,28 @@ function renderAccounts() {
   }
 
   let staggerIndex = 0;
+  const now = Date.now();
 
   for (const acc of filtered) {
     const el = createAccountCard(acc);
     listEl.appendChild(el);
 
-    if (acc.riotId && acc.region) {
-      const cached = statsCache[acc.username];
-      if (cached) {
-        applyStatsToCard(el, cached);
-      } else {
-        // Stagger uncached fetches by 150ms each to stay under Riot API rate limits.
-        // The generation check discards callbacks that belong to a superseded render.
-        const delay = staggerIndex++ * 150;
-        setTimeout(() => {
-          if (_renderGen !== gen) return; // render was superseded, abort
-          window.electronAPI
-            .getStats(acc.region, acc.riotId)
-            .then((stats) => {
-              if (_renderGen !== gen || !stats) return;
-              if (stats.error) {
-                // Only show each unique error once per render cycle
-                if (!_shownStatErrors.has(stats.error)) {
-                  _shownStatErrors.add(stats.error);
-                  showToast(stats.error, "error");
-                }
-              }
-              statsCache[acc.username] = stats;
-              applyStatsToCard(el, stats);
-              if (currentSort === "rank") scheduleRankResort();
-            })
-            .catch((err) => {
-              if (_renderGen !== gen) return;
-              console.error("[Stats]", acc.username, err);
-            });
-        }, delay);
+    if (!acc.riotId || !acc.region) continue;
+    const entry = statsCache[acc.username];
+    const state = statsEntryState(entry, acc, now);
+    if (state !== "missing") {
+      applyStatsToCard(el, entry.stats); // stale entries stay visible while refetching
+      if (state === "fresh") continue;
+    } else {
+      const failure = recentStatsFailure(acc);
+      if (failure) {
+        applyStatsToCard(el, failure.stats);
+        continue;
       }
+    }
+    // Only requests that actually start take a stagger slot.
+    if (statsInFlight.get(acc.username) !== statsKey(acc)) {
+      requestCardStats(acc, staggerIndex++ * STATS_STAGGER_MS);
     }
   }
 }
@@ -1522,7 +1625,9 @@ async function showProfileModal(username) {
     });
   }
 
-  const cached = statsCache[username];
+  const cached = getCachedStats(acc);
+  const isFresh =
+    statsEntryState(statsCache[username], acc, Date.now()) === "fresh";
   if (cached) {
     populateProfileModal(acc, cached);
   } else {
@@ -1552,18 +1657,28 @@ async function showProfileModal(username) {
     ].forEach((id) => {
       document.getElementById(id).textContent = "";
     });
-    document.getElementById("profileNotesWrap").style.display = "none";
+    const notesEl = document.getElementById("profileNotes");
+    notesEl.textContent = acc.notes || "";
+    document.getElementById("profileNotesWrap").style.display = acc.notes
+      ? "block"
+      : "none";
+    if (!acc.riotId || !acc.region) {
+      document.getElementById("profileLoading").style.display = "none";
+    }
+  }
 
-    if (acc.riotId && acc.region) {
-      try {
-        const stats = await window.electronAPI.getStats(acc.region, acc.riotId);
-        if (stats) {
-          statsCache[username] = stats;
-          if (_profileUsername === username) populateProfileModal(acc, stats);
-        }
-      } catch {
-        /* show skeleton */
+  // Stale or missing: fetch now; a stale entry stays on screen meanwhile.
+  if (acc.riotId && acc.region && !isFresh) {
+    const key = statsKey(acc);
+    try {
+      const stats = await window.electronAPI.getStats(acc.region, acc.riotId);
+      const current = allAccounts.find((a) => a.username === username);
+      if (stats && current && statsKey(current) === key) {
+        cacheStats(current, stats);
+        if (_profileUsername === username) populateProfileModal(current, stats);
       }
+    } catch {
+      /* keep what is shown */
     }
     if (_profileUsername === username) {
       document.getElementById("profileLoading").style.display = "none";
@@ -1916,7 +2031,7 @@ function openModal(account = null) {
 
 // ── Quick add (OP.GG / Riot API lookup) ─────────────────────────────────────
 
-let quickAddProfile = null; // last successful lookup — seeds statsCache on save
+let quickAddProfile = null; // last successful lookup — seeds the stats cache on save
 let _quickAddToken = 0;
 
 function populateRegionSelects() {
@@ -2303,10 +2418,17 @@ async function saveAccount() {
 
   if (res.success) {
     // Show the looked-up rank/icon immediately instead of refetching it.
-    if (quickAddProfile && quickAddProfile.riotId === riotId) {
-      statsCache[username] = quickAddProfile;
-    } else if (isEditing) {
-      delete statsCache[username]; // Riot ID/region may have changed
+    // Only when the form still holds the looked-up Riot ID and region: a
+    // region changed after the lookup is a different summoner.
+    const saved = { username, riotId, region };
+    if (
+      quickAddProfile &&
+      statsKey(quickAddProfile) === statsKey(saved)
+    ) {
+      cacheStats(saved, quickAddProfile);
+    } else {
+      delete statsCache[username];
+      delete statsFailures[username];
     }
     showToast(isEditing ? "Account updated!" : "Account added!", "success");
     closeModal();
@@ -2346,6 +2468,7 @@ async function deleteAccount(username) {
     // Otherwise a new account later reusing this username would briefly
     // render with this deleted account's stale cached tier/icon/level.
     delete statsCache[username];
+    delete statsFailures[username];
     showToast("Account deleted", "success");
     loadAccounts();
   }
