@@ -9,10 +9,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateAccount: (data) => ipcRenderer.invoke('update-account', data),
     deleteAccount: (username) => ipcRenderer.invoke('delete-account', username),
 
+    // getConfig returns no secrets: riotApiKeySet and vaultEnabled instead.
     getConfig: () => ipcRenderer.invoke('get-config'),
     setConfig: (config) => ipcRenderer.invoke('set-config', config),
+    setRiotApiKey: (key) => ipcRenderer.invoke('set-riot-api-key', key),
 
-    launchAccount: (username) => ipcRenderer.invoke('launch-account', username),
+    launchAccount: (username, opts) => ipcRenderer.invoke('launch-account', username, opts),
     launchLeagueClient: () => ipcRenderer.invoke('launch-league-client'),
     cancelLaunch: () => ipcRenderer.invoke('cancel-launch'),
     getStats: (region, riotId, force = false) => ipcRenderer.invoke('get-stats', { region, riotId, force }),
@@ -33,10 +35,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openDataFolder: () => ipcRenderer.invoke('open-data-folder'),
 
     reorderAccounts: (usernames) => ipcRenderer.invoke('reorder-accounts', usernames),
-    unlockVault: (passwordHash) => ipcRenderer.invoke('unlock-vault', passwordHash),
+    // Vault: the plaintext password goes to the main process, which checks it.
+    unlockVault: (password) => ipcRenderer.invoke('unlock-vault', password),
+    getVaultState: () => ipcRenderer.invoke('get-vault-state'),
+    setVaultPassword: ({ current, next } = {}) => ipcRenderer.invoke('set-vault-password', { current, next }),
+    disableVault: (current) => ipcRenderer.invoke('disable-vault', current),
     getAccountPassword: (username) => ipcRenderer.invoke('get-account-password', username),
-    exportAccounts: () => ipcRenderer.invoke('export-accounts'),
-    importAccounts: () => ipcRenderer.invoke('import-accounts'),
+    exportAccounts: (passphrase) => ipcRenderer.invoke('export-accounts', passphrase),
+    importAccounts: ({ passphrase } = {}) => ipcRenderer.invoke('import-accounts', { passphrase }),
     openFileDialog: (options) => ipcRenderer.invoke('open-file-dialog', options),
     getCurrentAccount: () => ipcRenderer.invoke('get-current-account'),
     getLcuOverview: () => ipcRenderer.invoke('get-lcu-overview'),

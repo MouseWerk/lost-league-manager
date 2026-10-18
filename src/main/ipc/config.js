@@ -1,33 +1,55 @@
 const { ipcMain, app } = require('electron');
+const fs = require('fs');
+const path = require('path');
 const state = require('../state');
 const { saveConfig } = require('../services/storage');
+const secrets = require('../services/secrets');
+const { isVaultEnabled } = require('../services/vault');
 const discordRpc = require('../services/discord-rpc');
 
-// Whitelist of keys the renderer is allowed to set, with a type check for
-// each — set-config used to Object.assign() the raw payload straight into
-// live config, so any bug (or compromised renderer) could inject unknown
-// keys or overwrite sensitive ones (e.g. riotApiKey, vaultPasswordHash) with
-// the wrong shape.
+// UI scale steps offered in Settings, with some room for hand-edited values.
+const MIN_UI_SCALE = 0.5;
+const MAX_UI_SCALE = 2.0;
+
+function isLeagueClientPath(v) {
+    return typeof v === 'string' && path.isAbsolute(v) &&
+        path.basename(v).toLowerCase() === 'leagueclient.exe' && fs.existsSync(v);
+}
+
+// Whitelist of keys the renderer is allowed to set, with a check for each —
+// set-config used to Object.assign() the raw payload straight into live
+// config, so any bug (or compromised renderer) could inject unknown keys or
+// overwrite sensitive ones with the wrong shape. Secrets and the vault have
+// their own calls (set-riot-api-key, set-vault-password, disable-vault) and
+// are refused here.
 const ALLOWED_CONFIG_KEYS = {
     autoAccept:            v => typeof v === 'boolean',
     checkUpdatesOnStartup: v => typeof v === 'boolean',
     discordRpcEnabled:     v => typeof v === 'boolean',
-    lastSeenPatchNotesVersion: v => typeof v === 'string',
-    lolPath:               v => typeof v === 'string',
+    lastSeenPatchNotesVersion: v => typeof v === 'string' && v.length <= 64,
+    // Launch and repair start or delete files next to this path.
+    lolPath:               isLeagueClientPath,
     minimizeOnGameStart:   v => typeof v === 'boolean',
     overlayEnabled:        v => typeof v === 'boolean',
-    overlayHotkey:         v => typeof v === 'string',
     overlayLocked:         v => typeof v === 'boolean',
     overlayShowBuilds:     v => typeof v === 'boolean',
     overlayShowRanked:     v => typeof v === 'boolean',
-    riotApiKey:            v => typeof v === 'string',
     startMinimized:        v => typeof v === 'boolean',
     startWithWindows:      v => typeof v === 'boolean',
     toastOnQueuePop:       v => typeof v === 'boolean',
-    uiScale:               v => typeof v === 'number',
-    vaultEnabled:          v => typeof v === 'boolean',
-    vaultPasswordHash:     v => typeof v === 'string',
+    uiScale:               v => typeof v === 'number' && Number.isFinite(v) && v >= MIN_UI_SCALE && v <= MAX_UI_SCALE,
 };
+
+// Never sent to the renderer.
+const PRIVATE_CONFIG_KEYS = ['riotApiKey', 'riotApiKeyEnc', 'vaultPasswordHash', 'vaultHash', 'vaultSalt', 'vaultKdf'];
+
+function publicConfig() {
+    const out = { ...state.config };
+    for (const k of PRIVATE_CONFIG_KEYS) delete out[k];
+    out.vaultEnabled  = isVaultEnabled();
+    out.riotApiKeySet = secrets.hasRiotApiKey();
+    return out;
+}
 
 function pushOverlaySettings() {
     const ow = state.overlayWindow;
@@ -42,7 +64,23 @@ function pushOverlaySettings() {
 function register() {
     ipcMain.handle('get-config', () => {
         state.config.startWithWindows = app.getLoginItemSettings().openAtLogin;
-        return state.config;
+        return publicConfig();
+    });
+
+    ipcMain.handle('set-riot-api-key', (event, key) => {
+        const prev = { riotApiKey: state.config.riotApiKey, riotApiKeyEnc: state.config.riotApiKeyEnc };
+        const res = secrets.setRiotApiKey(state.config, key);
+        if (!res.success) return res;
+        try {
+            saveConfig();
+        } catch (e) {
+            for (const [k, v] of Object.entries(prev)) {
+                if (v === undefined) delete state.config[k]; else state.config[k] = v;
+            }
+            secrets.loadSecrets(state.config);
+            return { success: false, message: `Could not save the key: ${e.message}` };
+        }
+        return { success: true };
     });
 
     ipcMain.handle('set-config', (event, newConfig) => {
@@ -56,7 +94,14 @@ function register() {
             if (!isValid(value)) { console.warn(`[Config] Rejected invalid value for config key: ${key}`); rejected.push(key); continue; }
             state.config[key] = value;
         }
-        saveConfig();
+        if (rejected.length < Object.keys(newConfig).length) {
+            try {
+                saveConfig();
+            } catch (e) {
+                Object.assign(state.config, prev);
+                return { success: false, message: `Could not save settings: ${e.message}` };
+            }
+        }
 
         // Compare against what was actually applied to state.config (post-validation),
         // not the raw payload — a rejected/invalid value must not trigger side effects.
@@ -83,13 +128,6 @@ function register() {
 
         if (state.config.discordRpcEnabled !== prev.discordRpcEnabled) {
             discordRpc.setEnabled(state.config.discordRpcEnabled);
-        }
-
-        // Setting the vault password/toggle from Settings requires already being
-        // in an authenticated session — treat that as implicitly unlocking the
-        // vault for the rest of this run (next app launch will require it again).
-        if ('vaultEnabled' in newConfig || 'vaultPasswordHash' in newConfig) {
-            state.vaultUnlocked = true;
         }
 
         // Previously always returned success even when every key in the payload
