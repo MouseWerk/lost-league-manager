@@ -14,7 +14,10 @@ function registerOverlayHotkey(hotkey) {
         try { globalShortcut.unregister(_current); } catch {}
         _current = null;
     }
-    if (!hotkey) return;
+    // The overlay is disabled and its window never created; registering
+    // anyway swallowed Ctrl+Shift+H system-wide for nothing. Call this again
+    // after createOverlayWindow if the overlay comes back.
+    if (!hotkey || !state.overlayWindow || state.overlayWindow.isDestroyed()) return;
     try {
         const ok = globalShortcut.register(hotkey, toggleOverlayVisibility);
         if (ok) _current = hotkey;

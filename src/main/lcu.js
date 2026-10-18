@@ -48,13 +48,20 @@ class LCUConnector {
         if (!data) return;
 
         this.credentials = data;
-        const url = `wss://riot:${data.password}@127.0.0.1:${data.port}`;
+        // The client always writes "https"; plain http is honoured so tests can
+        // run a local server without a certificate.
+        const scheme = data.protocol === 'http' ? 'ws' : 'wss';
+        const url = `${scheme}://riot:${data.password}@127.0.0.1:${data.port}`;
 
         const socket = new WebSocket(url, { rejectUnauthorized: false });
         this.ws = socket;
+        // Tracked per socket: the 'error' that precedes 'close' when the client
+        // is killed (ECONNRESET) must not erase that this socket was connected.
+        let opened = false;
 
         socket.on('open', () => {
             if (this.ws !== socket) return;
+            opened = true;
             this.connected = true;
             console.log('LCU Connected');
             socket.send(JSON.stringify([5, 'OnJsonApiEvent']));
@@ -73,7 +80,7 @@ class LCUConnector {
 
         socket.on('close', () => {
             if (this.ws !== socket) return;
-            const wasConnected = this.connected;
+            const wasConnected = opened;
             this.connected = false;
             this.ws = null;
             this.credentials = null;
@@ -83,9 +90,11 @@ class LCUConnector {
             if (wasConnected) this.disconnectHandlers.forEach(h => h());
         });
 
-        socket.on('error', () => {
+        socket.on('error', (e) => {
             if (this.ws !== socket) return;
+            // 'close' always follows and runs the disconnect handling.
             this.connected = false;
+            if (opened) console.log('LCU socket error:', e.message);
         });
     }
 
@@ -111,7 +120,8 @@ class LCUConnector {
         if (!this.credentials) return null;
 
         try {
-            const url = `https://127.0.0.1:${this.credentials.port}${endpoint}`;
+            const scheme = this.credentials.protocol === 'http' ? 'http' : 'https';
+            const url = `${scheme}://127.0.0.1:${this.credentials.port}${endpoint}`;
             const auth = Buffer.from(`riot:${this.credentials.password}`).toString('base64');
 
             const config = {

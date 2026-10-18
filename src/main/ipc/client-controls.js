@@ -2,12 +2,12 @@ const { ipcMain, dialog, shell, screen } = require('electron');
 const os = require('os');
 const path  = require('path');
 const fs    = require('fs');
-const { spawn } = require('child_process');
 const lcu   = require('../lcu');
 const state = require('../state');
-
-const KILL_ALL = 'Get-Process -Name LeagueClient, LeagueClientUx, RiotClientServices, RiotClientUx -ErrorAction SilentlyContinue | Stop-Process -Force';
-const KILL_CLIENT = 'Get-Process -Name LeagueClient, LeagueClientUx -ErrorAction SilentlyContinue | Stop-Process -Force';
+const {
+    runPowerShell, killProcessesCommand, isLaunchInProgress,
+    CLIENT_PROCESS_NAMES, LEAGUE_PROCESS_NAMES,
+} = require('./launch');
 
 const VALID_LOCALES = new Set([
     'en_US', 'en_GB', 'de_DE', 'es_ES', 'es_MX', 'fr_FR', 'it_IT', 'ja_JP',
@@ -129,16 +129,26 @@ function register() {
     });
 
     ipcMain.handle('dodge-queue', async () => {
-        try {
-            spawn('powershell.exe', ['-Command', KILL_CLIENT]);
-            return { success: true };
-        } catch (e) {
-            return { success: false, message: e.message };
+        if (!lcu.connected) {
+            return { success: false, message: 'Not connected to the League client' };
         }
+        // The confirmation can stay open past the end of champ select; killing
+        // the client during the loading screen is not a dodge.
+        const phase = await lcu.request('GET', '/lol-gameflow/v1/gameflow-phase');
+        if (phase !== 'ChampSelect') {
+            return { success: false, message: 'Champ select is over, nothing was closed' };
+        }
+        const code = await runPowerShell(killProcessesCommand(LEAGUE_PROCESS_NAMES));
+        if (code !== 0) return { success: false, message: 'Could not close the League client' };
+        return { success: true };
     });
 
     ipcMain.handle('fix-client', async () => {
-        spawn('powershell.exe', ['-Command', KILL_ALL]);
+        if (isLaunchInProgress()) {
+            return { success: false, message: 'A launch is in progress. Cancel it first.' };
+        }
+        const code = await runPowerShell(killProcessesCommand(CLIENT_PROCESS_NAMES));
+        if (code !== 0) return { success: false, message: 'Could not close the League and Riot clients' };
         return { success: true };
     });
 
@@ -174,10 +184,12 @@ function register() {
                 skinId = champId * 1000;
             }
 
-            await lcu.request('POST', '/lol-summoner/v1/current-summoner/summoner-profile', {
+            // lcu.request() returns null on failure instead of throwing.
+            const result = await lcu.request('POST', '/lol-summoner/v1/current-summoner/summoner-profile', {
                 key:   'backgroundSkinId',
                 value: parseInt(skinId),
             });
+            if (result === null) return { success: false, message: 'The League client did not accept the background' };
             return { success: true };
         } catch (e) {
             return { success: false, message: e.message };
@@ -186,7 +198,8 @@ function register() {
 
     ipcMain.handle('set-status-message', async (event, message) => {
         try {
-            await lcu.request('PUT', '/lol-chat/v1/me', { statusMessage: message });
+            const result = await lcu.request('PUT', '/lol-chat/v1/me', { statusMessage: message });
+            if (result === null) return { success: false, message: 'Could not set the status. Is the League client running and signed in?' };
             return { success: true };
         } catch (e) {
             return { success: false, message: e.message };

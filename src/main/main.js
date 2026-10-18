@@ -12,11 +12,16 @@ const { fetchItemData }                = require('./services/item-data');
 const { registerLcuEvents }            = require('./lcu-events');
 const { initAutoUpdater }              = require('./ipc/updater');
 const { registerAll: registerIpc }     = require('./ipc/index');
-const { executeAccountLaunch } = require('./ipc/launch');
+const { launchFromOutside } = require('./ipc/launch');
 const windows = require('./windows');
 const { initOverwolf } = require('./overwolf');
-const { registerOverlayHotkey } = require('./overlay-hotkey');
 const discordRpc = require('./services/discord-rpc');
+
+// Jump-list entries pass `--launch=<username>`; usernames may contain '='.
+function launchArgUsername(argv) {
+    const arg = argv.find(a => a.startsWith('--launch='));
+    return arg ? arg.slice('--launch='.length) : null;
+}
 
 // ── Single-instance lock ──────────────────────────────────────────────────────
 app.isQuiting = false;
@@ -26,13 +31,16 @@ if (!gotLock) {
     app.quit();
 } else {
     app.on('second-instance', (event, commandLine) => {
-        if (state.mainWindow) {
+        const username = launchArgUsername(commandLine);
+        // launchFromOutside shows the window itself (lock screen while the
+        // vault is locked) unless the account minimizes on launch.
+        if (username) {
+            launchFromOutside(username);
+        } else if (state.mainWindow) {
             state.mainWindow.show();
             if (state.mainWindow.isMinimized()) state.mainWindow.restore();
             state.mainWindow.focus();
         }
-        const arg = commandLine.find(a => a.startsWith('--launch='));
-        if (arg) executeAccountLaunch(arg.split('=')[1]);
     });
 }
 
@@ -72,14 +80,14 @@ app.whenReady().then(async () => {
     try {
         windows.createMainWindow();
         windows.createTray();
-        windows.setLaunchCallback(executeAccountLaunch);
+        windows.setLaunchCallback(launchFromOutside);
         windows.updateJumpList();
 
         registerIpc();
         registerLcuEvents();
         initAutoUpdater();
         initOverwolf();
-        registerOverlayHotkey(state.config.overlayHotkey);
+        // No overlay hotkey: the overlay is disabled (see overlay-hotkey.js).
         discordRpc.init();
     } catch (e) {
         console.error('[Boot] Failed to initialize application window:', e.message);
@@ -88,9 +96,13 @@ app.whenReady().then(async () => {
         return;
     }
 
-    // Handle --launch= argument on first run
-    const launchArg = process.argv.find(a => a.startsWith('--launch='));
-    if (launchArg) executeAccountLaunch(launchArg.split('=')[1]);
+    // Handle --launch= argument on first run, once the page is loaded: the
+    // launch's first messages were sent before the renderer listened, and
+    // its result (errors included) was dropped.
+    const launchUsername = launchArgUsername(process.argv);
+    if (launchUsername) {
+        state.mainWindow.webContents.once('did-finish-load', () => launchFromOutside(launchUsername));
+    }
 
     // Poll for LCU connection
     setInterval(() => lcu.connect(state.config.lolPath), 5000);
@@ -107,5 +119,10 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+    // Every quit (installer, OS shutdown, app.quit()) must get past the
+    // window's hide-to-tray close handler, not only the tray's Quit item.
+    app.isQuiting = true;
     discordRpc.shutdown();
 });
+
+module.exports = { launchArgUsername };
