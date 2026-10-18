@@ -480,7 +480,7 @@ async function initVaultSettings(config) {
           const err = newPasswordError(v.next, v.confirm);
           if (err) return err;
           const res = await api.setVaultPassword({ current: "", next: v.next });
-          return res?.success ? null : res?.message || "Could not set the password";
+          return res?.success ? null : vaultErrorText(res, "Could not set the password");
         },
       });
       if (done) {
@@ -684,10 +684,21 @@ async function importAccountsFlow(btn) {
     if (res?.success) {
       const added = res.added || 0;
       const skipped = res.skipped || 0;
+      // Why entries were skipped, when the main process says so.
+      const reasons = [
+        res.duplicates ? `${res.duplicates} already in the list` : "",
+        res.invalid ? `${res.invalid} invalid` : "",
+        res.withoutPassword ? `${res.withoutPassword} without a password` : "",
+      ].filter(Boolean);
+      const skippedText = reasons.length
+        ? `skipped: ${reasons.join(", ")}`
+        : `${skipped} skipped`;
       const msg =
         added > 0
-          ? `${plural(added, "account")} imported${skipped ? `, ${skipped} skipped (already in the list or incomplete)` : ""}.`
-          : `No new accounts: all ${skipped} were already in the list or incomplete.`;
+          ? `${plural(added, "account")} imported${skipped ? `, ${skippedText}` : ""}.`
+          : skipped
+            ? `No new accounts (${skippedText}).`
+            : "The backup contains no accounts.";
       showToast(msg, added > 0 ? "success" : "info");
       if (added > 0) loadAccounts();
     } else {
@@ -1025,12 +1036,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Load accounts
     await loadAccounts();
 
-    // Check for updates on startup
-    if (config.checkUpdatesOnStartup !== false) {
-      setTimeout(() => {
-        window.electronAPI.checkForUpdates();
-      }, 2000);
-    }
+    // The startup update check runs in the main process (one check, and a
+    // failed background check is not toasted).
 
     // Auto-update event listeners
     window.electronAPI.onUpdateAvailable((data) => {
@@ -1046,8 +1053,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     window.electronAPI.onUpdateError((message) => {
-      showToast("Update failed: " + message, "error");
+      // A manual check reports its own result; this event matters for a
+      // download that was running.
+      if (_updateState === "downloading") {
+        showToast("Update failed: " + message, "error");
+      } else {
+        console.warn("[Update]", message);
+      }
+      // Reset everything, or the pill kept offering a download that died.
       document.getElementById("updateCard").classList.remove("active");
+      document.getElementById("updatePill").classList.remove("active");
+      _updateVersion = "";
+      _updateState = "";
     });
 
     // Update card controls
@@ -1075,9 +1092,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         setTimeout(() => window.electronAPI.installUpdate(), 900);
       });
 
-    document.getElementById("updatePill").addEventListener("click", () => {
-      document.getElementById("updatePill").classList.remove("active");
-      showUpdateCard(_updateVersion, _updateState);
+    const updatePill = document.getElementById("updatePill");
+    const openUpdatePill = () => {
+      updatePill.classList.remove("active");
+      if (_updateVersion) showUpdateCard(_updateVersion, _updateState);
+    };
+    updatePill.addEventListener("click", openUpdatePill);
+    updatePill.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openUpdatePill();
+      }
     });
   } catch (err) {
     console.error("Initialization error:", err);
@@ -1796,7 +1821,7 @@ function applyStatsToCard(cardEl, stats) {
       "challenger",
     ];
     const cls = valid.includes(tierName) ? `rank-${tierName}` : "rank-unranked";
-    rankEl.className = `rank ${cls}`;
+    rankEl.className = `rank card-rank ${cls}`;
     const tierDisplay =
       stats.tier && stats.tier !== "Unranked" ? stats.tier : "Unranked";
     // Tier/LP can come from OP.GG or an imported backup's cached stats.
@@ -2142,7 +2167,7 @@ function createAccountCard(account) {
             <div class="summoner-icon-container">
                 <img class="summoner-icon">
                 <span class="level-badge" style="display:none">1</span>
-                <button class="fav-btn${account.isFavourite ? " is-fav" : ""}" data-tooltip="${account.isFavourite ? "Remove from Favourites" : "Add to Favourites"}"><i class="fas fa-star"></i></button>
+                <button class="fav-btn${account.isFavourite ? " is-fav" : ""}" data-tooltip="${account.isFavourite ? "Remove from Favourites" : "Add to Favourites"}" aria-label="${account.isFavourite ? "Remove from Favourites" : "Add to Favourites"}" aria-pressed="${account.isFavourite ? "true" : "false"}"><i class="fas fa-star"></i></button>
             </div>
             <div class="text-content">
                 <div class="card-title-row">
@@ -2162,13 +2187,13 @@ function createAccountCard(account) {
             </div>
         </div>
         <div class="card-actions">
-            <button class="icon-btn info-btn"      data-tooltip="View Profile"><i class="fas fa-chart-bar"></i></button>
-            ${account.riotId ? `<button class="icon-btn opgg-btn" data-tooltip="Open on OP.GG">${OPGG_ICON_SVG}</button>` : ""}
-            <button class="icon-btn copy-user-btn" data-tooltip="Copy Username"><i class="fas fa-user"></i></button>
-            <button class="icon-btn copy-pass-btn" data-tooltip="Copy Password"><i class="fas fa-key"></i></button>
-            <button class="icon-btn play-btn"      data-tooltip="Launch"><i class="fas fa-play"></i></button>
-            <button class="icon-btn edit-btn"      data-tooltip="Edit"><i class="fas fa-pen"></i></button>
-            <button class="icon-btn delete-btn"    data-tooltip="Delete" data-tooltip-pos="left"><i class="fas fa-trash"></i></button>
+            <button class="icon-btn info-btn"      data-tooltip="View Profile" aria-label="View Profile"><i class="fas fa-chart-bar"></i></button>
+            ${account.riotId ? `<button class="icon-btn opgg-btn" data-tooltip="Open on OP.GG" aria-label="Open on OP.GG">${OPGG_ICON_SVG}</button>` : ""}
+            <button class="icon-btn copy-user-btn" data-tooltip="Copy Username" aria-label="Copy Username"><i class="fas fa-user"></i></button>
+            <button class="icon-btn copy-pass-btn" data-tooltip="Copy Password" aria-label="Copy Password"><i class="fas fa-key"></i></button>
+            <button class="icon-btn play-btn"      data-tooltip="Launch" aria-label="Launch"><i class="fas fa-play"></i></button>
+            <button class="icon-btn edit-btn"      data-tooltip="Edit" aria-label="Edit"><i class="fas fa-pen"></i></button>
+            <button class="icon-btn delete-btn"    data-tooltip="Delete" aria-label="Delete" data-tooltip-pos="left"><i class="fas fa-trash"></i></button>
         </div>
     `;
 
@@ -2190,20 +2215,34 @@ function createAccountCard(account) {
     if (btn.dataset.saving) return;
     btn.dataset.saving = "1";
     const newFav = !account.isFavourite;
-    // Optimistic update — flip state immediately before the async call
-    account.isFavourite = newFav;
-    const idx = allAccounts.findIndex((a) => a.username === account.username);
-    if (idx !== -1) allAccounts[idx].isFavourite = newFav;
-    btn.classList.toggle("is-fav", newFav);
-    btn.title = newFav ? "Remove from Favourites" : "Add to Favourites";
-    card.classList.toggle("is-favourite", newFav);
+    // Optimistic update — flip state immediately, revert if saving fails
+    const applyFav = (fav) => {
+      account.isFavourite = fav;
+      const i = allAccounts.findIndex((a) => a.username === account.username);
+      if (i !== -1) allAccounts[i].isFavourite = fav;
+      btn.classList.toggle("is-fav", fav);
+      // Tooltips read data-tooltip (a title attribute showed a second one).
+      btn.dataset.tooltip = fav ? "Remove from Favourites" : "Add to Favourites";
+      btn.setAttribute("aria-label", btn.dataset.tooltip);
+      btn.setAttribute("aria-pressed", String(fav));
+      card.classList.toggle("is-favourite", fav);
+    };
+    applyFav(newFav);
+    let res;
     try {
-      await window.electronAPI.updateAccount({
+      res = await window.electronAPI.updateAccount({
         username: account.username,
         isFavourite: newFav,
       });
+    } catch (err) {
+      res = { success: false, message: err.message };
     } finally {
       delete btn.dataset.saving;
+    }
+    if (res && res.success === false) {
+      applyFav(!newFav);
+      showToast(res.message || "Could not save favourite", "error");
+      return;
     }
     if (currentSort === "favourite") renderAccounts();
   });
@@ -2780,7 +2819,23 @@ function initChampionPicker() {
   });
 }
 
+// One save at a time: a double click used to add the account and then
+// report the second call as a duplicate on a form that was already closed.
+let _saving = false;
 async function saveAccount() {
+  if (_saving) return;
+  _saving = true;
+  const btn = document.getElementById("saveAccountBtn");
+  btn.disabled = true;
+  try {
+    await saveAccountForm();
+  } finally {
+    _saving = false;
+    btn.disabled = false;
+  }
+}
+
+async function saveAccountForm() {
   const username = document.getElementById("newUsername").value.trim();
   const password = document.getElementById("newPassword").value;
   const label = document.getElementById("newLabel").value.trim();
@@ -2851,7 +2906,7 @@ async function saveAccount() {
     return;
   }
 
-  if (res.success) {
+  if (res?.success) {
     // Show the looked-up rank/icon immediately instead of refetching it.
     // Only when the form still holds the looked-up Riot ID and region: a
     // region changed after the lookup is a different summoner.
@@ -2869,7 +2924,7 @@ async function saveAccount() {
     closeModal();
     loadAccounts();
   } else {
-    showToast("Error: " + res.message, "error");
+    showToast("Error: " + (res?.message || "could not save"), "error");
     shakeModal();
   }
 }
