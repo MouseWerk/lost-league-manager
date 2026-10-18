@@ -43,6 +43,40 @@ test('a failed handshake against a stale lockfile is not a disconnect', async ()
     assert.equal(disconnects, 0);
 });
 
+// Killing the client (another launch, Dodge, Fix client, a crash) makes the
+// socket emit 'error' before 'close'. The error handler used to clear
+// `connected`, so the close handler thought it had never been connected and
+// the renderer, Discord and the timers never heard of the disconnect.
+test('a socket error before close still fires the disconnect once', async (t) => {
+    const WebSocket = require('ws');
+    const server = new WebSocket.WebSocketServer({ port: 0, host: '127.0.0.1' });
+    await new Promise(r => server.once('listening', r));
+    t.after(() => server.close());
+    let serverSide = null;
+    server.on('connection', (ws) => { serverSide = ws; });
+
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'llm-lcu-'));
+    fs.writeFileSync(path.join(dir, 'lockfile'), `LeagueClient:1234:${server.address().port}:secret:http`);
+
+    let connects = 0;
+    let disconnects = 0;
+    let errors = 0;
+    lcu.clearHandlers();
+    lcu.onConnect(() => connects++);
+    lcu.onDisconnect(() => disconnects++);
+
+    await lcu.connect(path.join(dir, 'LeagueClient.exe'));
+    await waitFor(() => connects === 1 && serverSide, 'the connection');
+    lcu.ws.on('error', () => errors++);
+    // An invalid frame: the client socket emits 'error', then 'close'.
+    serverSide._socket.write(Buffer.from([0xff, 0x00]));
+    await waitFor(() => lcu.ws === null, 'the socket to close');
+
+    assert.equal(errors, 1, 'the error path was taken');
+    assert.equal(disconnects, 1);
+    assert.equal(lcu.connected, false);
+});
+
 test('requests without credentials return null instead of throwing', async () => {
     assert.equal(await lcu.request('GET', '/lol-summoner/v1/current-summoner'), null);
 });
