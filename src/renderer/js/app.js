@@ -308,19 +308,16 @@ function getFilteredSorted() {
   return list;
 }
 
-// Vault state from the main process. Older main processes have no
-// getVaultState; their config still says vaultEnabled.
+// Vault state from the main process; config.vaultEnabled is the fallback if
+// the call fails.
 async function readVaultState(config) {
-  const api = window.electronAPI;
-  if (typeof api.getVaultState === "function") {
-    try {
-      const s = await api.getVaultState();
-      if (s && typeof s.enabled === "boolean") return { ...s, legacy: false };
-    } catch {
-      /* fall back to the config flag */
-    }
+  try {
+    const s = await window.electronAPI.getVaultState();
+    if (s && typeof s.enabled === "boolean") return s;
+  } catch {
+    /* fall back to the config flag */
   }
-  return { enabled: !!config.vaultEnabled, unlocked: false, legacy: true };
+  return { enabled: !!config.vaultEnabled, unlocked: false };
 }
 
 // Text for a failed vault password check (unlock, change, turn off).
@@ -334,12 +331,7 @@ function vaultErrorText(res, fallback = "Incorrect password") {
 async function initVault(config) {
   const api = window.electronAPI;
   const vault = await readVaultState(config);
-  if (!vault.enabled) {
-    // Older main processes treat a session as locked until told otherwise.
-    if (vault.legacy) await api.unlockVault(null);
-    return;
-  }
-  if (vault.unlocked) return;
+  if (!vault.enabled || vault.unlocked) return;
 
   return new Promise((resolve) => {
     const lockEl = document.getElementById("vaultLock");
@@ -544,8 +536,8 @@ function initRiotApiKeySettings(config) {
   const saveBtn = document.getElementById("saveRiotApiKeyBtn");
   const cancelBtn = document.getElementById("cancelRiotApiKeyBtn");
   if (!input || !editRow || !savedRow) return;
-  // riotApiKeySet from current main processes; older ones still sent the key.
-  let keySet = !!(config.riotApiKeySet ?? config.riotApiKey);
+  // The key itself never reaches the renderer, only whether one is saved.
+  let keySet = !!config.riotApiKeySet;
 
   const render = (editing = false) => {
     input.value = "";
@@ -557,9 +549,7 @@ function initRiotApiKeySettings(config) {
 
   const store = async (key) => {
     try {
-      return typeof api.setRiotApiKey === "function"
-        ? await api.setRiotApiKey(key)
-        : await api.setConfig({ riotApiKey: key });
+      return await api.setRiotApiKey(key);
     } catch (err) {
       return { success: false, message: err.message };
     }
@@ -688,14 +678,18 @@ async function importAccountsFlow(btn) {
       const reasons = [
         res.duplicates ? `${res.duplicates} already in the list` : "",
         res.invalid ? `${res.invalid} invalid` : "",
-        res.withoutPassword ? `${res.withoutPassword} without a password` : "",
       ].filter(Boolean);
       const skippedText = reasons.length
         ? `skipped: ${reasons.join(", ")}`
         : `${skipped} skipped`;
+      // Accounts without a password in the backup are imported; the user
+      // enters it with Edit before launching them.
+      const noPw = res.withoutPassword
+        ? ` ${plural(res.withoutPassword, "account")} without a saved password: add it with Edit.`
+        : "";
       const msg =
         added > 0
-          ? `${plural(added, "account")} imported${skipped ? `, ${skippedText}` : ""}.`
+          ? `${plural(added, "account")} imported${skipped ? `, ${skippedText}` : ""}.${noPw}`
           : skipped
             ? `No new accounts (${skippedText}).`
             : "The backup contains no accounts.";
