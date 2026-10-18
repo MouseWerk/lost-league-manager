@@ -5,7 +5,8 @@ const lcu = require('./lcu');
 const state = require('./state');
 
 // ── Core modules ─────────────────────────────────────────────────────────────
-const { loadConfig, saveConfig, migratePasswords } = require('./services/storage');
+const { loadConfig, saveConfig, migratePasswords, dataFileProblemText } = require('./services/storage');
+const jsonStore = require('./services/json-store');
 const { resolveLolPath }               = require('./services/league-path');
 const { fetchChampionData }            = require('./services/champion-data');
 const { fetchItemData }                = require('./services/item-data');
@@ -68,7 +69,8 @@ app.whenReady().then(async () => {
     if (resolvedLolPath && resolvedLolPath !== state.config.lolPath) {
         console.log(`[Boot] League install auto-detected at ${resolvedLolPath}`);
         state.config.lolPath = resolvedLolPath;
-        saveConfig();
+        // A config.json that could not be read refuses saves; boot goes on.
+        try { saveConfig(); } catch (e) { console.error('[Boot] Could not save the detected League path:', e.message); }
     }
 
     // Non-blocking: the window shows immediately instead of waiting on Data
@@ -85,6 +87,14 @@ app.whenReady().then(async () => {
 
         registerIpc();
         registerLcuEvents();
+
+        // From here on, a data file that turns out damaged or unreadable is
+        // not overwritten; the renderer shows what happened.
+        jsonStore.setNoticeListener((notice) => {
+            const win = state.mainWindow;
+            if (win && !win.isDestroyed()) win.webContents.send('data-file-problem', dataFileProblemText(notice));
+        });
+        jsonStore.markBooted();
         initAutoUpdater();
         initOverwolf();
         // No overlay hotkey: the overlay is disabled (see overlay-hotkey.js).

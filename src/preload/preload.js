@@ -56,6 +56,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onChampSelectEnd: (callback) => ipcRenderer.on('champ-select-end', () => callback()),
     onLoginStatus: (callback) => ipcRenderer.on('login-status', (event, data) => callback(data)),
     onAccountsUpdated: (callback) => ipcRenderer.on('accounts-updated', () => callback()),
+    onDataFileProblem: (callback) => ipcRenderer.on('data-file-problem', (event, message) => callback(message)),
     onLaunchAccountInfo: (callback) => ipcRenderer.on('launch-account-info', (event, data) => callback(data)),
 
     resetOverlayPosition: () => ipcRenderer.invoke('overlay-reset-position'),
