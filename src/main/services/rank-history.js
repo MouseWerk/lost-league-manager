@@ -74,7 +74,9 @@ const FRESH_SOURCES = new Set(['lcu', 'riot-api']);
 // promotion and leave the displayed label stuck on the stale pre-promotion tier.
 //
 // `source` ('lcu' | 'riot-api' | 'opgg') is optional and stored with the entry.
-function recordRankSnapshot(riotId, tier, division, lp, source) {
+// `record` ({ wins, losses } of the season, optional) feeds the day's
+// win/loss count; a game that leaves LP unchanged (0 LP loss) still counts.
+function recordRankSnapshot(riotId, tier, division, lp, source, record) {
     const key = riotIdKey(riotId);
     if (!key || !tier) return;
     const score = rankScore(tier, division, lp);
@@ -91,7 +93,10 @@ function recordRankSnapshot(riotId, tier, division, lp, source) {
     const entries = history[key] || (history[key] = []);
     const last = entries[entries.length - 1];
     const sameRank = last && last.tier === normTier && last.division === normDivision;
-    if (sameRank && last.score === score) return;
+    const wins = Number.isInteger(record?.wins) ? record.wins : null;
+    const losses = Number.isInteger(record?.losses) ? record.losses : null;
+    const sameRecord = wins === null || (last?.wins === wins && last?.losses === losses);
+    if (sameRank && last.score === score && sameRecord) return;
     if (source === 'opgg' && sameRank && FRESH_SOURCES.has(last.source)) {
         const age = Date.now() - (last.ts || 0);
         if (age >= 0 && age < OPGG_LAG_WINDOW_MS) return;
@@ -99,6 +104,7 @@ function recordRankSnapshot(riotId, tier, division, lp, source) {
 
     const entry = { ts: Date.now(), tier: normTier, division: normDivision, lp: Number(lp) || 0, score };
     if (source) entry.source = source;
+    if (wins !== null && losses !== null) Object.assign(entry, { wins, losses });
     entries.push(entry);
     if (entries.length > MAX_SNAPSHOTS_PER_ACCOUNT) entries.splice(0, entries.length - MAX_SNAPSHOTS_PER_ACCOUNT);
 
@@ -111,4 +117,10 @@ function getRankHistory(riotId) {
     return loadRankHistory()[key] || [];
 }
 
-module.exports = { recordRankSnapshot, getRankHistory, rankScore };
+// "12W 8L" -> { wins: 12, losses: 8 }; null when it isn't that shape.
+function parseRecord(winLose) {
+    const m = /^\s*(\d+)\s*W\s+(\d+)\s*L\s*$/i.exec(String(winLose || ''));
+    return m ? { wins: Number(m[1]), losses: Number(m[2]) } : null;
+}
+
+module.exports = { recordRankSnapshot, getRankHistory, rankScore, parseRecord };

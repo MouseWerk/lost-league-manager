@@ -54,6 +54,34 @@
 }
 .modal-close-x:hover { background: var(--bg-hover); color: var(--ink); }
 
+/* First start */
+.onboarding-content { width: 520px; padding: 28px; }
+.ob-steps { display: flex; gap: 6px; margin-bottom: 22px; }
+.ob-steps span { flex: 1; height: 4px; border-radius: var(--radius-pill); background: var(--line); transition: background-color 0.2s ease; }
+.ob-steps span.is-done { background: var(--primary); }
+.ob-step h2 { font-size: 22px; letter-spacing: -0.02em; }
+.ob-logo { width: 56px; height: 56px; display: block; margin-bottom: 14px; }
+.ob-text { margin: 0 0 10px; color: var(--muted); line-height: 1.55; }
+.ob-path { display: flex; align-items: center; gap: 12px; margin: 16px 0 4px; padding: 12px 14px; border-radius: var(--radius-lg); background: var(--bg); }
+.ob-path > i { font-size: 18px; color: var(--success); }
+.ob-path.is-missing > i { color: var(--warning); }
+.ob-path-main { flex: 1; min-width: 0; }
+.ob-path-status { font-weight: 600; }
+.ob-path-file { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-row { display: flex; gap: 8px; margin: 14px 0 6px; }
+.ob-row .form-control:first-child { flex: 1; min-width: 0; }
+.ob-region { width: 100px; flex-shrink: 0; }
+.ob-link { margin: 0 0 12px; padding: 0; border: 0; background: none; color: var(--primary); font-size: 13px; font-weight: 600; cursor: pointer; }
+.ob-link:hover { text-decoration: underline; }
+.ob-found { display: flex; align-items: center; gap: 12px; margin: 4px 0 14px; padding: 10px 12px; border-radius: var(--radius-lg); background: var(--bg); }
+.ob-found img { width: 40px; height: 40px; border-radius: var(--radius); object-fit: cover; }
+.ob-found .ob-found-emblem { width: 36px; height: 36px; border-radius: 0; object-fit: contain; margin-left: auto; }
+.ob-found-name { font-weight: 600; }
+.ob-found-rank { font-family: var(--font-display); font-weight: 700; font-size: 13px; }
+.ob-found.is-error { color: var(--danger); }
+.ob-error { min-height: 18px; color: var(--danger); font-size: 13px; }
+.onboarding-content .checkbox-group { margin-top: 10px; }
+
 /* Confirmation */
 .confirm-content { width: 400px; }
 .confirm-content p { margin: 0; color: var(--muted); line-height: 1.55; white-space: pre-line; }

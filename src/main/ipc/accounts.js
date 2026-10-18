@@ -24,6 +24,7 @@ const ACCOUNT_FIELDS = {
     isFavourite:      { type: 'boolean', def: false },
     customRank:       { type: 'string',  def: '', max: 100 },
     customAvatar:     { type: 'string',  def: '', max: STRING_MAX },
+    goalRank:         { type: 'string',  def: '', max: 32 },
 };
 const ACCOUNT_DEFAULTS = Object.fromEntries(Object.entries(ACCOUNT_FIELDS).map(([k, s]) => [k, s.def]));
 const MAX_USERNAME = 256;

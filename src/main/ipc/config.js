@@ -30,6 +30,7 @@ const ALLOWED_CONFIG_KEYS = {
     // Launch and repair start or delete files next to this path.
     lolPath:               isLeagueClientPath,
     minimizeOnGameStart:   v => typeof v === 'boolean',
+    onboardingDone:        v => typeof v === 'boolean',
     overlayEnabled:        v => typeof v === 'boolean',
     overlayLocked:         v => typeof v === 'boolean',
     overlayShowBuilds:     v => typeof v === 'boolean',
@@ -49,6 +50,7 @@ function publicConfig() {
     for (const k of PRIVATE_CONFIG_KEYS) delete out[k];
     out.vaultEnabled  = isVaultEnabled();
     out.riotApiKeySet = secrets.hasRiotApiKey();
+    out.lolPathFound  = isLeagueClientPath(state.config.lolPath);
     return out;
 }
 

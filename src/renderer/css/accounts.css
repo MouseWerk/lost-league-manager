@@ -286,6 +286,23 @@
 .profile-rank-label { display: flex; gap: 8px; color: var(--muted); font-size: 12px; }
 .profile-rank-record { margin-left: auto; }
 
+/* Today: LP and games since midnight */
+.profile-today { display: flex; align-items: baseline; gap: 10px; padding: 0 2px; font-size: 13px; }
+.profile-today-label { color: var(--muted); }
+.profile-today-lp { font-family: var(--font-display); font-weight: 700; font-size: 15px; }
+.profile-today-lp.is-up { color: var(--success); }
+.profile-today-lp.is-down { color: var(--danger); }
+.profile-today-record { margin-left: auto; color: var(--muted); }
+
+/* Goal rank with progress */
+.profile-goal { display: flex; flex-direction: column; gap: 7px; padding: 12px 16px; border-radius: var(--radius-lg); background: var(--bg); }
+.profile-goal-head { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.profile-goal-label { color: var(--muted); }
+.profile-goal-rank { font-family: var(--font-display); font-weight: 700; font-size: 15px; }
+.profile-goal-left { margin-left: auto; color: var(--muted); }
+.profile-goal .profile-lp-fill { background: var(--primary); }
+.profile-goal.is-reached .profile-goal-left { color: var(--success); font-weight: 600; }
+
 .profile-rank-history-wrap,
 .profile-match-history-wrap,
 .profile-notes-wrap { display: flex; flex-direction: column; gap: 8px; }
