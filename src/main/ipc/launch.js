@@ -559,6 +559,7 @@ module.exports = {
     cancelLaunch,
     isLaunchInProgress,
     isWindowHiddenByLaunch,
+    isVaultLocked,
     riotClientFromInstallsJson,
     riotClientAuthState,
     statusForLine,

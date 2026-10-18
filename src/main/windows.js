@@ -8,6 +8,9 @@ function setLaunchCallback(fn) {
     _launchCallback = fn;
 }
 
+// Required lazily: ipc/launch requires this module.
+const launchModule = () => require('./ipc/launch');
+
 function createMainWindow() {
     const scale  = state.config.uiScale || 1.0;
     const { width: sw, height: sh } = screen.getPrimaryDisplay().workAreaSize;
@@ -31,7 +34,10 @@ function createMainWindow() {
     state.mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
 
     state.mainWindow.once('ready-to-show', () => {
-        if (!state.config.startMinimized) state.mainWindow.show();
+        // A `--launch=` of a minimize-on-launch account may already have
+        // hidden the window; showing it here undid that.
+        if (state.config.startMinimized || launchModule().isWindowHiddenByLaunch()) return;
+        state.mainWindow.show();
     });
 
     state.mainWindow.on('close', (e) => {
@@ -118,28 +124,32 @@ function createOverlayWindow(owOverlay) {
     }
 }
 
-function updateTrayMenu() {
-    if (!state.tray) return;
-    const { loadAccounts } = require('./services/storage');
-    const accounts = loadAccounts();
-    const acctItems = accounts.slice(0, 10).map(acc => ({
-        label: `${acc.label || acc.username}${acc.region ? '  ' + acc.region.toUpperCase() : ''}`,
-        click: () => {
-            if (_launchCallback) _launchCallback(acc.username);
-            if (state.mainWindow) { state.mainWindow.show(); state.mainWindow.focus(); }
-        },
-    }));
+// Built when the menu opens, so it always matches the vault state and the
+// account list without every unlock or edit having to rebuild it. While the
+// vault is locked it names no accounts; the launch itself (launchFromOutside)
+// shows the window, or keeps it hidden for minimize-on-launch accounts.
+function buildTrayMenu() {
+    const showMain = () => { if (state.mainWindow) { state.mainWindow.show(); state.mainWindow.focus(); } };
+    let acctItems;
+    if (launchModule().isVaultLocked()) {
+        acctItems = [{ label: 'Unlock to see your accounts', enabled: false }];
+    } else {
+        const { loadAccounts } = require('./services/storage');
+        acctItems = loadAccounts().slice(0, 10).map(acc => ({
+            label: `${acc.label || acc.username}${acc.region ? '  ' + acc.region.toUpperCase() : ''}`,
+            click: () => { if (_launchCallback) _launchCallback(acc.username); },
+        }));
+    }
 
-    const menu = Menu.buildFromTemplate([
+    return Menu.buildFromTemplate([
         { label: 'Lost League Manager', enabled: false },
         { type: 'separator' },
         ...acctItems,
         { type: 'separator' },
-        { label: 'Open', click: () => { if (state.mainWindow) { state.mainWindow.show(); state.mainWindow.focus(); } } },
+        { label: 'Open', click: showMain },
         { type: 'separator' },
         { label: 'Quit', click: () => { app.isQuiting = true; app.quit(); } },
     ]);
-    state.tray.setContextMenu(menu);
 }
 
 function createTray() {
@@ -151,13 +161,15 @@ function createTray() {
     };
     state.tray.on('click',        showMain);
     state.tray.on('double-click', showMain);
-    updateTrayMenu();
+    state.tray.on('right-click',  () => state.tray.popUpContextMenu(buildTrayMenu()));
 }
 
+// Windows keeps the jump list after the app exits, so it lists no accounts
+// while the vault is locked; it is rebuilt on the next accounts update.
 function updateJumpList() {
     if (process.platform !== 'win32') return;
     const { loadAccounts } = require('./services/storage');
-    const accounts = loadAccounts();
+    const accounts = launchModule().isVaultLocked() ? [] : loadAccounts();
 
     const tasks = accounts.slice(0, 5).map(acc => {
         let args = `--launch=${acc.username}`;
@@ -183,7 +195,6 @@ function broadcastAccountsUpdate() {
     BrowserWindow.getAllWindows().forEach(win => {
         if (!win.isDestroyed()) win.webContents.send('accounts-updated');
     });
-    updateTrayMenu();
     updateJumpList();
 }
 
@@ -191,7 +202,7 @@ module.exports = {
     createMainWindow,
     createOverlayWindow,
     createTray,
-    updateTrayMenu,
+    buildTrayMenu,
     updateJumpList,
     broadcastAccountsUpdate,
     setLaunchCallback,
