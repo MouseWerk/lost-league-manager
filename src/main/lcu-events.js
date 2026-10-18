@@ -3,6 +3,7 @@ const path  = require('path');
 const lcu   = require('./lcu');
 const state = require('./state');
 const discordRpc = require('./services/discord-rpc');
+const isVaultLocked = () => require('./services/vault').isVaultLocked();
 
 // The login/summoner endpoints 404 for a few seconds while the client boots.
 const BOOT_RETRIES = 6;
@@ -64,7 +65,9 @@ async function detectSignedInAccount(conn) {
         ? loadAccounts().find(a => sameUsername(a.username, session.username))
         : null;
     state.currentAccount = matched ? { ...matched } : null;
-    send(state.mainWindow, 'active-account-detected', matched?.username ?? null);
+    // The login name is account data: not sent while the vault is locked
+    // (the renderer re-reads it with get-current-account after unlocking).
+    send(state.mainWindow, 'active-account-detected', isVaultLocked() ? null : matched?.username ?? null);
     return matched?.username ?? null;
 }
 

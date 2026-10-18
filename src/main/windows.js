@@ -173,7 +173,7 @@ function createTray() {
 function updateJumpList() {
     if (process.platform !== 'win32') return;
     const { loadAccounts } = require('./services/storage');
-    const accounts = launchModule().isVaultLocked() ? [] : loadAccounts();
+    const accounts = require('./services/vault').isVaultEnabled() ? [] : loadAccounts();
 
     const tasks = accounts.slice(0, 5).map(acc => {
         let args = `--launch=${acc.username}`;
