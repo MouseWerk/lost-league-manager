@@ -128,6 +128,8 @@ const {
   makeStatsEntry,
   statsEntryState,
   sparklinePoints,
+  normalizeLoginStatus,
+  needsLaunchAttention,
   MIN_PASSPHRASE_LENGTH,
   validateNewPassphrase,
   secondsUntil,
@@ -414,11 +416,26 @@ async function initVault(config) {
       }, 500);
     }
 
-    btn.addEventListener("click", tryUnlock);
-    input.addEventListener("keydown", (e) => {
+    // Properties, not listeners: the lock can be shown again (lockAgain).
+    btn.onclick = tryUnlock;
+    input.onkeydown = (e) => {
       if (e.key === "Enter") tryUnlock();
-    });
+    };
   });
+}
+
+// The main process answered "locked" (e.g. a tray launch while locked):
+// show the lock screen again and reload the accounts once unlocked.
+let _relocking = false;
+async function lockAgain() {
+  if (_relocking) return;
+  _relocking = true;
+  try {
+    await initVault({ vaultEnabled: true });
+    await loadAccounts();
+  } finally {
+    _relocking = false;
+  }
 }
 
 // ── Vault settings ────────────────────────────────────────────────────────
@@ -838,6 +855,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   initDragAndDrop();
   initTooltips();
 
+  // Launch events are registered before the first await: a cold start with
+  // --launch= begins as soon as the page has loaded.
+  // Account info sent when a launch begins (window, tray, jump list).
+  window.electronAPI.onLaunchAccountInfo((info) => {
+    document.getElementById("launchAccLabel").textContent = info.label;
+    document.getElementById("launchAccMeta").textContent = [
+      info.region,
+      info.username,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const icon = document.getElementById("launchAccIcon");
+    const cached = getCachedStats(
+      allAccounts.find((a) => a.username === info.username),
+    );
+    if (cached?.iconSrc) icon.src = cached.iconSrc;
+    else icon.src = "assets/logo.png";
+    _launchInfoUsername = info.username;
+    isLaunching = true;
+    resetLaunchOverlay();
+  });
+  window.electronAPI.onLoginStatus(handleLoginStatus);
+  // Which account is signed into the client (null when none or unknown).
+  window.electronAPI.onActiveAccountDetected((username) =>
+    setActiveAccount(username || null),
+  );
+
   document.getElementById("viewGridBtn")?.addEventListener("click", () => {
     compactView = false;
     localStorage.setItem("llm-view", "grid");
@@ -1036,25 +1080,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.error("Initialization error:", err);
   }
 
-  // Account info sent when launch begins — populate overlay header
-  window.electronAPI.onLaunchAccountInfo((info) => {
-    document.getElementById("launchAccLabel").textContent = info.label;
-    document.getElementById("launchAccMeta").textContent = [
-      info.region,
-      info.username,
-    ]
-      .filter(Boolean)
-      .join(" · ");
-    const icon = document.getElementById("launchAccIcon");
-    const cached = getCachedStats(
-      allAccounts.find((a) => a.username === info.username),
-    );
-    if (cached?.iconSrc) icon.src = cached.iconSrc;
-    else icon.src = "assets/logo.png";
-    // Reset retry button on each new launch
-    document.getElementById("retryLaunchBtn").style.display = "none";
-  });
-
   // LCU connect / disconnect
   window.electronAPI.onLcuConnected(() => {
     lcuConnected = true;
@@ -1067,18 +1092,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("quickAddClientBtn").style.display = "none";
     document.getElementById("lcuNavDot").classList.remove("visible");
     setLcuOffline();
+    setActiveAccount(null); // nobody is signed in without a client
   });
   window.electronAPI.onLcuGameflow((phase) => {
     updateGameflowBadge(phase);
     updateContextButtons(phase);
-  });
-
-  // When LCU reveals which account is currently logged in (external launch)
-  window.electronAPI.onActiveAccountDetected((username) => {
-    if (activeAccountUsername !== username) {
-      activeAccountUsername = username;
-      renderAccounts();
-    }
   });
 
   // Dodge / Accept buttons
@@ -1133,46 +1151,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   });
 
-  // Login Progress (Overlay)
-  window.electronAPI.onLoginStatus((data) => {
-    const overlay = document.getElementById("launchOverlay");
-    const statusEl = document.getElementById("launchStatus");
-    const progressEl = document.getElementById("launchProgress");
-
-    let msg = "";
-    let pct = 0;
-    let isError = false;
-
-    if (typeof data === "string") {
-      msg = data;
-    } else if (data && typeof data === "object") {
-      msg = data.message;
-      pct = data.progress || 0;
-      isError = !!data.error;
-    }
-
-    if (msg) {
-      statusEl.textContent = msg;
-      overlay.classList.add("active");
-      if (pct > 0) progressEl.style.width = pct + "%";
-      if (pct === 100) showToast("League launched successfully!", "success");
-      if (isError) {
-        showToast(msg, "error");
-        document.getElementById("retryLaunchBtn").style.display = "inline-flex";
-        isLaunching = false;
-      }
-    } else {
-      // The null/empty "clear" message is sent exactly once, after every
-      // terminal outcome (success, code=3 heads-up, or error) — the real
-      // end of the flow, as opposed to the IPC call resolving early.
-      overlay.classList.remove("active");
-      setTimeout(() => {
-        progressEl.style.width = "0%";
-      }, 500);
-      isLaunching = false;
-    }
-  });
-
   // Listen for external account updates
   window.electronAPI.onAccountsUpdated(() => {
     loadAccounts();
@@ -1186,20 +1164,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log("[GEP] Info update:", data);
   });
 
-  // Cancel Launch
+  // Cancel Launch (reads "Close" while a failed launch is shown)
   document
     .getElementById("cancelLaunchBtn")
-    .addEventListener("click", async () => {
-      document.getElementById("launchOverlay").classList.remove("active");
-      document.getElementById("retryLaunchBtn").style.display = "none";
-      isLaunching = false;
-      _launchToken++; // invalidate the in-flight launchAccount() call, if any
-      await window.electronAPI.cancelLaunch();
-    });
+    .addEventListener("click", cancelOrCloseLaunch);
 
   // Retry Launch
   document.getElementById("retryLaunchBtn").addEventListener("click", () => {
-    if (lastLaunchedUsername) launchAccount(lastLaunchedUsername);
+    const username = _launchInfoUsername || lastLaunchedUsername;
+    if (username) launchAccount(username);
   });
 
   document.getElementById("patchNotesBtn").addEventListener("click", (e) => {
@@ -2945,40 +2918,195 @@ async function editAccount(username) {
   }
 }
 
-async function launchAccount(username) {
-  if (isLaunching) return;
+// ── Launch overlay ────────────────────────────────────────────────────────
+// The overlay is a dialog layer while a launch runs. On a failure, a wrong
+// account or a step the user must finish in the Riot Client it stays open
+// with Try Again and Close until the user picks one (the main process's
+// later "clear" message no longer hides it).
+let _launchAttention = false;
+// Set after the user cancels, so late status messages of that launch do not
+// bring the overlay back. Cleared when the next launch starts.
+let _launchSuppressed = false;
+let _launchDoneShown = false; // one success toast per launch
+let _launchInfoUsername = null; // account of the launch in progress
+
+// The highlighted (signed-in) account comes only from the main process
+// (active-account-detected, get-current-account), never from a launch click.
+function setActiveAccount(username) {
+  if (activeAccountUsername === username) return;
+  activeAccountUsername = username;
+  renderAccounts();
+}
+
+function launchOverlayEl() {
+  return document.getElementById("launchOverlay");
+}
+
+function showLaunchOverlay() {
+  const overlay = launchOverlayEl();
+  if (isLayerOpen(overlay)) return;
+  openLayer(overlay, {
+    onEscape: () => {
+      if (_launchAttention) hideLaunchOverlay();
+    },
+    focus: "#cancelLaunchBtn",
+  });
+}
+
+function setLaunchAttention(on) {
+  _launchAttention = on;
+  const retry = document.getElementById("retryLaunchBtn");
+  retry.style.display = on ? "inline-flex" : "none";
+  document.getElementById("cancelLaunchBtn").textContent = on ? "Close" : "Cancel";
+  launchOverlayEl().classList.toggle("needs-attention", on);
+  if (on) retry.focus();
+}
+
+function hideLaunchOverlay() {
+  closeLayer(launchOverlayEl());
+  setLaunchAttention(false);
+  setTimeout(() => {
+    if (!isLayerOpen(launchOverlayEl())) {
+      document.getElementById("launchProgress").style.width = "0%";
+    }
+  }, 500);
+}
+
+function resetLaunchOverlay() {
+  _launchSuppressed = false;
+  _launchDoneShown = false;
+  setLaunchAttention(false);
+  document.getElementById("launchProgress").style.width = "0%";
+  document.getElementById("launchStatus").textContent = "Preparing...";
+}
+
+// Shows a failure that ends the launch, with Try Again and Close.
+function showLaunchFailure(message, toastType = "error") {
+  document.getElementById("launchStatus").textContent = message;
+  showLaunchOverlay();
+  setLaunchAttention(true);
+  showToast(message, toastType);
+}
+
+// login-status from the main process: { message, progress, error?, kind? }
+// or null once the flow has ended (normalizeLoginStatus in ui-lib.js).
+function handleLoginStatus(data) {
+  const status = normalizeLoginStatus(data);
+  if (status.clear) {
+    isLaunching = false;
+    if (!_launchAttention) hideLaunchOverlay();
+    return;
+  }
+  if (_launchSuppressed) return;
+  if (status.kind === "cancelled") {
+    isLaunching = false;
+    hideLaunchOverlay();
+    return;
+  }
+
+  if (status.progress > 0) {
+    document.getElementById("launchProgress").style.width = `${status.progress}%`;
+  }
+  if (needsLaunchAttention(status.kind)) {
+    isLaunching = false;
+    showLaunchFailure(
+      status.message || "Login did not complete",
+      status.kind === "needs-action" ? "info" : "error",
+    );
+    return;
+  }
+  document.getElementById("launchStatus").textContent = status.message;
+  showLaunchOverlay();
+  if (status.kind === "done") {
+    if (!_launchDoneShown) {
+      _launchDoneShown = true;
+      showToast("League launched successfully!", "success");
+    }
+  }
+}
+
+async function cancelOrCloseLaunch() {
+  if (_launchAttention) {
+    hideLaunchOverlay(); // the launch already ended; this only dismisses it
+    return;
+  }
+  hideLaunchOverlay();
+  isLaunching = false;
+  _launchToken++; // invalidate the in-flight launchAccount() call, if any
+  _launchSuppressed = true;
+  let res;
+  try {
+    res = await window.electronAPI.cancelLaunch();
+  } catch (err) {
+    res = { success: false, message: err.message };
+  }
+  if (!res?.success) {
+    // The launch may still be running: let its next status show it again.
+    _launchSuppressed = false;
+    showToast(
+      res?.message ? `Could not cancel: ${res.message}` : "Could not cancel the launch",
+      "error",
+    );
+  }
+}
+
+async function launchAccount(username, options) {
+  if (isLaunching) {
+    // The overlay can be hidden (heads-up already dismissed) while the login
+    // script still runs; say why the click does nothing.
+    showToast("A launch is already in progress", "info");
+    return;
+  }
   isLaunching = true;
   lastLaunchedUsername = username;
   const myToken = ++_launchToken;
-  document.getElementById("retryLaunchBtn").style.display = "none";
+  resetLaunchOverlay();
   try {
-    const res = await window.electronAPI.launchAccount(username);
+    const res = options
+      ? await window.electronAPI.launchAccount(username, options)
+      : await window.electronAPI.launchAccount(username);
     // If Cancel was clicked (or a different launch started) while this was
     // in flight, _launchToken has moved on — applying this stale result
     // would overwrite the newer launch's UI state.
     if (myToken !== _launchToken) return;
-    if (!res.success) {
+    if (res?.busy) {
+      // Another launch (tray, jump list) is running in the main process; its
+      // status messages own the overlay and clear isLaunching at the end.
+      showToast("A launch is already in progress", "info");
+      return;
+    }
+    if (res?.cancelled) return;
+    if (res?.locked) {
+      isLaunching = false;
+      lockAgain();
+      return;
+    }
+    if (res?.needsConfirm) {
+      // e.g. a game is running: relaunching would close it.
+      isLaunching = false;
+      const ok = await showConfirm(
+        "Launch anyway?",
+        res.message || "League is busy. Launching closes the running client.",
+        "danger",
+        "Launch",
+      );
+      if (ok) launchAccount(username, { confirmed: true });
+      return;
+    }
+    if (!res?.success) {
       // Immediate failure (bad account/password) — no login-status stream
       // follows, so this is the only place that clears isLaunching.
-      showToast(res.message || "Error launching account", "error");
-      document.getElementById("launchStatus").textContent =
-        res.message || "Launch failed.";
-      document.getElementById("retryLaunchBtn").style.display = "inline-flex";
       isLaunching = false;
-    } else {
-      activeAccountUsername = username;
-      renderAccounts();
-      // isLaunching stays true here — the actual login script can run for
-      // up to ~150s after this IPC call already resolved. The login-status
-      // stream (onLoginStatus below) owns clearing it once the flow truly
-      // finishes; clearing it here let a second click re-trigger the whole
-      // launch mid-flight and kill the in-progress login script.
+      // reported: the main process already showed it through login-status.
+      if (!res?.reported) showLaunchFailure(res?.message || "Launch failed.");
     }
+    // On success isLaunching stays true: the login script can run for up to
+    // ~150s after this call resolved; handleLoginStatus clears it at the end.
   } catch (e) {
     console.error(e);
-    if (myToken === _launchToken)
-      document.getElementById("retryLaunchBtn").style.display = "inline-flex";
+    if (myToken !== _launchToken) return;
     isLaunching = false;
+    showLaunchFailure(`Launch failed: ${e.message}`);
   }
 }
 
