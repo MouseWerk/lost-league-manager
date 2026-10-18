@@ -55,27 +55,41 @@ function connect() {
     if (!isEnabled() || connecting || (client && client.isConnected)) return;
     connecting = true;
 
-    client = new Client({ clientId: CLIENT_ID });
+    // A dead instance from an earlier connection must not keep its listeners.
+    discard(client);
+    const c = new Client({ clientId: CLIENT_ID });
+    client = c;
 
-    client.on('ready', () => {
+    // Events from an instance that was replaced or shut down are ignored.
+    c.on('ready', () => {
+        if (c !== client) return;
         connecting = false;
-        console.log('[DiscordRPC] Connected as', client.user?.username ?? 'unknown user');
+        console.log('[DiscordRPC] Connected as', c.user?.username ?? 'unknown user');
         if (lastDetails) applyActivity(lastDetails, { force: true });
     });
 
-    client.on('disconnected', () => {
+    c.on('disconnected', () => {
+        if (c !== client) return;
         connecting = false;
         console.log('[DiscordRPC] Disconnected, will retry');
         appliedDetails = null;
         scheduleRetry();
     });
 
-    client.login().catch((e) => {
+    c.login().catch((e) => {
+        if (c !== client) return;
         connecting = false;
+        discard(c);
         client = null;
         console.log('[DiscordRPC] Login failed (Discord not running?):', e.message);
         scheduleRetry();
     });
+}
+
+function discard(c) {
+    if (!c) return;
+    c.removeAllListeners?.();
+    Promise.resolve().then(() => c.destroy()).catch(() => {});
 }
 
 let appliedDetails = null;
@@ -118,9 +132,11 @@ function shutdown() {
     }
     const toDestroy = client;
     client = null;
-    lastDetails = null;
+    // A login still pending must not block an immediate re-enable. The last
+    // status (lastDetails) is kept so re-enabling shows the current phase.
+    connecting = false;
     appliedDetails = null;
-    if (toDestroy) toDestroy.destroy().catch(() => {});
+    discard(toDestroy);
 }
 
 function setEnabled(enabled) {
