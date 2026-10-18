@@ -1,4 +1,4 @@
-const { ipcMain, app } = require('electron');
+const { ipcMain, app, nativeTheme } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const state = require('../state');
@@ -37,6 +37,7 @@ const ALLOWED_CONFIG_KEYS = {
     startMinimized:        v => typeof v === 'boolean',
     startWithWindows:      v => typeof v === 'boolean',
     toastOnQueuePop:       v => typeof v === 'boolean',
+    theme:                 v => THEMES.includes(v),
     uiScale:               v => typeof v === 'number' && Number.isFinite(v) && v >= MIN_UI_SCALE && v <= MAX_UI_SCALE,
 };
 
@@ -59,6 +60,14 @@ function pushOverlaySettings() {
         showBuilds: state.config.overlayShowBuilds !== false,
         locked:     state.config.overlayLocked     || false,
     });
+}
+
+const THEMES = ['system', 'light', 'dark'];
+
+// The renderer's prefers-color-scheme follows nativeTheme.themeSource, in
+// every window, so this one call switches the whole app.
+function applyTheme() {
+    nativeTheme.themeSource = THEMES.includes(state.config.theme) ? state.config.theme : 'system';
 }
 
 function register() {
@@ -126,6 +135,8 @@ function register() {
             app.setLoginItemSettings({ openAtLogin: !!state.config.startWithWindows });
         }
 
+        if (state.config.theme !== prev.theme) applyTheme();
+
         if (state.config.discordRpcEnabled !== prev.discordRpcEnabled) {
             discordRpc.setEnabled(state.config.discordRpcEnabled);
         }
@@ -142,4 +153,4 @@ function register() {
     });
 }
 
-module.exports = { register };
+module.exports = { register, applyTheme };
