@@ -17,6 +17,42 @@ const VALID_LOCALES = new Set([
 
 const RANKED_QUEUE_IDS = new Set([420, 440]);
 
+// Maps the app's user-facing region strings (see REGION_TO_PLATFORM in
+// riot-api.js) to op.gg's URL region slugs. op.gg doesn't cover CN (Tencent
+// operates it separately, same reason it's excluded from stats lookups).
+// The legacy 'sea' value maps to op.gg's SG server.
+const REGION_TO_OPGG = {
+    na: 'na', na1: 'na',
+    euw: 'euw', euw1: 'euw',
+    eune: 'eune', eun1: 'eune',
+    kr: 'kr',
+    jp: 'jp', jp1: 'jp',
+    br: 'br', br1: 'br',
+    las: 'las', la2: 'las',
+    lan: 'lan', la1: 'lan',
+    oce: 'oce', oc1: 'oce',
+    tr: 'tr', tr1: 'tr',
+    ru: 'ru',
+    sea: 'sg',
+    ph: 'ph', ph2: 'ph',
+    sg: 'sg', sg2: 'sg',
+    th: 'th', th2: 'th',
+    tw: 'tw', tw2: 'tw',
+    vn: 'vn', vn2: 'vn',
+    me: 'me', me1: 'me',
+};
+
+// Builds the op.gg URL here rather than trusting a URL string from the
+// renderer — region and riotId are validated/encoded, so the result can only
+// ever point at an op.gg summoner page. Returns null for unusable input.
+function opggProfileUrl(region, riotId) {
+    const slug = REGION_TO_OPGG[(region || '').toLowerCase()];
+    if (!slug || typeof riotId !== 'string' || !riotId.includes('#')) return null;
+    const [name, tag] = riotId.trim().split('#');
+    if (!name || !tag) return null;
+    return `https://www.op.gg/lol/summoners/${slug}/${encodeURIComponent(name)}-${encodeURIComponent(tag)}`;
+}
+
 function register() {
     ipcMain.handle('accept-match', async () => {
         // Checked separately from the request's own null-on-failure return so a
@@ -217,39 +253,9 @@ function register() {
         return { success: true };
     });
 
-    // Maps the app's user-facing region strings (see REGION_TO_PLATFORM in
-    // riot-api.js) to op.gg's URL region slugs. op.gg doesn't cover CN (Tencent
-    // operates it separately, same reason it's excluded from stats lookups).
-    // The PH/SG/TH/TW/VN split is op.gg's SEA consolidation — best-effort 'sg'.
-    const REGION_TO_OPGG = {
-        na: 'na', na1: 'na',
-        euw: 'euw', euw1: 'euw',
-        eune: 'eune', eun1: 'eune',
-        kr: 'kr',
-        jp: 'jp', jp1: 'jp',
-        br: 'br', br1: 'br',
-        las: 'las', la2: 'las',
-        lan: 'lan', la1: 'lan',
-        oce: 'oce', oc1: 'oce',
-        tr: 'tr', tr1: 'tr',
-        ru: 'ru',
-        sea: 'sg',
-        ph: 'ph', ph2: 'ph',
-        sg: 'sg', sg2: 'sg',
-        th: 'th', th2: 'th',
-        tw: 'tw', tw2: 'tw',
-        vn: 'vn', vn2: 'vn',
-        me: 'me', me1: 'me',
-    };
-    // Builds the op.gg URL itself here rather than trusting a URL string from
-    // the renderer — region and riotId are validated/encoded, so the result
-    // can only ever point at an op.gg summoner page.
     ipcMain.handle('open-opgg', async (event, region, riotId) => {
-        const slug = REGION_TO_OPGG[(region || '').toLowerCase()];
-        if (!slug || typeof riotId !== 'string' || !riotId.includes('#')) return { success: false };
-        const [name, tag] = riotId.trim().split('#');
-        if (!name || !tag) return { success: false };
-        const url = `https://www.op.gg/lol/summoners/${slug}/${encodeURIComponent(name)}-${encodeURIComponent(tag)}`;
+        const url = opggProfileUrl(region, riotId);
+        if (!url) return { success: false };
         await shell.openExternal(url);
         return { success: true };
     });
@@ -287,4 +293,4 @@ function register() {
     });
 }
 
-module.exports = { register };
+module.exports = { register, opggProfileUrl };

@@ -246,4 +246,4 @@ function register() {
     ipcMain.handle('get-current-account', () => state.currentAccount?.username ?? null);
 }
 
-module.exports = { register, executeAccountLaunch };
+module.exports = { register, executeAccountLaunch, riotClientFromInstallsJson };
