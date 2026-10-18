@@ -106,6 +106,11 @@ class LCUConnector {
     onConnect(callback)    { this.connectHandlers.push(callback); }
     onDisconnect(callback) { this.disconnectHandlers.push(callback); }
 
+    // Removes one module's own handler; other modules' handlers stay.
+    offEvent(callback)      { this.handlers = this.handlers.filter(h => h !== callback); }
+    offConnect(callback)    { this.connectHandlers = this.connectHandlers.filter(h => h !== callback); }
+    offDisconnect(callback) { this.disconnectHandlers = this.disconnectHandlers.filter(h => h !== callback); }
+
     clearHandlers() {
         this.handlers = [];
         this.connectHandlers = [];

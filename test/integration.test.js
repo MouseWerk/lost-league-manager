@@ -25,6 +25,38 @@ test('stats lookups record where each rank snapshot came from', async (t) => {
     assert.equal(history[0].source, 'opgg');
 });
 
+// Boot order: stats.js registers its client-region reset when it loads, then
+// main.js calls registerLcuEvents(). That used to clear every module's LCU
+// handlers, so the first client's region stuck for the whole session and
+// accounts were looked up through a client on another server.
+test('the client region is read again after the League client reconnects', async (t) => {
+    const lcu = require('../src/main/lcu');
+    const { registerLcuEvents } = require('../src/main/lcu-events');
+    registerLcuEvents();
+
+    fs.writeFileSync(path.join(userData, 'accounts.json'), JSON.stringify([]));
+    t.mock.method(championData, 'whenReady', async () => {});
+    t.mock.method(opgg, 'getProfile', async () => ({ success: true, source: 'opgg', tier: 'Unranked', lp: '' }));
+    let region = 'EUW';
+    let regionReads = 0;
+    t.mock.method(lcu, 'request', async (method, endpoint) => {
+        if (endpoint === '/riotclient/region-locale') { regionReads++; return { region }; }
+        return null; // summoner lookups miss, so stats fall through to OP.GG
+    });
+    const wasConnected = lcu.connected;
+    lcu.connected = true;
+    t.after(() => { lcu.connected = wasConnected; });
+
+    await invoke('get-stats', { region: 'euw', riotId: 'Region#ONE', force: true });
+    assert.equal(regionReads, 1);
+
+    // The user signs into an NA account: the client goes away and comes back.
+    lcu.disconnectHandlers.forEach(h => h());
+    region = 'NA';
+    await invoke('get-stats', { region: 'na', riotId: 'Region#TWO', force: true });
+    assert.equal(regionReads, 2, 'region must be read again after a reconnect');
+});
+
 // The DevTools console can call every IPC method the preload exposes.
 test('no window opens DevTools in an installed build', () => {
     const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'windows.js'), 'utf8');
