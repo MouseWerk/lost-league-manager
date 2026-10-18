@@ -68,9 +68,17 @@ function migratePasswords() {
     // where the copy of it is.
     const notices = takeCorruptNotices();
     if (notices.length > 0) {
-        const lines = notices.map(n => `${path.basename(n.file)} could not be read. A copy was kept as ${path.basename(n.copy)}.`);
+        const lines = notices.map(n => dataFileProblemText(n));
         throw new Error(lines.join('\n'));
     }
 }
 
-module.exports = { loadAccounts, saveAccounts, updateAccounts, sameUser, loadConfig, saveConfig, migratePasswords };
+// User-facing text for a damaged or unreadable data file (boot box and the
+// renderer's runtime notice share it).
+function dataFileProblemText(n) {
+    const name = path.basename(n.file);
+    if (n.copy) return `${name} could not be read. A copy was kept as ${path.basename(n.copy)}.`;
+    return `${name} could not be read (it may be locked by antivirus or OneDrive). Changes to it are not saved until it can be read again.`;
+}
+
+module.exports = { loadAccounts, saveAccounts, updateAccounts, sameUser, loadConfig, saveConfig, migratePasswords, dataFileProblemText };

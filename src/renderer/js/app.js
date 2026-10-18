@@ -1180,6 +1180,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadAccounts();
   });
 
+  // A data file became damaged or unreadable while the app ran; saving it
+  // is paused in main so nothing is overwritten.
+  window.electronAPI.onDataFileProblem((message) => {
+    showToast(message, "error");
+  });
+
   // Overwolf GEP events (fired while a LoL session is running)
   window.electronAPI.onGepGameEvent((data) => {
     console.log("[GEP] Game event:", data);

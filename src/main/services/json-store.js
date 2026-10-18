@@ -17,6 +17,21 @@ const _corruptCopies = new Map(); // filePath -> { copy, size, mtimeMs }
 const _blocked       = new Set(); // filePaths we must not overwrite
 const _notices       = [];        // { file, copy } not yet shown to the user
 
+// After startup a damaged or unreadable file must not be replaced by whatever
+// the next save holds (an add-account after an empty list would leave only the
+// new account). Saves stay blocked for it and the listener tells the user.
+let _booted = false;
+const _runtimeDamaged = new Set(); // found damaged after startup: blocked until restart
+let _noticeListener = null;
+
+function markBooted() { _booted = true; }
+function setNoticeListener(fn) { _noticeListener = fn; }
+
+function notifyRuntime(notice) {
+    if (!_noticeListener) return;
+    try { _noticeListener(notice); } catch (e) { console.error('Data file notice failed:', e.message); }
+}
+
 function keepCorruptCopy(filePath, label, reason) {
     let st = null;
     try { st = fs.statSync(filePath); } catch { /* vanished meanwhile */ }
@@ -28,8 +43,15 @@ function keepCorruptCopy(filePath, label, reason) {
     try {
         fs.copyFileSync(filePath, copy, fs.constants.COPYFILE_EXCL);
         _corruptCopies.set(filePath, { copy, size: st?.size, mtimeMs: st?.mtimeMs });
-        _blocked.delete(filePath);
-        _notices.push({ file: filePath, copy });
+        if (_booted) {
+            _runtimeDamaged.add(filePath);
+            _blocked.add(filePath);
+            notifyRuntime({ file: filePath, copy, kind: 'damaged' });
+        } else {
+            // At startup the boot error box names the copy; starting fresh is expected.
+            _blocked.delete(filePath);
+            _notices.push({ file: filePath, copy });
+        }
         console.error(`Failed to load ${label} (${reason}); kept a copy as ${copy}`);
     } catch (e) {
         _blocked.add(filePath);
@@ -39,9 +61,23 @@ function keepCorruptCopy(filePath, label, reason) {
 
 function loadJson(filePath, fallback, label, validate = (v) => v !== null && typeof v === 'object') {
     if (!fs.existsSync(filePath)) return fallback;
+    let raw;
+    try {
+        raw = fs.readFileSync(filePath, 'utf8');
+    } catch (e) {
+        // Not damage: the file is locked or briefly unreadable (antivirus,
+        // OneDrive). No copy, but never save over it until it reads again.
+        if (!_blocked.has(filePath)) {
+            _blocked.add(filePath);
+            console.error(`Failed to read ${label} (${e.code || e.message}); saving it is paused until it can be read`);
+            if (_booted) notifyRuntime({ file: filePath, kind: 'unreadable' });
+            else _notices.push({ file: filePath, kind: 'unreadable' });
+        }
+        return fallback;
+    }
     let parsed;
     try {
-        parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        parsed = JSON.parse(raw);
     } catch (e) {
         keepCorruptCopy(filePath, label, e.message);
         return fallback;
@@ -50,7 +86,9 @@ function loadJson(filePath, fallback, label, validate = (v) => v !== null && typ
         keepCorruptCopy(filePath, label, 'unexpected content');
         return fallback;
     }
-    _blocked.delete(filePath); // readable again (repaired by hand)
+    // Readable again (lock released, or repaired by hand). A file found
+    // damaged at runtime stays blocked until restart, see keepCorruptCopy.
+    if (!_runtimeDamaged.has(filePath)) _blocked.delete(filePath);
     return parsed;
 }
 
@@ -64,7 +102,7 @@ const RENAME_RETRIES = 3;
 
 function saveJson(filePath, data, label) {
     if (_blocked.has(filePath)) {
-        const e = new Error(`${label} could not be read and no copy of it could be kept, so it is not overwritten`);
+        const e = new Error(`${label} could not be read, so it is not overwritten. Restart the app; if the file was damaged, a copy of it was kept next to it.`);
         console.error(`Failed to save ${label}:`, e.message);
         throw e;
     }
@@ -103,4 +141,4 @@ function takeCorruptNotices() {
     return _notices.splice(0, _notices.length);
 }
 
-module.exports = { loadJson, saveJson, takeCorruptNotices };
+module.exports = { loadJson, saveJson, takeCorruptNotices, markBooted, setNoticeListener };
