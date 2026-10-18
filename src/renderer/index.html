@@ -818,7 +818,7 @@
     </div>
 
     <!-- Account Profile Modal -->
-    <div id="profileModal" class="modal">
+    <div id="profileModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="profileLabel">
         <div class="modal-content profile-modal-content">
             <!-- Header -->
             <div class="profile-header">
@@ -833,7 +833,7 @@
                         <span class="profile-loading-dot"></span> Loading stats…
                     </div>
                 </div>
-                <button id="closeProfileModal" class="icon-btn" style="align-self:flex-start">
+                <button id="closeProfileModal" class="icon-btn" style="align-self:flex-start" aria-label="Close">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -882,7 +882,7 @@
                 <button id="profileLaunchBtn" class="primary-btn" style="flex:1">
                     <i class="fas fa-play"></i> Launch Account
                 </button>
-                <button id="profileEditBtn" class="secondary-btn">
+                <button id="profileEditBtn" class="secondary-btn" aria-label="Edit account" data-tooltip="Edit account">
                     <i class="fas fa-pen"></i>
                 </button>
             </div>
@@ -890,13 +890,13 @@
     </div>
 
     <!-- Patch Notes Modal (shown once on first launch after an update) -->
-    <div id="patchNotesModal" class="modal">
+    <div id="patchNotesModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="patchNotesTitle">
         <div class="modal-content patch-notes-content">
-            <button id="closePatchNotesBtn" class="modal-close-x" data-tooltip="Close"><i class="fas fa-times"></i></button>
+            <button id="closePatchNotesBtn" class="modal-close-x" data-tooltip="Close" aria-label="Close"><i class="fas fa-times"></i></button>
             <div class="patch-notes-header">
                 <div class="patch-notes-badge"><i class="fas fa-bullhorn"></i></div>
                 <div>
-                    <h2>What's New</h2>
+                    <h2 id="patchNotesTitle">What's New</h2>
                     <div id="patchNotesVersion" class="patch-notes-version"></div>
                 </div>
             </div>
@@ -911,16 +911,30 @@
     </div>
 
     <!-- Custom Confirmation Modal -->
-    <div id="confirmModal" class="modal">
+    <div id="confirmModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage">
         <div class="modal-content confirm-content">
-            <div id="confirmIcon" class="confirm-icon"><i class="fas fa-exclamation-triangle"></i></div>
+            <div id="confirmIcon" class="confirm-icon" aria-hidden="true"><i class="fas fa-exclamation-triangle"></i></div>
             <h2 id="confirmTitle">Confirm Action</h2>
             <p id="confirmMessage">Are you sure you want to proceed?</p>
             <div class="modal-actions">
                 <button id="confirmCancelBtn" class="secondary-btn">Cancel</button>
-                <button id="confirmYesBtn" class="primary-btn danger">Yes, Delete</button>
+                <button id="confirmYesBtn" class="primary-btn">Confirm</button>
             </div>
         </div>
+    </div>
+
+    <!-- In-app form dialog (vault password, backup passphrase) -->
+    <div id="formDialog" class="modal" role="dialog" aria-modal="true" aria-labelledby="formDialogTitle" aria-describedby="formDialogMessage">
+        <form id="formDialogForm" class="modal-content form-dialog-content" novalidate>
+            <h2 id="formDialogTitle"></h2>
+            <p id="formDialogMessage" class="form-dialog-message"></p>
+            <div id="formDialogFields"></div>
+            <p id="formDialogError" class="form-dialog-error" role="alert"></p>
+            <div class="modal-actions">
+                <button type="button" id="formDialogCancelBtn" class="secondary-btn">Cancel</button>
+                <button type="submit" id="formDialogSubmitBtn" class="primary-btn">OK</button>
+            </div>
+        </form>
     </div>
 
     <!-- Toast Container -->
