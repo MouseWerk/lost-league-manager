@@ -1,6 +1,5 @@
 const { ipcMain } = require('electron');
 const lcu = require('../lcu');
-const state = require('../state');
 const { loadAccounts, saveAccounts } = require('../services/storage');
 const riotApi = require('../services/riot-api');
 const opgg = require('../services/opgg-api');
@@ -11,6 +10,10 @@ const CACHE_MAX_AGE_MS = 30 * 60 * 1000;
 
 function capFirst(s) {
     return s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : '';
+}
+
+function norm(s) {
+    return String(s || '').trim().toLowerCase();
 }
 
 function formatLcuRanked(q) {
@@ -53,12 +56,76 @@ const LCU_REGION_TO_APP = {
     vn2: 'vn', vn: 'vn', me1: 'me', me: 'me', tencent: 'cn',
 };
 
-function saveCachedStats(riotId, result) {
+// The servers the old Garena SEA shard was split into; a legacy "sea" account
+// can be on any of them.
+const SEA_SPLIT = new Set(['sg', 'ph', 'th', 'tw', 'vn']);
+
+function toAppRegion(region) {
+    const r = norm(region);
+    return LCU_REGION_TO_APP[r] || r;
+}
+
+function sameServer(accountRegion, clientRegion) {
+    const a = toAppRegion(accountRegion);
+    if (a === 'sea') return SEA_SPLIT.has(clientRegion);
+    return a === clientRegion;
+}
+
+// Region of the running client, read once per LCU connection.
+let clientRegion = null;
+lcu.onDisconnect(() => { clientRegion = null; });
+
+async function getClientRegion() {
+    if (clientRegion) return clientRegion;
     try {
+        const info = await lcu.request('GET', '/riotclient/region-locale');
+        const raw = norm(info?.region || info?.webRegion);
+        clientRegion = raw ? (LCU_REGION_TO_APP[raw] || `unknown:${raw}`) : null;
+    } catch {
+        clientRegion = null;
+    }
+    return clientRegion;
+}
+
+// The LCU resolves Riot IDs on its own shard only, so an account on another
+// server would get that shard's (often empty) rank. Only use it for accounts
+// on the client's server; without a region on the account, it's the only source.
+async function lcuServes(region) {
+    const server = await getClientRegion();
+    if (!server) return false;
+    if (!norm(region)) return true;
+    return sameServer(region, server);
+}
+
+// Cached stats live on the account records, tagged with the region they were
+// fetched for: after a region edit the old server's rank must not come back.
+function readCachedStats(riotId, region) {
+    try {
+        const id = norm(riotId);
+        const r  = norm(region);
+        return loadAccounts().find(a => norm(a.riotId) === id && a._cachedStats?.region === r)?._cachedStats || null;
+    } catch {
+        return null;
+    }
+}
+
+function isFresh(cached) {
+    // A timestamp in the future (clock was ahead, then corrected) is not fresh.
+    const age = Date.now() - cached.ts;
+    return age >= 0 && age < CACHE_MAX_AGE_MS;
+}
+
+function saveCachedStats(riotId, region, result) {
+    try {
+        const id = norm(riotId);
+        const r  = norm(region);
         const accs = loadAccounts();
         let changed = false;
         for (const a of accs) {
-            if (a.riotId === riotId) { a._cachedStats = { ...result, ts: Date.now() }; changed = true; }
+            if (norm(a.riotId) !== id) continue;
+            if (norm(a.region) && norm(a.region) !== r) continue;
+            a._cachedStats = { ...result, region: r, ts: Date.now() };
+            changed = true;
         }
         if (changed) saveAccounts(accs);
     } catch { /* non-critical */ }
@@ -80,7 +147,7 @@ async function statsFromLcu(name, tag) {
         flexWinLose: flex.winLose,
         flexRatio:   flex.ratio,
         // LCU mastery endpoints only reliably cover the logged-in summoner;
-        // badges get filled by the online sources once this cache expires.
+        // the caller keeps the badges the online sources found earlier.
         masteryChampions: [],
         iconSrc: profileIconUrl(summoner.profileIconId),
         level:   summoner.summonerLevel?.toString() || '',
@@ -89,10 +156,21 @@ async function statsFromLcu(name, tag) {
 }
 
 // Riot API when a key is configured, otherwise (or when the key is invalid /
-// expired / rate limited) OP.GG — which needs no key at all.
-async function statsFromOnline(name, tag, region) {
+// expired / rate limited) OP.GG — which needs no key at all. Identical
+// concurrent lookups (card, profile modal, quick add) share one request.
+const onlineInFlight = new Map();
+
+function statsFromOnline(name, tag, region) {
+    const key = `${norm(region)}|${norm(name)}#${norm(tag)}`;
+    if (onlineInFlight.has(key)) return onlineInFlight.get(key);
+    const p = lookupOnline(name, tag, region).finally(() => onlineInFlight.delete(key));
+    onlineInFlight.set(key, p);
+    return p;
+}
+
+async function lookupOnline(name, tag, region) {
     let riotError = null;
-    if (state.config.riotApiKey && (region || '').toLowerCase() !== 'cn') {
+    if (riotApi.getApiKey() && norm(region) !== 'cn') {
         try {
             return await riotApi.getStats(name, tag, region);
         } catch (e) {
@@ -110,83 +188,103 @@ async function statsFromOnline(name, tag, region) {
     }
 }
 
-function register() {
-    ipcMain.handle('get-stats', async (event, { region, riotId, force } = {}) => {
-        const parsed = opgg.parseRiotIdInput(riotId);
-        if (!parsed) return { tier: 'N/A' };
-        const { gameName: name, tagLine: tag } = parsed;
-        await championData.whenReady();
+async function getStats(region, riotId, force) {
+    const parsed = opgg.parseRiotIdInput(riotId);
+    if (!parsed) return { tier: 'N/A' };
+    const { gameName: name, tagLine: tag } = parsed;
+    await championData.whenReady();
 
-        // ── Strategy 1: LCU ────────────────────────────────────────────────────
-        if (lcu.connected) {
-            try {
-                const result = await statsFromLcu(name, tag);
-                if (result) {
-                    saveCachedStats(riotId, result);
-                    recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp);
-                    return result;
-                }
-            } catch (e) {
-                console.log('[Stats] LCU lookup failed:', e.message);
-            }
-        }
+    const cached = readCachedStats(riotId, region);
 
-        // ── Strategy 2: Cache (≤ 30 minutes old) ─────────────────────────────────
-        let cached = null;
+    // ── Strategy 1: LCU ────────────────────────────────────────────────────
+    if (lcu.connected && await lcuServes(region)) {
         try {
-            cached = loadAccounts().find(a => a.riotId === riotId)?._cachedStats || null;
-            if (!force && cached && Date.now() - cached.ts < CACHE_MAX_AGE_MS) {
-                return { ...cached, source: 'cache' };
+            const lcuResult = await statsFromLcu(name, tag);
+            if (lcuResult) {
+                // Keep the champion badges from the last online lookup.
+                const result = { ...lcuResult, masteryChampions: cached?.masteryChampions || [] };
+                if (cached?.topChampions) result.topChampions = cached.topChampions;
+                saveCachedStats(riotId, region, result);
+                recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp);
+                return result;
             }
-        } catch { /* non-critical */ }
-
-        // ── Strategy 3: Riot API / OP.GG ───────────────────────────────────────
-        try {
-            const result = await statsFromOnline(name, tag, region);
-            console.log(`[Stats] ${riotId}: ${result.tier} ${result.lp} (${result.source})`);
-            saveCachedStats(riotId, result);
-            recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp);
-            return result;
         } catch (e) {
-            console.error('[Stats] lookup error:', e.message);
-            // Stale data beats no data — show the last known stats with the error.
-            if (cached) return { ...cached, source: 'cache', stale: true, error: e.message };
-            return { tier: 'N/A', lp: '', winLose: '', ratio: '', iconSrc: defaultIcon(), level: '', error: e.message };
+            console.log('[Stats] LCU lookup failed:', e.message);
         }
+    }
+
+    // ── Strategy 2: Cache (≤ 30 minutes old) ─────────────────────────────────
+    if (!force && cached && isFresh(cached)) {
+        return { ...cached, source: 'cache' };
+    }
+
+    // ── Strategy 3: Riot API / OP.GG ───────────────────────────────────────
+    try {
+        const result = await statsFromOnline(name, tag, region);
+        console.log(`[Stats] ${riotId}: ${result.tier} ${result.lp} (${result.source})`);
+        saveCachedStats(riotId, region, result);
+        recordRankSnapshot(riotId, result.rawTier, result.rawDivision, result.rawLp);
+        return result;
+    } catch (e) {
+        console.error('[Stats] lookup error:', e.message);
+        // Stale data beats no data — show the last known stats with the error.
+        if (cached) return { ...cached, source: 'cache', stale: true, error: e.message };
+        return { tier: 'N/A', lp: '', winLose: '', ratio: '', iconSrc: defaultIcon(), level: '', error: e.message };
+    }
+}
+
+async function getMatchHistory(region, riotId) {
+    const parsed = opgg.parseRiotIdInput(riotId);
+    if (!parsed) return { matches: [] };
+    const { gameName: name, tagLine: tag } = parsed;
+    await championData.whenReady();
+
+    if (riotApi.getApiKey() && norm(region) !== 'cn') {
+        try {
+            const { account, platform } = await riotApi.getAccountByRiotId(name, tag, region);
+            const matches = await riotApi.getMatchHistory(account.puuid, platform, 5);
+            const idToName  = championData.getIdToNameMap();
+            const idToImage = championData.getIdToImageMap();
+            return {
+                matches: matches.map((m) => {
+                    // match-v5's championName is not always the DDragon key
+                    // ("FiddleSticks"); the numeric id is reliable.
+                    const key = idToName[m.championId] || m.championName;
+                    return {
+                        win: m.win,
+                        kda: m.kda,
+                        championName: key,
+                        championIcon: idToImage[key] || null,
+                    };
+                }),
+            };
+        } catch (e) {
+            console.log('[MatchHistory] Riot API failed, trying OP.GG:', e.message);
+        }
+    }
+    try {
+        return { matches: await opgg.getRecentMatches(name, tag, region, 5) };
+    } catch (e) {
+        return { error: e.message };
+    }
+}
+
+function register() {
+    // The account list re-renders while results arrive, and the profile modal
+    // asks again for the card it was opened from: identical calls share one run.
+    const inFlight = new Map();
+    ipcMain.handle('get-stats', (event, { region, riotId, force } = {}) => {
+        const key = `${norm(region)}|${norm(riotId)}|${force ? 1 : 0}`;
+        if (inFlight.has(key)) return inFlight.get(key);
+        const p = getStats(region, riotId, !!force).finally(() => inFlight.delete(key));
+        inFlight.set(key, p);
+        return p;
     });
 
     ipcMain.handle('get-rank-history', (event, riotId) => getRankHistory(riotId));
 
     // On-demand only (profile modal), not per-card.
-    ipcMain.handle('get-match-history', async (event, { region, riotId }) => {
-        const parsed = opgg.parseRiotIdInput(riotId);
-        if (!parsed) return { matches: [] };
-        const { gameName: name, tagLine: tag } = parsed;
-        await championData.whenReady();
-
-        if (state.config.riotApiKey && (region || '').toLowerCase() !== 'cn') {
-            try {
-                const { account, platform } = await riotApi.getAccountByRiotId(name, tag, region);
-                const matches = await riotApi.getMatchHistory(account.puuid, platform, 5);
-                const idToImage = championData.getIdToImageMap();
-                return {
-                    matches: matches.map(m => ({
-                        win: m.win,
-                        kda: m.kda,
-                        championName: m.championName,
-                        championIcon: idToImage[m.championName] || null,
-                    })),
-                };
-            } catch (e) {
-                console.log('[MatchHistory] Riot API failed, trying OP.GG:', e.message);
-            }
-        }
-        try {
-            return { matches: await opgg.getRecentMatches(name, tag, region, 5) };
-        } catch (e) {
-            return { error: e.message };
-        }
-    });
+    ipcMain.handle('get-match-history', (event, { region, riotId } = {}) => getMatchHistory(region, riotId));
 
     // Quick-add lookup: accepts "Name#TAG" or an OP.GG profile link, returns a
     // preview (icon, level, rank, top champions) plus the normalised Riot ID
@@ -231,4 +329,4 @@ function register() {
     });
 }
 
-module.exports = { register, LCU_REGION_TO_APP };
+module.exports = { register, LCU_REGION_TO_APP, getClientRegion };
