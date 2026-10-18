@@ -21,6 +21,7 @@ const fakeElectron = {
         handle: (channel, fn) => handlers.set(channel, fn),
         on: () => {},
     },
+    nativeTheme: { themeSource: 'system', shouldUseDarkColors: false },
     shell: { openExternal: async () => {} },
     dialog: {},
     screen: { getPrimaryDisplay: () => ({ workAreaSize: { width: 1920, height: 1080 } }) },

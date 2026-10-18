@@ -36,6 +36,7 @@ const state = {
         overlayHotkey: 'Ctrl+Shift+H',
         overlayLocked: false,
         uiScale: 1.0,
+        theme: 'system', // 'system' follows Windows; 'light' / 'dark' force one
         startWithWindows: false,
         startMinimized: false,
         minimizeOnGameStart: false,

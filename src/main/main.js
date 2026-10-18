@@ -53,6 +53,7 @@ app.whenReady().then(async () => {
     // boot sequence with no window, no tray, and no visible error.
     try {
         loadConfig();
+        require('./ipc/config').applyTheme();
         migratePasswords();
     } catch (e) {
         console.error('[Boot] Failed to load/migrate account data:', e.message);
