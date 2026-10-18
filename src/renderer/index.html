@@ -5,115 +5,160 @@
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://cdnjs.cloudflare.com; style-src-attr 'unsafe-inline'; font-src 'self' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>League Manager</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>Lost League Manager</title>
+    <link rel="stylesheet" href="css/tokens.css">
+    <link rel="stylesheet" href="css/shell.css">
+    <link rel="stylesheet" href="css/accounts.css">
+    <link rel="stylesheet" href="css/live.css">
+    <link rel="stylesheet" href="css/stats.css">
+    <link rel="stylesheet" href="css/settings.css">
+    <link rel="stylesheet" href="css/overlays.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 
 <body>
-    <div class="bg-glow"></div>
-    <div class="bg-glow-bottom"></div>
-    <div class="app-container dashboard-layout">
-        <!-- Sidebar Navigation -->
-        <nav class="sidebar">
+    <div class="app-container">
+        <!-- Top bar: brand, navigation, auto-accept, window controls. The empty
+             space is the window's drag area (frameless window). -->
+        <header class="topbar">
             <div class="logo-area">
-                <img src="assets/logo.png" alt="Logo" class="logo">
-                <div class="title-group">
-                    <div class="brand-name">Lost League</div>
-                    <div class="brand-sub">Manager</div>
-                </div>
+                <span class="logo-tile"><img src="assets/logo.png" alt="" class="logo"></span>
+                <span class="brand-name">Lost League</span>
             </div>
 
-            <div class="nav-links">
-                <button class="nav-btn active" data-view="accountsView">
-                    <span class="nav-icon"><i class="fas fa-th-large"></i></span> Dashboard
-                </button>
+            <nav class="nav-links" aria-label="Main">
+                <button class="nav-btn active" data-view="accountsView">Accounts</button>
                 <button class="nav-btn" data-view="liveView" id="liveNavBtn">
-                    <span class="nav-icon"><i class="fas fa-circle-dot"></i></span> Live
-                    <span class="lcu-nav-dot" id="lcuNavDot"></span>
+                    Live <span class="lcu-nav-dot" id="lcuNavDot" aria-hidden="true"></span>
                 </button>
-                <button class="nav-btn" data-view="toolsView">
-                    <span class="nav-icon"><i class="fas fa-tools"></i></span> Tools
-                </button>
-                <button class="nav-btn" data-view="statsView">
-                    <span class="nav-icon"><i class="fas fa-chart-bar"></i></span> Stat Viewer
-                </button>
-                <button class="nav-btn" data-view="settingsView">
-                    <span class="nav-icon"><i class="fas fa-cog"></i></span> Settings
-                </button>
-            </div>
+                <button class="nav-btn" data-view="toolsView">Tools</button>
+                <button class="nav-btn" data-view="statsView">Stat viewer</button>
+                <button class="nav-btn" data-view="settingsView">Settings</button>
+            </nav>
 
-            <div class="sidebar-bottom">
-                <button id="addAccountBtn" class="add-account-sidebar-btn">
-                    <i class="fas fa-plus"></i> Add
-                </button>
-                <div class="sidebar-external-links">
-                    <a href="https://discord.gg/ZyfUMWTPFe" class="sidebar-link-btn" id="discordBtn" data-tooltip="Discord">
-                        <i class="fab fa-discord"></i> Discord
-                    </a>
-                    <a href="https://www.lostleague.com/" class="sidebar-link-btn" id="websiteBtn" data-tooltip="Website">
-                        <i class="fas fa-globe"></i> Website
-                    </a>
-                </div>
-                <div class="version-info">
-                    <span id="appVersion">v1.0.2</span>
-                    <a href="#" id="patchNotesBtn" class="patch-notes-link" data-tooltip="Patch Notes">
-                        <i class="fas fa-newspaper"></i> Patch Notes
-                    </a>
-                </div>
-            </div>
-        </nav>
+            <div class="topbar-drag"></div>
 
-        <!-- Main Content Area -->
+            <label class="auto-accept-control" data-tooltip="Accept every match the client finds" data-tooltip-pos="bottom">
+                <span class="auto-accept-switch">
+                    <input type="checkbox" id="autoAcceptToggle">
+                    <span class="slider"></span>
+                </span>
+                <span class="label-text">Auto-accept</span>
+            </label>
+
+            <div class="window-controls">
+                <button id="minimizeAppBtn" class="icon-btn" aria-label="Minimize" data-tooltip="Minimize" data-tooltip-pos="bottom"><i class="fas fa-minus"></i></button>
+                <button id="closeAppBtn" class="icon-btn close-btn" aria-label="Close to tray" data-tooltip="Close to tray" data-tooltip-pos="left"><i class="fas fa-xmark"></i></button>
+            </div>
+        </header>
+
         <main class="main-content">
-            <!-- Window Drag Area (Within Content) -->
-            <div class="window-control-bar">
-                <div class="drag-handle"></div>
-                <div class="window-controls">
-                    <button id="minimizeAppBtn" class="icon-btn" aria-label="Minimize" data-tooltip="Minimize" data-tooltip-pos="bottom"><i class="fas fa-minus"></i></button>
-                    <button id="closeAppBtn" class="icon-btn close-btn" aria-label="Close" data-tooltip="Close" data-tooltip-pos="bottom"><i class="fas fa-times"></i></button>
-                </div>
-            </div>
-
-            <!-- Dashboard Views -->
+            <!-- Accounts: list on the left, the selected account on the right -->
             <div id="accountsView" class="view active">
-                <div class="view-header">
-                    <div class="view-title-row">
-                        <h2>Accounts</h2>
-                        <span id="accountCount" class="account-count"></span>
-                    </div>
-                    <div class="view-header-actions">
-                        <label class="auto-accept-switch">
-                            <input type="checkbox" id="autoAcceptToggle">
-                            <span class="slider"></span>
-                            <span class="label-text">Auto-Accept</span>
-                        </label>
-                        <div class="view-toggle-btns">
-                            <button id="viewGridBtn" class="view-toggle-btn active" aria-label="Grid view" data-tooltip="Grid view"><i class="fas fa-th-large"></i></button>
-                            <button id="viewListBtn" class="view-toggle-btn" aria-label="Compact list" data-tooltip="Compact list"><i class="fas fa-list"></i></button>
+                <div class="accounts-layout">
+                    <section class="accounts-main" aria-label="Accounts">
+                        <div class="view-header">
+                            <div class="view-title-row">
+                                <h1 class="view-title">Your accounts</h1>
+                                <p id="accountsSummary" class="view-sub"></p>
+                                <span id="accountCount" class="account-count" hidden></span>
+                            </div>
+                            <div class="view-header-actions">
+                                <button id="addAccountBtn" class="secondary-btn"><i class="fas fa-plus" aria-hidden="true"></i> Add account</button>
+                            </div>
                         </div>
-                    </div>
-                </div>
-                <div class="accounts-toolbar">
-                    <div class="search-box">
-                        <i class="fas fa-search search-icon"></i>
-                        <input type="text" id="accountSearch" class="search-input" aria-label="Search accounts" placeholder="Search by name, username, region…">
-                        <button id="searchClearBtn" class="search-clear" style="display:none" aria-label="Clear search"><i class="fas fa-times"></i></button>
-                    </div>
-                    <select id="accountSort" class="sort-select" aria-label="Sort accounts">
-                        <option value="default">Sort: Default</option>
-                        <option value="favourite">Favourites First</option>
-                        <option value="rank">By Rank</option>
-                        <option value="name">A → Z</option>
-                        <option value="region">By Region</option>
-                        <option value="lastUsed">Recently Used</option>
-                    </select>
-                </div>
-                <div id="accountsList" class="accounts-grid">
-                    <!-- Accounts injected here -->
+                        <div class="accounts-toolbar">
+                            <div id="regionFilters" class="region-filters" role="group" aria-label="Filter by server"></div>
+                            <div class="search-box">
+                                <i class="fas fa-magnifying-glass search-icon" aria-hidden="true"></i>
+                                <input type="text" id="accountSearch" class="search-input" aria-label="Search accounts" placeholder="Search by name or Riot ID">
+                                <button id="searchClearBtn" class="search-clear" style="display:none" aria-label="Clear search"><i class="fas fa-xmark"></i></button>
+                            </div>
+                            <select id="accountSort" class="sort-select" aria-label="Sort accounts">
+                                <option value="default">Your order</option>
+                                <option value="favourite">Favourites first</option>
+                                <option value="rank">Rank</option>
+                                <option value="name">Name</option>
+                                <option value="region">Server</option>
+                                <option value="lastUsed">Recently used</option>
+                            </select>
+                        </div>
+                        <div id="accountsList" class="accounts-list">
+                            <!-- Account rows injected here -->
+                        </div>
+                    </section>
+
+                    <!-- Selected account. Filled by selectAccount() in app.js. -->
+                    <aside id="accountDetail" class="account-detail" aria-label="Selected account">
+                        <div id="accountDetailEmpty" class="account-detail-empty">
+                            <p>Pick an account to see its rank, recent games and actions.</p>
+                        </div>
+                        <div id="accountDetailBody" class="account-detail-body" hidden>
+                            <div class="profile-header">
+                                <div class="profile-icon-wrap">
+                                    <img id="profileIcon" src="assets/logo.png" class="profile-icon" alt="">
+                                    <span id="profileLevel" class="profile-level-badge"></span>
+                                </div>
+                                <div class="profile-header-info">
+                                    <div id="profileLabel" class="profile-name"></div>
+                                    <div id="profileMeta" class="profile-meta"></div>
+                                    <div id="profileLoading" class="profile-loading" style="display:none">
+                                        <span class="profile-loading-dot"></span> Loading stats
+                                    </div>
+                                </div>
+                                <button id="profileFavBtn" class="icon-btn fav-toggle" aria-pressed="false" aria-label="Add to favourites" data-tooltip="Add to favourites" data-tooltip-pos="left"><i class="fas fa-star"></i></button>
+                            </div>
+
+                            <div class="profile-rank-card is-solo">
+                                <div class="profile-rank-top">
+                                    <div id="profileSoloEmblem" class="profile-rank-emblem"></div>
+                                    <div id="profileSoloTier" class="profile-rank-tier rank-unranked">Unranked</div>
+                                    <div id="profileSoloLp" class="profile-rank-lp"></div>
+                                </div>
+                                <div class="profile-lp-track"><div id="profileSoloLpBar" class="profile-lp-fill"></div></div>
+                                <div class="profile-rank-label">Solo/Duo<span id="profileSoloRecord" class="profile-rank-record"></span></div>
+                            </div>
+                            <div class="profile-rank-card is-flex">
+                                <div class="profile-rank-top">
+                                    <div id="profileFlexEmblem" class="profile-rank-emblem"></div>
+                                    <div id="profileFlexTier" class="profile-rank-tier rank-unranked">Unranked</div>
+                                    <div id="profileFlexLp" class="profile-rank-lp"></div>
+                                </div>
+                                <div class="profile-rank-label">Flex<span id="profileFlexRecord" class="profile-rank-record"></span></div>
+                            </div>
+
+                            <div id="profileRankHistoryWrap" class="profile-rank-history-wrap" style="display:none">
+                                <div class="profile-rank-history-header">
+                                    <span class="profile-rank-history-label">Rank history</span>
+                                    <span id="profileRankHistoryRange" class="profile-rank-history-range"></span>
+                                </div>
+                                <svg id="profileRankSparkline" class="profile-rank-sparkline" viewBox="0 0 300 48" preserveAspectRatio="none"></svg>
+                            </div>
+
+                            <div id="profileMatchHistoryWrap" class="profile-match-history-wrap" style="display:none">
+                                <div class="profile-match-history-label">Last 5 games</div>
+                                <div id="profileMatchHistoryStrip" class="match-history-strip"></div>
+                            </div>
+
+                            <div id="profileNotesWrap" class="profile-notes-wrap" style="display:none">
+                                <div class="profile-notes-label">Notes</div>
+                                <div id="profileNotes" class="profile-notes"></div>
+                            </div>
+
+                            <div class="profile-actions">
+                                <button id="profileLaunchBtn" class="primary-btn profile-play"><i class="fas fa-play" aria-hidden="true"></i> <span id="profileLaunchLabel">Play</span></button>
+                                <div class="profile-secondary-actions">
+                                    <button id="profileCopyUserBtn" class="secondary-btn"><i class="fas fa-user" aria-hidden="true"></i> Copy login</button>
+                                    <button id="profileCopyPassBtn" class="secondary-btn"><i class="fas fa-key" aria-hidden="true"></i> Copy password</button>
+                                    <button id="profileOpggBtn" class="secondary-btn">OP.GG</button>
+                                    <button id="profileEditBtn" class="secondary-btn"><i class="fas fa-pen" aria-hidden="true"></i> Edit</button>
+                                    <button id="profileDeleteBtn" class="icon-btn delete-btn" aria-label="Delete account" data-tooltip="Delete account" data-tooltip-pos="left"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
                 </div>
             </div>
-
 
             <!-- Live View -->
             <div id="liveView" class="view">
@@ -125,9 +170,9 @@
                 <!-- Disconnected state -->
                 <div id="lcuOffline" class="lcu-offline">
                     <div class="empty-icon"><i class="fas fa-plug"></i></div>
-                    <p>League client not detected</p>
-                    <p class="lcu-offline-hint">Launch the League of Legends client to see your account overview.</p>
-                    <button id="launchLeagueBtn" class="primary-btn" style="margin-top:16px"><i class="fas fa-play"></i> Launch League</button>
+                    <p>The League client is not running</p>
+                    <p class="lcu-offline-hint">Start League to see your rank, champions and recent games here.</p>
+                    <button id="launchLeagueBtn" class="primary-btn"><i class="fas fa-play"></i> Start League</button>
                 </div>
 
                 <!-- Connected state -->
@@ -135,8 +180,8 @@
 
                     <!-- Context action bar (contextual, hidden by default) -->
                     <div class="ov-action-bar" id="ovActionBar" style="display:none">
-                        <button id="ovDodgeBtn"  class="action-btn danger-btn"><i class="fas fa-sign-out-alt"></i> Dodge Queue</button>
-                        <button id="ovAcceptBtn" class="action-btn"><i class="fas fa-check"></i> Accept Match</button>
+                        <button id="ovDodgeBtn"  class="action-btn danger-btn"><i class="fas fa-right-from-bracket"></i> Dodge queue</button>
+                        <button id="ovAcceptBtn" class="action-btn"><i class="fas fa-check"></i> Accept match</button>
                     </div>
 
                     <!-- Tab bar -->
@@ -164,7 +209,7 @@
                             <div class="ov-ranked-card">
                                 <div class="ov-ranked-emblem" id="ovSoloEmblem"></div>
                                 <div class="ov-ranked-info">
-                                    <div class="ov-ranked-label">Ranked Solo / Duo</div>
+                                    <div class="ov-ranked-label">Solo/Duo</div>
                                     <div id="ovSoloTier"   class="ov-ranked-tier rank-unranked">Unranked</div>
                                     <div id="ovSoloLP"     class="ov-ranked-lp">—</div>
                                     <div class="ov-lp-track"><div id="ovSoloLpBar" class="ov-lp-fill" style="width:0%"></div></div>
@@ -174,7 +219,7 @@
                             <div class="ov-ranked-card">
                                 <div class="ov-ranked-emblem" id="ovFlexEmblem"></div>
                                 <div class="ov-ranked-info">
-                                    <div class="ov-ranked-label">Ranked Flex</div>
+                                    <div class="ov-ranked-label">Flex</div>
                                     <div id="ovFlexTier"   class="ov-ranked-tier rank-unranked">Unranked</div>
                                     <div id="ovFlexLP"     class="ov-ranked-lp">—</div>
                                     <div class="ov-lp-track"><div id="ovFlexLpBar" class="ov-lp-fill" style="width:0%"></div></div>
@@ -213,13 +258,13 @@
 
                     <!-- Champions tab -->
                     <div class="ov-panel" id="tabChampions">
-                        <div class="ov-section-label">Top Champions by Mastery</div>
+                        <div class="ov-section-label">Top champions by mastery</div>
                         <div id="ovMastery" class="mastery-grid"></div>
                     </div>
 
                     <!-- History tab -->
                     <div class="ov-panel" id="tabHistory">
-                        <div class="ov-section-label">Recent Games</div>
+                        <div class="ov-section-label">Recent games</div>
                         <div id="ovMatches" class="ov-matches"></div>
                     </div>
 
@@ -229,39 +274,42 @@
             <!-- Tools View -->
             <div id="toolsView" class="view">
                 <div class="view-header">
-                    <h2>Tools</h2>
+                    <div class="view-title-row">
+                        <h2>Tools</h2>
+                        <p class="view-sub">Quick fixes when the League client misbehaves.</p>
+                    </div>
                 </div>
-                <div class="settings-content">
+                <div class="tools-grid">
                     <div class="setting-card">
-                        <div class="setting-icon"><i class="fas fa-heartbeat"></i></div>
+                        <div class="setting-icon"><i class="fas fa-power-off"></i></div>
                         <div class="setting-info">
-                            <h3>Fix Client</h3>
-                            <p class="desc">Emergency kill for all Riot/League processes.</p>
-                            <button id="fixClientBtn" class="action-btn danger-btn">Kill Processes</button>
+                            <h3>Close everything</h3>
+                            <p class="desc">Ends every Riot and League process, for a client that is frozen or will not close.</p>
+                            <button id="fixClientBtn" class="danger-btn">Close all processes</button>
                         </div>
                     </div>
                     <div class="setting-card">
                         <div class="setting-icon"><i class="fas fa-wrench"></i></div>
                         <div class="setting-info">
-                            <h3>Repair Client</h3>
-                            <p class="desc">Deletes the League client lockfile. Fixes "client won't start" issues without closing a running game.</p>
-                            <button id="repairClientBtn" class="action-btn">Delete Lockfile</button>
+                            <h3>Repair the client</h3>
+                            <p class="desc">Deletes the client lockfile. Helps when the client will not start, and keeps a running game open.</p>
+                            <button id="repairClientBtn" class="action-btn">Delete lockfile</button>
                         </div>
                     </div>
                     <div class="setting-card">
                         <div class="setting-icon"><i class="fas fa-broom"></i></div>
                         <div class="setting-info">
-                            <h3>Clear Cache</h3>
-                            <p class="desc">Wipes the Riot Client cache. Fixes broken UI, stuck loading screens, and ghost notifications.</p>
-                            <button id="clearCacheBtn" class="action-btn">Clear Cache</button>
+                            <h3>Clear the cache</h3>
+                            <p class="desc">Empties the Riot Client cache. Helps with a broken interface, endless loading and old notifications.</p>
+                            <button id="clearCacheBtn" class="action-btn">Clear cache</button>
                         </div>
                     </div>
                     <div class="setting-card">
                         <div class="setting-icon"><i class="fas fa-folder-open"></i></div>
                         <div class="setting-info">
-                            <h3>App Data</h3>
-                            <p class="desc">Opens the folder where Lost League Manager stores account data and settings.</p>
-                            <button id="openDataFolderBtn" class="action-btn">Open Folder</button>
+                            <h3>App data</h3>
+                            <p class="desc">Opens the folder where Lost League Manager keeps your accounts and settings.</p>
+                            <button id="openDataFolderBtn" class="action-btn">Open folder</button>
                         </div>
                     </div>
                 </div>
@@ -270,7 +318,7 @@
             <!-- Stat Viewer View -->
             <div id="statsView" class="view">
                 <div class="view-header">
-                    <h2>Stat Viewer</h2>
+                    <h2>Stat viewer</h2>
                 </div>
 
                 <div class="stats-tab-bar">
@@ -278,7 +326,7 @@
                         <i class="fas fa-shield-halved"></i> Champions
                     </button>
                     <button class="stats-tab" data-stats-tab="itemsStatsTab">
-                        <i class="fas fa-flask"></i> Item Gold Efficiency
+                        <i class="fas fa-coins"></i> Item gold value
                     </button>
                 </div>
 
@@ -292,7 +340,7 @@
                             </div>
                             <div class="search-box">
                                 <i class="fas fa-search search-icon"></i>
-                                <input type="text" id="statsChampSearch" class="search-input" placeholder="Search champion...">
+                                <input type="text" id="statsChampSearch" class="search-input" placeholder="Search champions" aria-label="Search champions">
                             </div>
                             <div class="stats-grid" id="statsChampGrid">
                                 <!-- Champion icons injected here -->
@@ -301,7 +349,7 @@
                         <div class="stats-detail" id="statsChampDetail">
                             <div class="stats-empty">
                                 <div class="empty-icon"><i class="fas fa-shield-halved"></i></div>
-                                <p>Select a champion to view its stats</p>
+                                <p>Pick a champion to see its stats by level</p>
                             </div>
                         </div>
                     </div>
@@ -317,7 +365,7 @@
                             </div>
                             <div class="search-box">
                                 <i class="fas fa-search search-icon"></i>
-                                <input type="text" id="statsItemSearch" class="search-input" placeholder="Search item...">
+                                <input type="text" id="statsItemSearch" class="search-input" placeholder="Search items" aria-label="Search items">
                             </div>
                             <div class="stats-grid" id="statsItemGrid">
                                 <!-- Item icons injected here -->
@@ -326,7 +374,7 @@
                         <div class="stats-detail" id="statsItemDetail">
                             <div class="stats-empty">
                                 <div class="empty-icon"><i class="fas fa-flask"></i></div>
-                                <p>Select an item to view its gold efficiency</p>
+                                <p>Pick an item to see what its stats are worth in gold</p>
                             </div>
                         </div>
                     </div>
@@ -335,278 +383,296 @@
 
             <!-- Settings View -->
             <div id="settingsView" class="view">
-                <div class="view-header">
-                    <h2>Settings</h2>
-                </div>
-                <div class="settings-content">
+                <div class="settings-layout">
+                    <nav class="settings-nav" aria-label="Settings sections">
+                        <h1 class="view-title">Settings</h1>
+                        <a href="#settingsAppearance" class="settings-nav-link active">Appearance</a>
+                        <a href="#settingsAutomation" class="settings-nav-link">Automation</a>
+                        <a href="#settingsApp" class="settings-nav-link">App behavior</a>
+                        <a href="#settingsClient" class="settings-nav-link">League client</a>
+                        <a href="#settingsApiKey" class="settings-nav-link">Riot API key</a>
+                        <a href="#settingsVault" class="settings-nav-link">Vault and backups</a>
+                        <a href="#settingsOverlay" class="settings-nav-link">Game overlay</a>
+                        <a href="#settingsAbout" class="settings-nav-link">About</a>
+                    </nav>
 
-                    <!-- Overlay -->
-                    <div class="setting-card setting-card--wip">
-                        <div class="setting-icon"><i class="fas fa-layer-group"></i></div>
-                        <div class="setting-info">
-                            <h3>Game Overlay <span class="wip-badge">In Development</span></h3>
-                            <p class="desc">The in-game overlay is currently in development and will be available in a future update.</p>
-                            <div class="setting-row">
-                                <div class="setting-row-info">
-                                    <h4>Enable overlay</h4>
-                                    <p>Show the overlay window while a game is running</p>
-                                </div>
-                                <label class="setting-switch">
-                                    <input type="checkbox" id="overlayEnabledToggle">
-                                    <span class="slider"></span>
-                                </label>
-                            </div>
-                            <div class="setting-row">
-                                <div class="setting-row-info">
-                                    <h4>Player ranks panel</h4>
-                                    <p>Show the ≡ button to view all 10 players' ranked stats</p>
-                                </div>
-                                <label class="setting-switch">
-                                    <input type="checkbox" id="overlayShowRankedToggle">
-                                    <span class="slider"></span>
-                                </label>
-                            </div>
-                            <div class="setting-row">
-                                <div class="setting-row-info">
-                                    <h4>Item builds panel</h4>
-                                    <p>Show the ⊞ button for recommended item builds</p>
-                                </div>
-                                <label class="setting-switch">
-                                    <input type="checkbox" id="overlayShowBuildsToggle">
-                                    <span class="slider"></span>
-                                </label>
-                            </div>
-                            <div class="setting-row" style="border-bottom:none;padding-bottom:0">
-                                <div class="setting-row-info">
-                                    <h4>Reset overlay position</h4>
-                                    <p>Move the overlay back to the top-right corner</p>
-                                </div>
-                                <button id="resetOverlayPosBtn" class="action-btn">Reset</button>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="settings-content" id="settingsContent">
 
-                    <!-- Automation -->
-                    <div class="setting-card">
-                        <div class="setting-icon"><i class="fas fa-robot"></i></div>
-                        <div class="setting-info">
-                            <h3>Automation</h3>
-                            <p class="desc">Automatic actions performed in the League client.</p>
-                            <div class="setting-row">
+                        <section id="settingsAppearance" class="settings-section">
+                            <h2 class="settings-section-title">Appearance</h2>
+                            <p class="desc">Changes apply right away.</p>
+                            <div class="setting-block">
                                 <div class="setting-row-info">
-                                    <h4>Auto-accept matches</h4>
-                                    <p>Automatically click Accept when a match is found</p>
+                                    <h3>Theme</h3>
+                                    <p>System follows the light or dark setting in Windows.</p>
                                 </div>
-                                <label class="setting-switch">
-                                    <input type="checkbox" id="autoAcceptSettingsToggle">
-                                    <span class="slider"></span>
-                                </label>
+                                <div class="theme-options" role="radiogroup" aria-label="Theme">
+                                    <label class="theme-option">
+                                        <input type="radio" name="theme" value="system">
+                                        <span class="theme-preview is-system" aria-hidden="true"><span class="tp-light"><i></i><b></b><b></b></span><span class="tp-dark"><i></i><b></b><b></b></span></span>
+                                        <span class="theme-option-label">System</span>
+                                    </label>
+                                    <label class="theme-option">
+                                        <input type="radio" name="theme" value="light">
+                                        <span class="theme-preview is-light" aria-hidden="true"><span class="tp-light"><i></i><b></b><b></b></span></span>
+                                        <span class="theme-option-label">Light</span>
+                                    </label>
+                                    <label class="theme-option">
+                                        <input type="radio" name="theme" value="dark">
+                                        <span class="theme-preview is-dark" aria-hidden="true"><span class="tp-dark"><i></i><b></b><b></b></span></span>
+                                        <span class="theme-option-label">Dark</span>
+                                    </label>
+                                </div>
                             </div>
                             <div class="setting-row">
                                 <div class="setting-row-info">
-                                    <h4>Minimize when game starts</h4>
-                                    <p>Hide the app to the tray when a match begins</p>
+                                    <h3>Interface size</h3>
+                                    <p>Scales text and controls, for example on high-resolution screens.</p>
                                 </div>
-                                <label class="setting-switch">
-                                    <input type="checkbox" id="minimizeOnGameStartToggle">
-                                    <span class="slider"></span>
-                                </label>
-                            </div>
-                            <div class="setting-row" style="border-bottom:none;padding-bottom:0">
-                                <div class="setting-row-info">
-                                    <h4>Queue pop notification</h4>
-                                    <p>Show a Windows notification when a match is found</p>
+                                <div class="scale-btns" id="scaleBtns" role="group" aria-label="Interface size">
+                                    <button class="scale-btn" data-scale="0.75">75%</button>
+                                    <button class="scale-btn" data-scale="1">100%</button>
+                                    <button class="scale-btn" data-scale="1.25">125%</button>
+                                    <button class="scale-btn" data-scale="1.5">150%</button>
                                 </div>
-                                <label class="setting-switch">
-                                    <input type="checkbox" id="toastOnQueuePopToggle">
-                                    <span class="slider"></span>
-                                </label>
                             </div>
-                        </div>
-                    </div>
+                        </section>
 
-                    <!-- Interface Scale -->
-                    <div class="setting-card">
-                        <div class="setting-icon"><i class="fas fa-expand-arrows-alt"></i></div>
-                        <div class="setting-info">
-                            <h3>Interface Scale</h3>
-                            <p class="desc">Adjust the size of the app UI to fit your display.</p>
-                            <div class="scale-btns" id="scaleBtns">
-                                <button class="scale-btn" data-scale="0.75">75%</button>
-                                <button class="scale-btn" data-scale="1">100%</button>
-                                <button class="scale-btn" data-scale="1.25">125%</button>
-                                <button class="scale-btn" data-scale="1.5">150%</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- App Behavior -->
-                    <div class="setting-card">
-                        <div class="setting-icon"><i class="fas fa-desktop"></i></div>
-                        <div class="setting-info">
-                            <h3>App Behavior</h3>
-                            <p class="desc">Control how Lost League Manager starts and runs.</p>
+                        <section id="settingsAutomation" class="settings-section">
+                            <h2 class="settings-section-title">Automation</h2>
+                            <p class="desc">What the app does in the League client for you.</p>
                             <div class="setting-row">
                                 <div class="setting-row-info">
-                                    <h4>Start with Windows</h4>
-                                    <p>Automatically launch Lost League Manager when Windows starts</p>
+                                    <h3>Auto-accept matches</h3>
+                                    <p>Clicks Accept when the client finds a match.</p>
                                 </div>
                                 <label class="setting-switch">
-                                    <input type="checkbox" id="startWithWindowsToggle">
+                                    <input type="checkbox" id="autoAcceptSettingsToggle" aria-label="Auto-accept matches">
                                     <span class="slider"></span>
                                 </label>
                             </div>
                             <div class="setting-row">
                                 <div class="setting-row-info">
-                                    <h4>Start minimized</h4>
-                                    <p>Launch the app silently in the system tray on startup</p>
+                                    <h3>Minimize when a game starts</h3>
+                                    <p>Hides the app to the tray when the game loads.</p>
                                 </div>
                                 <label class="setting-switch">
-                                    <input type="checkbox" id="startMinimizedToggle">
+                                    <input type="checkbox" id="minimizeOnGameStartToggle" aria-label="Minimize when a game starts">
                                     <span class="slider"></span>
                                 </label>
                             </div>
-                            <div class="setting-row" style="border-bottom:none;padding-bottom:0">
+                            <div class="setting-row">
                                 <div class="setting-row-info">
-                                    <h4>Check for updates on startup</h4>
-                                    <p>Automatically look for new versions when the app opens</p>
+                                    <h3>Match found notification</h3>
+                                    <p>Shows a Windows notification when a match is found.</p>
                                 </div>
                                 <label class="setting-switch">
-                                    <input type="checkbox" id="checkUpdatesOnStartupToggle">
+                                    <input type="checkbox" id="toastOnQueuePopToggle" aria-label="Match found notification">
                                     <span class="slider"></span>
                                 </label>
                             </div>
-                        </div>
-                    </div>
+                        </section>
 
-                    <!-- Discord -->
-                    <div class="setting-card">
-                        <div class="setting-icon"><i class="fab fa-discord"></i></div>
-                        <div class="setting-info">
-                            <h3>Discord</h3>
-                            <p class="desc">Show your current activity as a Discord status.</p>
-                            <div class="setting-row" style="border-bottom:none;padding-bottom:0">
+                        <section id="settingsApp" class="settings-section">
+                            <h2 class="settings-section-title">App behavior</h2>
+                            <p class="desc">How Lost League Manager starts and runs.</p>
+                            <div class="setting-row">
                                 <div class="setting-row-info">
-                                    <h4>Discord Rich Presence</h4>
-                                    <p>Displays a live status (e.g. "In Champion Select", "In Game") on your Discord profile. Never shows your account name.</p>
+                                    <h3>Start with Windows</h3>
+                                    <p>Opens the app when you sign in to Windows.</p>
                                 </div>
                                 <label class="setting-switch">
-                                    <input type="checkbox" id="discordRpcEnabledToggle">
+                                    <input type="checkbox" id="startWithWindowsToggle" aria-label="Start with Windows">
                                     <span class="slider"></span>
                                 </label>
                             </div>
-                        </div>
-                    </div>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h3>Start minimized</h3>
+                                    <p>Starts in the tray without opening the window.</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="startMinimizedToggle" aria-label="Start minimized">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h3>Check for updates on start</h3>
+                                    <p>Looks for a new version each time the app opens.</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="checkUpdatesOnStartupToggle" aria-label="Check for updates on start">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h3>Discord status</h3>
+                                    <p>Shows what you are doing, like "In champion select", on your Discord profile. Never shows account names.</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="discordRpcEnabledToggle" aria-label="Discord status">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                        </section>
 
-                    <!-- League Client -->
-                    <div class="setting-card">
-                        <div class="setting-icon"><i class="fas fa-folder-open"></i></div>
-                        <div class="setting-info">
-                            <h3>League Client</h3>
-                            <p class="desc">Path and display language for the League of Legends client.</p>
-                            <p id="lolPathDisplay" class="path-display">Loading...</p>
-                            <button id="changePathBtn" class="action-btn">Change Path</button>
-                            <div style="margin-top:18px">
-                                <div class="setting-row" style="border-bottom:none;padding-bottom:0;padding-top:0">
-                                    <div class="setting-row-info">
-                                        <h4>Client language</h4>
-                                        <p>Set the display language of the League client</p>
-                                    </div>
-                                    <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
-                                        <select id="localeSelect" class="form-control" style="width:150px">
-                                            <option value="en_US">English (US)</option>
-                                            <option value="de_DE">Deutsch</option>
-                                            <option value="es_ES">Español</option>
-                                            <option value="fr_FR">Français</option>
-                                            <option value="it_IT">Italiano</option>
-                                            <option value="pl_PL">Polski</option>
-                                            <option value="pt_BR">Português (BR)</option>
-                                            <option value="ru_RU">Русский</option>
-                                            <option value="tr_TR">Türkçe</option>
-                                            <option value="zh_CN">中文 (简体)</option>
-                                            <option value="ko_KR">한국어</option>
-                                            <option value="ja_JP">日本語</option>
-                                        </select>
-                                        <button id="changeLocaleBtn" class="action-btn">Apply</button>
-                                    </div>
+                        <section id="settingsClient" class="settings-section">
+                            <h2 class="settings-section-title">League client</h2>
+                            <p class="desc">Where League is installed and which language it uses.</p>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h3>Install location</h3>
+                                    <p id="lolPathDisplay" class="path-display">Loading</p>
+                                </div>
+                                <button id="changePathBtn" class="action-btn">Change</button>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h3>Client language</h3>
+                                    <p>Takes effect the next time the client starts.</p>
+                                </div>
+                                <div class="setting-inline">
+                                    <select id="localeSelect" class="form-control" aria-label="Client language">
+                                        <option value="en_US">English (US)</option>
+                                        <option value="de_DE">Deutsch</option>
+                                        <option value="es_ES">Español</option>
+                                        <option value="fr_FR">Français</option>
+                                        <option value="it_IT">Italiano</option>
+                                        <option value="pl_PL">Polski</option>
+                                        <option value="pt_BR">Português (BR)</option>
+                                        <option value="ru_RU">Русский</option>
+                                        <option value="tr_TR">Türkçe</option>
+                                        <option value="zh_CN">中文 (简体)</option>
+                                        <option value="ko_KR">한국어</option>
+                                        <option value="ja_JP">日本語</option>
+                                    </select>
+                                    <button id="changeLocaleBtn" class="action-btn">Apply</button>
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                        </section>
 
-                    <!-- Riot API Key -->
-                    <div class="setting-card">
-                        <div class="setting-icon"><i class="fas fa-key"></i></div>
-                        <div class="setting-info">
-                            <h3>Riot API Key <span style="opacity:0.5;font-size:12px;font-weight:500">(optional)</span></h3>
-                            <p class="desc">Ranked stats, match history and Quick add work without a key via OP.GG. A personal key adds mastery points and is tried first when set.</p>
+                        <section id="settingsApiKey" class="settings-section">
+                            <h2 class="settings-section-title">Riot API key <span class="optional-tag">optional</span></h2>
+                            <p class="desc">Ranks, recent games and Quick add work without a key through OP.GG. A personal key adds mastery points and is tried first.</p>
                             <div id="riotApiKeyNotice" class="api-key-notice" style="display:none"></div>
-                            <div id="riotApiKeySavedRow" class="setting-row api-key-saved" style="display:none;border-bottom:none;padding-bottom:0;gap:10px">
+                            <div id="riotApiKeySavedRow" class="setting-row api-key-saved" style="display:none">
                                 <span class="api-key-saved-label"><i class="fas fa-check" aria-hidden="true"></i> Key saved</span>
-                                <button id="replaceRiotApiKeyBtn" class="action-btn">Replace</button>
-                                <button id="clearRiotApiKeyBtn" class="action-btn">Clear</button>
+                                <div class="setting-inline">
+                                    <button id="replaceRiotApiKeyBtn" class="action-btn">Replace</button>
+                                    <button id="clearRiotApiKeyBtn" class="action-btn">Clear</button>
+                                </div>
                             </div>
-                            <div id="riotApiKeyEditRow" class="setting-row" style="border-bottom:none;padding-bottom:0;gap:10px">
+                            <div id="riotApiKeyEditRow" class="setting-row">
                                 <input type="password" id="riotApiKeyInput" class="form-control api-key-input"
                                     placeholder="RGAPI-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" aria-label="Riot API key"
                                     autocomplete="off" spellcheck="false">
-                                <button id="saveRiotApiKeyBtn" class="action-btn" style="flex-shrink:0">Save</button>
-                                <button id="cancelRiotApiKeyBtn" class="action-btn" style="display:none;flex-shrink:0">Cancel</button>
+                                <div class="setting-inline">
+                                    <button id="saveRiotApiKeyBtn" class="action-btn">Save</button>
+                                    <button id="cancelRiotApiKeyBtn" class="action-btn" style="display:none">Cancel</button>
+                                </div>
                             </div>
-                        </div>
-                    </div>
+                        </section>
 
-                    <!-- Updates -->
-                    <div class="setting-card">
-                        <div class="setting-icon"><i class="fas fa-sync-alt"></i></div>
-                        <div class="setting-info">
-                            <h3>Updates</h3>
-                            <p class="desc">Lost League Manager updates automatically in the background.</p>
-                            <button id="manualUpdateBtn" class="action-btn">Check for Updates</button>
-                        </div>
-                    </div>
-
-                    <!-- Vault -->
-                    <div class="setting-card">
-                        <div class="setting-icon"><i class="fas fa-lock"></i></div>
-                        <div class="setting-info">
-                            <h3>Vault Password</h3>
-                            <p class="desc">Require a password before the app shows your accounts.</p>
+                        <section id="settingsVault" class="settings-section">
+                            <h2 class="settings-section-title">Vault and backups</h2>
+                            <p class="desc">Protect your accounts with a password and keep a backup.</p>
                             <div class="setting-row">
                                 <div class="setting-row-info">
-                                    <h4>Enable vault lock</h4>
-                                    <p>Show a password prompt every time the app opens</p>
+                                    <h3>Vault lock</h3>
+                                    <p>Asks for a password every time the app opens.</p>
                                 </div>
                                 <label class="setting-switch">
-                                    <input type="checkbox" id="vaultEnabledToggle">
+                                    <input type="checkbox" id="vaultEnabledToggle" aria-label="Vault lock">
                                     <span class="slider"></span>
                                 </label>
                             </div>
-                            <div id="vaultPasswordSection" style="display:none;padding-top:4px">
-                                <div class="setting-row" style="border-bottom:none;padding-bottom:0">
-                                    <div class="setting-row-info">
-                                        <h4>Vault password</h4>
-                                        <p>Change the password the app asks for on start</p>
-                                    </div>
-                                    <button id="changeVaultPasswordBtn" class="action-btn" style="flex-shrink:0">Change password</button>
+                            <div id="vaultPasswordSection" class="setting-row" style="display:none">
+                                <div class="setting-row-info">
+                                    <h3>Vault password</h3>
+                                    <p>Change the password the app asks for.</p>
+                                </div>
+                                <button id="changeVaultPasswordBtn" class="action-btn">Change password</button>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h3>Backup</h3>
+                                    <p>Saves your accounts to a file protected by a backup password, for a new PC or a reinstall.</p>
+                                </div>
+                                <div class="setting-inline">
+                                    <button id="exportAccountsBtn" class="action-btn">Export</button>
+                                    <button id="importAccountsBtn" class="action-btn">Import</button>
                                 </div>
                             </div>
-                        </div>
-                    </div>
+                        </section>
 
-                    <!-- Backup -->
-                    <div class="setting-card">
-                        <div class="setting-icon"><i class="fas fa-database"></i></div>
-                        <div class="setting-info">
-                            <h3>Accounts Backup</h3>
-                            <p class="desc">Export your accounts to a backup file or import from one. Useful when switching PCs or reinstalling.</p>
-                            <div style="display:flex;gap:10px;flex-wrap:wrap">
-                                <button id="exportAccountsBtn" class="action-btn"><i class="fas fa-upload"></i> Export</button>
-                                <button id="importAccountsBtn" class="action-btn"><i class="fas fa-download"></i> Import</button>
+                        <section id="settingsOverlay" class="settings-section is-wip">
+                            <h2 class="settings-section-title">Game overlay <span class="wip-badge">In development</span></h2>
+                            <p class="desc">The in-game overlay comes in a later update.</p>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h3>Show the overlay</h3>
+                                    <p>Opens the overlay while a game runs.</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="overlayEnabledToggle" aria-label="Show the overlay">
+                                    <span class="slider"></span>
+                                </label>
                             </div>
-                        </div>
-                    </div>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h3>Player ranks panel</h3>
+                                    <p>Ranked stats of all ten players.</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="overlayShowRankedToggle" aria-label="Player ranks panel">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h3>Item builds panel</h3>
+                                    <p>Recommended items for your champion.</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="overlayShowBuildsToggle" aria-label="Item builds panel">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h3>Overlay position</h3>
+                                    <p>Moves the overlay back to the top-right corner.</p>
+                                </div>
+                                <button id="resetOverlayPosBtn" class="action-btn">Reset</button>
+                            </div>
+                        </section>
 
+                        <section id="settingsAbout" class="settings-section">
+                            <h2 class="settings-section-title">About</h2>
+                            <div class="about-row">
+                                <span class="logo-tile about-logo"><img src="assets/logo.png" alt="" class="logo"></span>
+                                <div>
+                                    <div class="about-name">Lost League Manager</div>
+                                    <div class="about-version">Version <span id="appVersion"></span></div>
+                                </div>
+                            </div>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h3>Updates</h3>
+                                    <p>New versions download in the background and install on restart.</p>
+                                </div>
+                                <button id="manualUpdateBtn" class="action-btn">Check for updates</button>
+                            </div>
+                            <div class="about-links">
+                                <a href="#" id="patchNotesBtn" class="about-link">What's new</a>
+                                <a href="https://discord.gg/ZyfUMWTPFe" id="discordBtn" class="about-link"><i class="fab fa-discord" aria-hidden="true"></i> Discord</a>
+                                <a href="https://www.lostleague.com/" id="websiteBtn" class="about-link"><i class="fas fa-globe" aria-hidden="true"></i> Website</a>
+                            </div>
+                        </section>
+
+                    </div>
                 </div>
             </div>
 
@@ -617,7 +683,7 @@
                         <button class="icon-btn" id="cancelAddBtn" style="margin-right:8px" data-tooltip="Back" aria-label="Back">
                             <i class="fas fa-arrow-left"></i>
                         </button>
-                        <h2 id="modalTitle">New Account</h2>
+                        <h2 id="modalTitle">New account</h2>
                     </div>
                     <button id="saveAccountBtn" class="primary-btn">
                         <i class="fas fa-check"></i>&nbsp; Save
@@ -651,32 +717,32 @@
 
                     <!-- Left column: credentials -->
                     <div class="account-form-section">
-                        <div class="acct-section-title">Account Info</div>
+                        <div class="acct-section-title">Login</div>
                         <div class="form-group">
-                            <label>Username (Login)</label>
+                            <label for="newUsername">Login name</label>
                             <input type="text" id="newUsername">
                         </div>
                         <div class="form-group">
-                            <label>Password <span id="passwordKeepHint" style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to keep)</span></label>
+                            <label for="newPassword">Password <span id="passwordKeepHint" class="field-hint">leave empty to keep it</span></label>
                             <input type="password" id="newPassword">
                         </div>
                         <div class="form-group">
-                            <label>Riot ID <span style="opacity:0.5;font-size:11px;font-weight:400">(Name#Tag)</span></label>
+                            <label for="newRiotId">Riot ID <span class="field-hint">Name#TAG</span></label>
                             <input type="text" id="newRiotId" placeholder="Faker#KR1">
                         </div>
                         <div class="form-row">
                             <div class="form-group half">
-                                <label>Region</label>
+                                <label for="newRegion">Server</label>
                                 <!-- Options come from REGIONS in app.js -->
                                 <select id="newRegion"></select>
                             </div>
                             <div class="form-group half">
-                                <label>Label</label>
+                                <label for="newLabel">Label <span class="field-hint">shown in the list</span></label>
                                 <input type="text" id="newLabel">
                             </div>
                         </div>
                         <div class="form-group">
-                            <label>Notes</label>
+                            <label for="newNotes">Notes</label>
                             <textarea id="newNotes" rows="4"></textarea>
                         </div>
                     </div>
@@ -684,8 +750,8 @@
                     <!-- Right column: automation & display -->
                     <div class="account-form-section">
                         <div class="acct-section-title">Automation</div>
-                        <div class="form-group" style="opacity:0.4" data-tooltip="Disabled — not permitted under Riot ToS">
-                            <label>Auto Champ Lock <span style="font-size:11px;font-weight:600;color:#e87a7a">(disabled — against Riot ToS)</span></label>
+                        <div class="form-group is-disabled" data-tooltip="Instant-locking a champion is not allowed by Riot">
+                            <label>Auto champion lock <span class="field-hint">not available</span></label>
                             <div class="champ-picker-trigger" style="pointer-events:none">
                                 <div class="champ-picker-preview" id="champPickerPreview">
                                     <span class="champ-picker-placeholder" id="champPickerPlaceholder">Not available</span>
@@ -695,35 +761,35 @@
                         </div>
                         <label class="checkbox-group">
                             <input type="checkbox" id="autoSkinToggle">
-                            Auto Random Skin (picks random owned skin)
+                            Pick a random owned skin in champion select
                         </label>
-                        <label class="checkbox-group" style="opacity:0.45;cursor:not-allowed;" data-tooltip="Not yet implemented">
+                        <label class="checkbox-group" data-tooltip="Comes in a later version">
                             <input type="checkbox" id="autoSpellsToggle" disabled>
-                            Auto Spells (Coming Soon)
+                            Set summoner spells automatically (later version)
                         </label>
                         <label class="checkbox-group">
                             <input type="checkbox" id="appearOfflineToggle">
-                            Appear Offline
+                            Appear offline in the client
                         </label>
 
-                        <div class="acct-section-title" style="margin-top:22px">Display Overrides</div>
+                        <div class="acct-section-title spaced">Display</div>
                         <div class="form-group">
-                            <label>Custom Rank <span style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to use API)</span></label>
-                            <input type="text" id="newCustomRank" placeholder="e.g. Gold II">
+                            <label for="newCustomRank">Custom rank <span class="field-hint">replaces the looked-up rank</span></label>
+                            <input type="text" id="newCustomRank" placeholder="Gold II">
                         </div>
                         <div class="form-group">
-                            <label>Custom Avatar URL <span style="opacity:0.5;font-size:11px;font-weight:400">(leave empty to use summoner icon)</span></label>
-                            <input type="text" id="newCustomAvatar" placeholder="https://...">
+                            <label for="newCustomAvatar">Custom picture URL <span class="field-hint">replaces the summoner icon</span></label>
+                            <input type="text" id="newCustomAvatar" placeholder="https://">
                         </div>
 
-                        <div class="acct-section-title" style="margin-top:22px">Preferences</div>
+                        <div class="acct-section-title spaced">Preferences</div>
                         <label class="checkbox-group">
                             <input type="checkbox" id="minimizeOnLaunchToggle">
                             Minimize app when launching this account
                         </label>
                         <label class="checkbox-group">
                             <input type="checkbox" id="isFavouriteToggle">
-                            Mark as Favourite
+                            Favourite
                         </label>
                     </div>
                 </div>
@@ -734,7 +800,7 @@
                         <button type="button" class="champ-search-back" id="champSearchBack" aria-label="Back">
                             <i class="fas fa-arrow-left"></i>
                         </button>
-                        <input type="text" class="champ-search-input" id="champSearchInput" placeholder="Search champion...">
+                        <input type="text" class="champ-search-input" id="champSearchInput" placeholder="Search champions" aria-label="Search champions">
                         <button type="button" class="champ-search-clear-sel" id="champSearchClearSel">Clear</button>
                     </div>
                     <div class="champ-search-grid" id="champSearchGrid"></div>
@@ -827,77 +893,6 @@
     </div>
 
     <!-- Account Profile Modal -->
-    <div id="profileModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="profileLabel">
-        <div class="modal-content profile-modal-content">
-            <!-- Header -->
-            <div class="profile-header">
-                <div class="profile-icon-wrap">
-                    <img id="profileIcon" src="assets/logo.png" class="profile-icon">
-                    <span id="profileLevel" class="profile-level-badge"></span>
-                </div>
-                <div class="profile-header-info">
-                    <div id="profileLabel"   class="profile-name"></div>
-                    <div id="profileMeta"    class="profile-meta"></div>
-                    <div id="profileLoading" class="profile-loading" style="display:none">
-                        <span class="profile-loading-dot"></span> Loading stats…
-                    </div>
-                </div>
-                <button id="closeProfileModal" class="icon-btn" style="align-self:flex-start" aria-label="Close">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-
-            <!-- Ranks -->
-            <div class="profile-ranks-row">
-                <div class="profile-rank-card">
-                    <div class="profile-rank-label">Ranked Solo / Duo</div>
-                    <div id="profileSoloEmblem" class="profile-rank-emblem"></div>
-                    <div id="profileSoloTier"   class="profile-rank-tier rank-unranked">Unranked</div>
-                    <div id="profileSoloLp"     class="profile-rank-lp"></div>
-                    <div id="profileSoloRecord" class="profile-rank-record"></div>
-                </div>
-                <div class="profile-rank-card">
-                    <div class="profile-rank-label">Ranked Flex</div>
-                    <div id="profileFlexEmblem" class="profile-rank-emblem"></div>
-                    <div id="profileFlexTier"   class="profile-rank-tier rank-unranked">Unranked</div>
-                    <div id="profileFlexLp"     class="profile-rank-lp"></div>
-                    <div id="profileFlexRecord" class="profile-rank-record"></div>
-                </div>
-            </div>
-
-            <!-- Rank history -->
-            <div id="profileRankHistoryWrap" class="profile-rank-history-wrap" style="display:none">
-                <div class="profile-rank-history-header">
-                    <span class="profile-rank-history-label">Solo/Duo Rank History</span>
-                    <span id="profileRankHistoryRange" class="profile-rank-history-range"></span>
-                </div>
-                <svg id="profileRankSparkline" class="profile-rank-sparkline" viewBox="0 0 300 60" preserveAspectRatio="none"></svg>
-            </div>
-
-            <!-- Match history -->
-            <div id="profileMatchHistoryWrap" class="profile-match-history-wrap" style="display:none">
-                <div class="profile-match-history-label">Last 5 Games</div>
-                <div id="profileMatchHistoryStrip" class="match-history-strip"></div>
-            </div>
-
-            <!-- Notes -->
-            <div id="profileNotesWrap" class="profile-notes-wrap" style="display:none">
-                <div class="profile-notes-label">Notes</div>
-                <div id="profileNotes" class="profile-notes"></div>
-            </div>
-
-            <!-- Actions -->
-            <div class="profile-actions">
-                <button id="profileLaunchBtn" class="primary-btn" style="flex:1">
-                    <i class="fas fa-play"></i> Launch Account
-                </button>
-                <button id="profileEditBtn" class="secondary-btn" aria-label="Edit account" data-tooltip="Edit account">
-                    <i class="fas fa-pen"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- Patch Notes Modal (shown once on first launch after an update) -->
     <div id="patchNotesModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="patchNotesTitle">
         <div class="modal-content patch-notes-content">
@@ -905,7 +900,7 @@
             <div class="patch-notes-header">
                 <div class="patch-notes-badge"><i class="fas fa-bullhorn"></i></div>
                 <div>
-                    <h2 id="patchNotesTitle">What's New</h2>
+                    <h2 id="patchNotesTitle">What's new</h2>
                     <div id="patchNotesVersion" class="patch-notes-version"></div>
                 </div>
             </div>

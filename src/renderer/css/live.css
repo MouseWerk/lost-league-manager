@@ -1,0 +1,242 @@
+/* ── Live view: the account signed into the running client ─────────────────── */
+
+#liveView .view-header { align-items: center; }
+
+/* Game phase pill: a tinted fill, no frame */
+.gameflow-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: var(--radius-pill);
+    background: var(--bg-active);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.gameflow-lobby,
+.gameflow-champselect { background: var(--primary-soft); color: var(--primary); }
+.gameflow-queue,
+.gameflow-ready { background: var(--warning-soft); color: var(--warning); }
+.gameflow-ready { animation: phase-pulse 1s ease 3; }
+.gameflow-ingame { background: var(--success-soft); color: var(--success); }
+.gameflow-postgame { background: var(--bg-active); color: var(--ink); }
+@keyframes phase-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+/* Not connected */
+.lcu-offline {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    color: var(--muted);
+}
+.lcu-offline .empty-icon { font-size: 30px; color: var(--line-strong); }
+.lcu-offline p { margin: 0; font-size: 16px; color: var(--ink); }
+.lcu-offline .lcu-offline-hint { font-size: 14px; color: var(--muted); max-width: 360px; }
+.lcu-offline .primary-btn { margin-top: 12px; }
+
+#lcuOnline { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -8px; padding: 0 8px 8px; }
+
+/* Dodge / accept, shown in the phases they apply to */
+.ov-action-bar { display: flex; gap: 8px; margin-bottom: 14px; }
+
+.ov-tab-bar { display: flex; gap: 2px; margin-bottom: 16px; }
+.ov-tab {
+    height: 34px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+.ov-tab:hover { background: var(--bg-hover); color: var(--ink); }
+.ov-tab.active { background: var(--bg-active); color: var(--ink); font-weight: 600; }
+
+.ov-panel { display: none; flex-direction: column; gap: 14px; }
+.ov-panel.active { display: flex; }
+
+.ov-section-label { color: var(--muted); font-size: 13px; }
+
+/* Summoner header */
+.summoner-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 20px;
+    border-radius: var(--radius-xl);
+    background: var(--surface);
+}
+.summoner-banner-icon-wrap { position: relative; width: 64px; height: 64px; flex-shrink: 0; }
+.summoner-banner-icon { width: 64px; height: 64px; border-radius: 16px; object-fit: cover; display: block; }
+.summoner-banner-level {
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0 6px;
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 17px;
+}
+.summoner-banner-info { min-width: 0; }
+.summoner-banner-name {
+    font-family: var(--font-display);
+    font-variation-settings: 'opsz' 72;
+    font-weight: 600;
+    font-size: 26px;
+    line-height: 1.1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.summoner-banner-rank {
+    margin-top: 2px;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 16px;
+}
+.summoner-banner-spacer { flex: 1; }
+.honor-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: var(--radius-pill);
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+}
+.honor-badge i { color: var(--favourite); }
+
+/* Solo and flex rank cards */
+.ov-ranked-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.ov-ranked-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    border-radius: var(--radius-xl);
+    background: var(--surface);
+}
+.ov-ranked-emblem { font-size: 30px; width: 40px; text-align: center; flex-shrink: 0; }
+.ov-ranked-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ov-ranked-label { color: var(--muted); font-size: 13px; }
+.ov-ranked-tier {
+    font-family: var(--font-display);
+    font-variation-settings: 'opsz' 48;
+    font-weight: 700;
+    font-size: 22px;
+    line-height: 1.15;
+}
+.ov-ranked-lp { font-weight: 600; font-size: 14px; }
+.ov-lp-track { height: 5px; margin: 4px 0 2px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.ov-lp-fill { height: 100%; border-radius: 3px; background: var(--primary); transition: width 0.3s ease; }
+.ov-ranked-record { color: var(--muted); font-size: 12px; }
+
+/* Lobby / queue / game context */
+.ov-context { padding: 16px 18px; border-radius: var(--radius-xl); background: var(--surface); }
+.ov-ctx-header { display: flex; align-items: center; gap: 10px; }
+.ov-ctx-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.ov-ctx-dot.lobby { background: var(--primary); }
+.ov-ctx-dot.queue { background: var(--warning); animation: dot-pulse 1.5s ease-in-out 3; }
+.ov-ctx-dot.game { background: var(--success); animation: dot-pulse 2s ease-in-out 3; }
+@keyframes dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.ov-ctx-title { font-weight: 600; font-size: 15px; }
+.ov-ctx-timer { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--muted); }
+.ov-ctx-sub { margin-top: 6px; color: var(--muted); font-size: 13px; }
+.ov-ctx-members { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ov-ctx-member-chip {
+    display: inline-flex;
+    align-items: center;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: var(--radius-pill);
+    background: var(--bg);
+    font-size: 13px;
+}
+
+/* Champions by mastery */
+.mastery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+.mastery-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 10px 12px;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    text-align: center;
+}
+.mastery-champ-icon { width: 56px; height: 56px; border-radius: 12px; object-fit: cover; }
+.mastery-champ-name { font-weight: 600; font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mastery-level-badge {
+    padding: 1px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+}
+.mastery-level-badge.mastery-lv7 { background: var(--primary-soft); color: var(--primary); }
+.mastery-level-badge.mastery-lv6 { background: var(--warning-soft); color: var(--warning); }
+.mastery-pts { color: var(--muted); font-size: 12px; }
+
+/* Recent games */
+.match-summary-row { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+.ms-stat { font-weight: 600; color: var(--ink); }
+.ms-stat.ms-win { color: var(--success); }
+.ms-stat.ms-loss { color: var(--danger); }
+.ms-sep { color: var(--line-strong); }
+
+.ov-matches { display: flex; flex-direction: column; gap: 6px; }
+.match-item {
+    display: grid;
+    grid-template-columns: 44px 52px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px 10px 10px;
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+}
+.match-champ-icon { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; }
+.match-result-badge {
+    justify-self: start;
+    padding: 2px 9px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 700;
+}
+.match-item.win .match-result-badge { background: var(--win); color: var(--win-ink); }
+.match-item.loss .match-result-badge { background: var(--loss); color: var(--loss-ink); }
+.match-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.match-kda-row { display: flex; align-items: center; gap: 8px; }
+.match-kda { font-weight: 700; font-size: 15px; font-variant-numeric: tabular-nums; }
+.kda-d { color: var(--danger); }
+.match-multikill {
+    padding: 1px 7px;
+    border-radius: var(--radius-pill);
+    background: var(--warning-soft);
+    color: var(--warning);
+    font-size: 11px;
+    font-weight: 700;
+}
+.match-sub { display: flex; flex-wrap: wrap; gap: 6px; color: var(--muted); font-size: 12px; }
+.match-sub-sep { color: var(--line-strong); }
+.match-items { display: flex; gap: 3px; margin-top: 2px; }
+.match-item-icon { width: 22px; height: 22px; border-radius: 5px; background: var(--bg); object-fit: cover; display: block; }
+.match-item-icon.empty { display: inline-block; }
+.match-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; color: var(--muted); font-size: 12px; text-align: right; }
+.match-queue { color: var(--ink); font-weight: 500; }

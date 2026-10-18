@@ -90,12 +90,20 @@ test('focus rings use the neutral token and only on :focus-visible', () => {
     assert.deepEqual(offenders, []);
 });
 
+// Checked per page: index.html loads several sheets and tokens.css holds one
+// global block for all of them; the overlay window has its own sheet.
 test('reduced motion is honored', () => {
-    for (const f of SHEETS) {
-        const css = fs.readFileSync(path.join(CSS_DIR, f), 'utf8');
+    const PAGES = { 'index.html': [], 'overlay.html': [] };
+    for (const page of Object.keys(PAGES)) {
+        const html = fs.readFileSync(path.join(CSS_DIR, '..', page), 'utf8');
+        PAGES[page] = [...html.matchAll(/href="css\/([\w.-]+\.css)"/g)].map(m => m[1]);
+        const css = PAGES[page].map(f => fs.readFileSync(path.join(CSS_DIR, f), 'utf8')).join('\n');
         if (!/animation\s*:/.test(css)) continue;
-        assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/, `${f} animates but ignores prefers-reduced-motion`);
+        assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\*,/, `${page} animates but has no global prefers-reduced-motion rule`);
     }
+    // Every stylesheet in the folder belongs to one of the pages.
+    const linked = new Set(Object.values(PAGES).flat());
+    assert.deepEqual(SHEETS.filter(f => !linked.has(f)), [], 'stylesheet not linked from any page');
 });
 
 test('no animation runs forever', () => {
