@@ -1,0 +1,547 @@
+/* ── Lost League Manager design tokens and base elements ──────────────────────
+   Light and dark themes come from prefers-color-scheme, which follows the
+   theme chosen in Settings > Appearance (nativeTheme.themeSource in main):
+   System tracks Windows, Light and Dark force one. Colors are taken from the
+   logo: navy ink, teal as the only action color, yellow only for favourites.
+   Components use these tokens, never literal colors. */
+
+@font-face {
+    font-family: 'Fraunces';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url('../assets/fonts/fraunces-latin-opsz-normal.woff2') format('woff2-variations');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Fraunces';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 100 900;
+    src: url('../assets/fonts/fraunces-latin-ext-opsz-normal.woff2') format('woff2-variations');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+    font-family: 'Instrument Sans';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400 700;
+    src: url('../assets/fonts/instrument-sans-latin-wght-normal.woff2') format('woff2-variations');
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: 'Instrument Sans';
+    font-style: normal;
+    font-display: swap;
+    font-weight: 400 700;
+    src: url('../assets/fonts/instrument-sans-latin-ext-wght-normal.woff2') format('woff2-variations');
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+    color-scheme: light;
+
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-ui: 'Instrument Sans', 'Segoe UI', system-ui, sans-serif;
+
+    /* Surfaces */
+    --bg: #E7ECEB;
+    --surface: #FAFBFB;
+    --surface-raised: #FFFFFF;
+    --bg-hover: #DFE5E5;
+    --bg-active: #D6DEDE;
+    --scrim: rgba(23, 34, 52, 0.42);
+
+    /* Text */
+    --ink: #172234;
+    --muted: #56637A;
+    --subtle: #6E7A8E;
+
+    /* Lines */
+    --line: #D3DADB;
+    --line-strong: #B4BFC3;
+
+    /* Action (teal from the logo) */
+    --primary: #1F7F74;
+    --primary-hover: #19695F;
+    --on-primary: #FFFFFF;
+    --primary-soft: #D3EAE6;
+
+    /* Status: icons, small text and fills only, never frames */
+    --danger: #B3362E;
+    --danger-hover: #962B24;
+    --on-danger: #FFFFFF;
+    --danger-soft: #F5DEDC;
+    --success: #1E7A52;
+    --success-soft: #D7EEE6;
+    --warning: #8A5A00;
+    --warning-soft: #F6EBCF;
+    --favourite: #C9961F;
+
+    /* Ranks, readable on --surface */
+    --tier-iron: #5F646B;
+    --tier-bronze: #8A5A3C;
+    --tier-silver: #5E6A76;
+    --tier-gold: #8E6510;
+    --tier-platinum: #1D7069;
+    --tier-emerald: #1E7A4F;
+    --tier-diamond: #2F5FB3;
+    --tier-master: #7A3FA6;
+    --tier-grandmaster: #A3322B;
+    --tier-challenger: #85620B;
+    --tier-unranked: var(--muted);
+
+    /* Game results */
+    --win: #D7EEE6;
+    --win-ink: #1B6B5A;
+    --loss: #F5DEDC;
+    --loss-ink: #9E3B33;
+
+    /* Focus, elevation */
+    --focus-ring: rgba(23, 34, 52, 0.6);
+    --shadow-pop: 0 12px 32px rgba(15, 22, 36, 0.16), 0 2px 6px rgba(15, 22, 36, 0.08);
+    --logo-tile: transparent;
+
+    /* Shape */
+    --radius-sm: 8px;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+    --radius-pill: 999px;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        color-scheme: dark;
+
+        --bg: #0F1624;
+        --surface: #151E2F;
+        --surface-raised: #1A2437;
+        --bg-hover: #1A2538;
+        --bg-active: #1E2A40;
+        --scrim: rgba(5, 9, 16, 0.62);
+
+        --ink: #E6EBF2;
+        --muted: #8F9BB0;
+        --subtle: #7A869C;
+
+        --line: #243049;
+        --line-strong: #34405A;
+
+        --primary: #5CC8BB;
+        --primary-hover: #74D4C8;
+        --on-primary: #0F1624;
+        --primary-soft: #183633;
+
+        --danger: #F08A84;
+        --danger-hover: #F4A39E;
+        --on-danger: #0F1624;
+        --danger-soft: #3A2328;
+        --success: #6DCB98;
+        --success-soft: #1E3A35;
+        --warning: #E9C254;
+        --warning-soft: #3A3220;
+        --favourite: #E9C254;
+
+        --tier-iron: #A7ABB2;
+        --tier-bronze: #C9946E;
+        --tier-silver: #B5C0CA;
+        --tier-gold: #E2B95A;
+        --tier-platinum: #6CC3BC;
+        --tier-emerald: #6DCB98;
+        --tier-diamond: #93B6F2;
+        --tier-master: #C39BEA;
+        --tier-grandmaster: #F08A84;
+        --tier-challenger: #F2D06B;
+
+        --win: #1E3A35;
+        --win-ink: #7FD9C0;
+        --loss: #3A2328;
+        --loss-ink: #F0A3A3;
+
+        --focus-ring: rgba(230, 235, 242, 0.65);
+        --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
+        /* The logo's navy parts need a light tile on the dark ground. */
+        --logo-tile: #E6EBF2;
+    }
+}
+
+/* Hidden means hidden, whatever display a class sets. */
+[hidden] { display: none !important; }
+
+/* ── Base ───────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; -webkit-app-region: no-drag; }
+
+html, body { height: 100%; }
+
+body {
+    margin: 0;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--ink);
+    background: transparent; /* the frameless window is transparent; .app-container paints */
+    user-select: none;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 600; }
+
+/* Display type: page titles, names, ranks */
+.display { font-family: var(--font-display); font-variation-settings: 'opsz' 72; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+
+/* Keyboard focus: one neutral ring, only when focus came from the keyboard. */
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+::selection { background: var(--primary-soft); color: var(--ink); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border: 3px solid transparent;
+    background-clip: padding-box;
+    border-radius: var(--radius-pill);
+}
+::-webkit-scrollbar-thumb:hover { background-color: var(--line-strong); }
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+.primary-btn,
+.secondary-btn,
+.action-btn,
+.danger-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 38px;
+    padding: 0 16px;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.primary-btn { background: var(--primary); color: var(--on-primary); }
+.primary-btn:hover { background: var(--primary-hover); }
+.primary-btn.danger { background: var(--danger); color: var(--on-danger); }
+.primary-btn.danger:hover { background: var(--danger-hover); }
+
+.secondary-btn,
+.action-btn {
+    background: var(--surface-raised);
+    border-color: var(--line);
+    color: var(--ink);
+}
+.secondary-btn:hover,
+.action-btn:hover { background: var(--bg-hover); }
+
+.danger-btn {
+    background: var(--surface-raised);
+    border-color: var(--line);
+    color: var(--danger);
+}
+.danger-btn:hover { background: var(--danger-soft); }
+
+.primary-btn:disabled,
+.secondary-btn:disabled,
+.action-btn:disabled,
+.danger-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.icon-btn:hover { background: var(--bg-hover); color: var(--ink); }
+.icon-btn.copied,
+.icon-btn.copied:hover { color: var(--success); }
+.icon-btn.delete-btn:hover { color: var(--danger); background: var(--danger-soft); }
+
+/* ── Form fields ────────────────────────────────────────────────────────── */
+.form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+
+.form-group label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+}
+.field-hint,
+.form-group label .field-hint { margin-left: 4px; font-weight: 400; color: var(--muted); }
+.form-group.is-disabled { opacity: 0.55; }
+
+.form-group input,
+.form-group select,
+.form-group textarea,
+.form-control {
+    width: 100%;
+    min-height: 40px;
+    padding: 9px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    background: var(--surface-raised);
+    color: var(--ink);
+    font-size: 14px;
+    appearance: none;
+    -webkit-appearance: none;
+    transition: border-color 0.15s ease;
+}
+.form-group textarea { resize: vertical; min-height: 84px; line-height: 1.5; }
+.form-group input::placeholder,
+.form-group textarea::placeholder,
+.form-control::placeholder { color: var(--subtle); }
+.form-group input:disabled { background: var(--bg); color: var(--muted); }
+
+.form-group select,
+select.form-control {
+    padding-right: 36px;
+    cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+    background-position: calc(100% - 18px) 50%, calc(100% - 13px) 50%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+}
+select option { background: var(--surface-raised); color: var(--ink); }
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus,
+.form-control:focus { border-color: var(--line-strong); outline: none; }
+
+/* Fields reset outline on :focus above; give keyboard focus the neutral ring back. */
+.form-group input:focus-visible,
+.form-group select:focus-visible,
+.form-group textarea:focus-visible,
+.form-control:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+}
+
+.form-row { display: flex; gap: 14px; }
+.form-group.half { flex: 1; min-width: 0; }
+
+/* ── Checkboxes ─────────────────────────────────────────────────────────── */
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: var(--ink);
+    cursor: pointer;
+}
+.checkbox-group input[type="checkbox"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    margin: 0;
+    border-radius: 5px;
+    border: 1.5px solid var(--line-strong);
+    background: var(--surface-raised);
+    display: inline-grid;
+    place-content: center;
+    cursor: pointer;
+    transition: background-color 0.12s ease;
+}
+.checkbox-group input[type="checkbox"]::after {
+    content: "";
+    width: 9px;
+    height: 5px;
+    border-left: 2px solid var(--on-primary);
+    border-bottom: 2px solid var(--on-primary);
+    transform: translateY(-1px) rotate(-45deg) scale(0);
+    transition: transform 0.12s ease;
+}
+.checkbox-group input[type="checkbox"]:checked { background: var(--primary); border-color: transparent; }
+.checkbox-group input[type="checkbox"]:checked::after { transform: translateY(-1px) rotate(-45deg) scale(1); }
+.checkbox-group input[type="checkbox"]:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.checkbox-group input[type="checkbox"]:disabled { cursor: not-allowed; opacity: 0.5; }
+.checkbox-group:has(input:disabled) { color: var(--muted); cursor: not-allowed; }
+
+/* ── Switches (settings, auto-accept) ───────────────────────────────────── */
+.setting-switch,
+.auto-accept-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+}
+.setting-switch input,
+.auto-accept-switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; z-index: 1; }
+.setting-switch .slider,
+.auto-accept-switch .slider {
+    position: absolute;
+    inset: 0;
+    border-radius: var(--radius-pill);
+    background: var(--line-strong);
+    transition: background-color 0.15s ease;
+}
+.setting-switch .slider::before,
+.auto-accept-switch .slider::before {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--surface-raised);
+    transition: transform 0.15s ease;
+}
+.setting-switch input:checked + .slider,
+.auto-accept-switch input:checked + .slider { background: var(--primary); }
+.setting-switch input:checked + .slider::before,
+.auto-accept-switch input:checked + .slider::before { transform: translateX(18px); background: var(--on-primary); }
+.setting-switch input:focus-visible + .slider,
+.auto-accept-switch input:focus-visible + .slider { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.setting-switch input:disabled + .slider { opacity: 0.5; }
+
+/* ── Small labels ───────────────────────────────────────────────────────── */
+.region-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.wip-badge {
+    display: inline-flex;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--warning-soft);
+    color: var(--warning);
+    font-size: 11px;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+/* Rank text colors (spans and the tier emblem icon) */
+.rank-iron { color: var(--tier-iron); }
+.rank-bronze { color: var(--tier-bronze); }
+.rank-silver { color: var(--tier-silver); }
+.rank-gold { color: var(--tier-gold); }
+.rank-platinum { color: var(--tier-platinum); }
+.rank-emerald { color: var(--tier-emerald); }
+.rank-diamond { color: var(--tier-diamond); }
+.rank-master { color: var(--tier-master); }
+.rank-grandmaster { color: var(--tier-grandmaster); }
+.rank-challenger { color: var(--tier-challenger); }
+.rank-unranked { color: var(--tier-unranked); }
+
+/* ── Tooltips ───────────────────────────────────────────────────────────────
+   One element on <body> positioned by initTooltips() in app.js, so it is never
+   clipped by a scrolling container. */
+.js-tooltip {
+    position: fixed;
+    z-index: 1000000;
+    max-width: 240px;
+    width: max-content;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--ink);
+    color: var(--bg);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.35;
+    text-align: center;
+    white-space: normal;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.12s ease, visibility 0.12s ease;
+}
+.js-tooltip.is-visible { opacity: 1; visibility: visible; }
+.js-tooltip::after { content: ''; position: absolute; border: 5px solid transparent; }
+.js-tooltip[data-pos="top"]::after { top: 100%; left: var(--tip-arrow-offset, 50%); margin-left: -5px; border-top-color: var(--ink); }
+.js-tooltip[data-pos="bottom"]::after { bottom: 100%; left: var(--tip-arrow-offset, 50%); margin-left: -5px; border-bottom-color: var(--ink); }
+.js-tooltip[data-pos="left"]::after { left: 100%; top: var(--tip-arrow-offset, 50%); margin-top: -5px; border-left-color: var(--ink); }
+.js-tooltip[data-pos="right"]::after { right: 100%; top: var(--tip-arrow-offset, 50%); margin-top: -5px; border-right-color: var(--ink); }
+
+/* ── Toasts ─────────────────────────────────────────────────────────────── */
+.toast-container {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 20000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 380px;
+    padding: 12px 14px;
+    border-radius: var(--radius-lg);
+    background: var(--surface-raised);
+    color: var(--ink);
+    box-shadow: var(--shadow-pop);
+    pointer-events: auto;
+    animation: toast-in 0.18s ease-out;
+}
+.toast-icon { font-size: 15px; flex-shrink: 0; }
+.toast.success .toast-icon { color: var(--success); }
+.toast.error .toast-icon { color: var(--danger); }
+.toast.info .toast-icon { color: var(--muted); }
+.toast-msg { font-size: 13px; line-height: 1.4; }
+.toast.removing { opacity: 0; transform: translateY(6px); transition: opacity 0.18s ease, transform 0.18s ease; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ── Empty states ───────────────────────────────────────────────────────── */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--muted);
+}
+.empty-state .empty-icon { font-size: 28px; color: var(--line-strong); }
+.empty-state p { margin: 0; font-size: 15px; color: var(--ink); }
+.empty-state .primary-btn { margin-top: 6px; }
+
+.shake { animation: shake 0.32s ease; }
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+/* Reduced motion: no looping or sliding animations, instant transitions. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}

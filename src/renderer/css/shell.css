@@ -1,0 +1,153 @@
+/* ── App shell: window frame, top bar, views ─────────────────────────────── */
+
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--ink);
+}
+
+/* Top bar. Empty space in it drags the frameless window; every control in it
+   opts out (the base rule sets no-drag on all elements). */
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    height: 60px;
+    flex-shrink: 0;
+    padding: 0 14px 0 22px;
+    border-bottom: 1px solid var(--line);
+    -webkit-app-region: drag;
+}
+.topbar-drag { flex: 1; align-self: stretch; -webkit-app-region: drag; }
+
+.logo-area { display: flex; align-items: center; gap: 10px; -webkit-app-region: drag; }
+.logo-tile {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 9px;
+    background: var(--logo-tile);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.logo-tile .logo { width: 28px; height: 28px; display: block; -webkit-app-region: drag; }
+.brand-name {
+    font-family: var(--font-display);
+    font-variation-settings: 'opsz' 48;
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+}
+
+.nav-links { display: flex; align-items: center; gap: 2px; }
+.nav-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.nav-btn:hover { background: var(--bg-hover); color: var(--ink); }
+.nav-btn.active { background: var(--bg-active); color: var(--ink); font-weight: 600; }
+
+/* Shown while the League client is connected */
+.lcu-nav-dot {
+    display: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--success);
+}
+.lcu-nav-dot.visible { display: inline-block; }
+
+.auto-accept-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.auto-accept-control .label-text { user-select: none; }
+
+.window-controls { display: flex; align-items: center; gap: 2px; margin-left: 4px; }
+.window-controls .icon-btn { width: 32px; height: 32px; }
+.window-controls .icon-btn.close-btn:hover { background: var(--danger); color: var(--on-danger); }
+
+/* ── Views ──────────────────────────────────────────────────────────────── */
+.main-content {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+
+.view {
+    display: none;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 26px 28px 24px;
+    overflow: hidden;
+}
+.view.active { display: flex; animation: view-in 0.16s ease-out; }
+@keyframes view-in { from { opacity: 0; } to { opacity: 1; } }
+
+.view-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+    flex-shrink: 0;
+}
+.view-title-row { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.view-title-row:has(> .icon-btn) { flex-direction: row; align-items: center; gap: 12px; }
+
+.view-title,
+.view-header h2 {
+    font-family: var(--font-display);
+    font-variation-settings: 'opsz' 96;
+    font-weight: 500;
+    font-size: 34px;
+    line-height: 1.05;
+    letter-spacing: -0.015em;
+    color: var(--ink);
+}
+.view-sub { margin: 0; color: var(--muted); font-size: 14px; }
+.view-header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+.account-count {
+    display: inline-flex;
+    padding: 2px 9px;
+    border-radius: var(--radius-pill);
+    background: var(--bg-active);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+@media (max-width: 1000px) {
+    .topbar { gap: 14px; }
+    .auto-accept-control .label-text { display: none; }
+}

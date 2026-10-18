@@ -49,6 +49,28 @@ const OPGG_ICON_SVG = `<svg viewBox="0 0 16 16" width="1em" height="1em" aria-hi
 // Keyed by exact package.json version string; a version with no entry here
 // (or one the user has already seen) shows nothing.
 const PATCH_NOTES = {
+  "1.8.0": [
+    {
+      icon: "fas fa-palette",
+      title: "A new look",
+      body: "Lost League Manager has a calmer, clearer design with new type and colors from the logo.",
+    },
+    {
+      icon: "fas fa-circle-half-stroke",
+      title: "Light and dark",
+      body: "Choose Light, Dark or System in Settings > Appearance. System follows Windows.",
+    },
+    {
+      icon: "fas fa-table-list",
+      title: "Your accounts at a glance",
+      body: "Accounts are a list now. Pick one to see its rank, recent games and notes beside it, and play it from there. Filter by server with one click.",
+    },
+    {
+      icon: "fas fa-sliders",
+      title: "Easier settings",
+      body: "Settings are grouped into sections you can jump to, and Discord, the website and What's new live under About.",
+    },
+  ],
   "1.7.0": [
     {
       icon: "fas fa-bolt",
@@ -281,6 +303,9 @@ function timeAgo(ts) {
 
 function getFilteredSorted() {
   let list = [...allAccounts];
+  if (currentRegion) {
+    list = list.filter((a) => (a.region || "").toLowerCase() === currentRegion);
+  }
   if (currentQuery) {
     const q = currentQuery.toLowerCase();
     list = list.filter(
@@ -538,6 +563,66 @@ async function initVaultSettings(config) {
     });
 }
 
+// ── Theme (Settings > Appearance) ───────────────────────────────────────
+// The main process applies it through nativeTheme, which every window's
+// prefers-color-scheme follows, so the page needs no class of its own.
+function initThemeSettings(config) {
+  const radios = document.querySelectorAll('input[name="theme"]');
+  let current = ["system", "light", "dark"].includes(config.theme) ? config.theme : "system";
+  const render = () => radios.forEach((r) => (r.checked = r.value === current));
+  render();
+  radios.forEach((r) =>
+    r.addEventListener("change", async () => {
+      if (!r.checked) return;
+      const previous = current;
+      current = r.value;
+      const res = await window.electronAPI.setConfig({ theme: current });
+      if (res && res.success === false) {
+        current = previous;
+        render();
+        showToast(res.message || "Could not change the theme", "error");
+      }
+    }),
+  );
+}
+
+// Section links on the left of Settings: scroll to the section and mark the
+// one in view.
+function initSettingsNav() {
+  const content = document.getElementById("settingsContent");
+  const links = [...document.querySelectorAll(".settings-nav-link")];
+  if (!content || !links.length) return;
+  const mark = (id) =>
+    links.forEach((l) => {
+      const on = l.getAttribute("href") === `#${id}`;
+      l.classList.toggle("active", on);
+      if (on) l.setAttribute("aria-current", "true");
+      else l.removeAttribute("aria-current");
+    });
+  links.forEach((l) =>
+    l.addEventListener("click", (e) => {
+      e.preventDefault();
+      const target = document.querySelector(l.getAttribute("href"));
+      if (!target) return;
+      content.scrollTo({ top: target.offsetTop - content.offsetTop, behavior: "smooth" });
+      mark(target.id);
+    }),
+  );
+  content.addEventListener("scroll", () => {
+    const top = content.scrollTop + content.offsetTop + 40;
+    let currentId = links[0].getAttribute("href").slice(1);
+    for (const l of links) {
+      const sec = document.querySelector(l.getAttribute("href"));
+      if (sec && sec.offsetTop <= top) currentId = sec.id;
+    }
+    // At the very end the last section may be too short to reach the top.
+    if (content.scrollTop + content.clientHeight >= content.scrollHeight - 2) {
+      currentId = links[links.length - 1].getAttribute("href").slice(1);
+    }
+    mark(currentId);
+  });
+}
+
 // ── Riot API key ──────────────────────────────────────────────────────────
 // The key is stored encrypted by the main process and never comes back to
 // the renderer: the card only knows whether one is saved.
@@ -718,19 +803,6 @@ async function importAccountsFlow(btn) {
   }
 }
 
-// ── Compact / grid view ───────────────────────────────────────────────────────
-let compactView = localStorage.getItem("llm-view") === "compact";
-
-function applyViewMode() {
-  const grid = document.getElementById("accountsList");
-  const gridBtn = document.getElementById("viewGridBtn");
-  const listBtn = document.getElementById("viewListBtn");
-  if (!grid) return;
-  grid.classList.toggle("compact", compactView);
-  gridBtn?.classList.toggle("active", !compactView);
-  listBtn?.classList.toggle("active", compactView);
-}
-
 // ── Tooltips ──────────────────────────────────────────────────────────────
 // [data-tooltip] used to be a pure-CSS ::after/::before pseudo-element anchored
 // to the hovered element. That reads great in isolation, but it's still a normal
@@ -872,8 +944,9 @@ function dismissPatchNotesModal(version) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-  applyViewMode();
   initDragAndDrop();
+  initRegionFilters();
+  initAccountDetail();
   initTooltips();
 
   // Launch events are registered before the first await: a cold start with
@@ -903,21 +976,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     setActiveAccount(username || null),
   );
 
-  document.getElementById("viewGridBtn")?.addEventListener("click", () => {
-    compactView = false;
-    localStorage.setItem("llm-view", "grid");
-    applyViewMode();
-  });
-  document.getElementById("viewListBtn")?.addEventListener("click", () => {
-    compactView = true;
-    localStorage.setItem("llm-view", "compact");
-    applyViewMode();
-  });
-
   // Version
   const version = await window.electronAPI.getVersion();
   const versionEl = document.getElementById("appVersion");
-  if (versionEl) versionEl.innerText = `v${version}`;
+  if (versionEl) versionEl.textContent = version;
 
   try {
     // Load config
@@ -1004,16 +1066,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (savedScale !== 1.0) applyUiScale(savedScale);
     document.querySelectorAll(".scale-btn").forEach((btn) => {
       const s = parseFloat(btn.dataset.scale);
-      if (s === savedScale) btn.classList.add("active");
+      btn.classList.toggle("active", s === savedScale);
+      btn.setAttribute("aria-pressed", String(s === savedScale));
       btn.addEventListener("click", async () => {
-        document
-          .querySelectorAll(".scale-btn")
-          .forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
+        document.querySelectorAll(".scale-btn").forEach((b) => {
+          b.classList.toggle("active", b === btn);
+          b.setAttribute("aria-pressed", String(b === btn));
+        });
         applyUiScale(s);
         await window.electronAPI.setConfig({ uiScale: s });
       });
     });
+
+    initThemeSettings(config);
+    initSettingsNav();
 
     // Vault settings
     await initVaultSettings(config);
@@ -1386,23 +1452,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     .getElementById("closeAppBtn")
     .addEventListener("click", () => window.electronAPI.closeWindow());
 
-  // Profile modal
-  document
-    .getElementById("closeProfileModal")
-    .addEventListener("click", closeProfileModal);
-  document.getElementById("profileModal").addEventListener("click", (e) => {
-    if (e.target === e.currentTarget) closeProfileModal(); // backdrop
-  });
-  document.getElementById("profileLaunchBtn").addEventListener("click", () => {
-    closeProfileModal();
-    if (_profileUsername) launchAccount(_profileUsername);
-  });
-  document.getElementById("profileEditBtn").addEventListener("click", () => {
-    const u = _profileUsername;
-    closeProfileModal();
-    if (u) editAccount(u);
-  });
-
   // Add Account
   document.getElementById("addAccountBtn").addEventListener("click", openModal);
 
@@ -1752,6 +1801,8 @@ function renderAccounts() {
 
   const countEl = document.getElementById("accountCount");
   if (countEl) countEl.textContent = allAccounts.length;
+  renderRegionFilters();
+  renderAccountsSummary();
 
   const filtered = getFilteredSorted();
 
@@ -1759,22 +1810,25 @@ function renderAccounts() {
     const empty = document.createElement("div");
     empty.className = "empty-state";
     empty.innerHTML = `
-            <div class="empty-icon"><i class="fas fa-folder-open"></i></div>
-            <p>No accounts added yet.</p>
-            <button class="primary-btn empty-add-btn">Add Your First Account</button>
+            <div class="empty-icon"><i class="fas fa-user-plus"></i></div>
+            <p>Add your first League account</p>
+            <span>Save a login once, then switch accounts in one click.</span>
+            <button class="primary-btn empty-add-btn">Add account</button>
         `;
     empty
       .querySelector(".empty-add-btn")
       .addEventListener("click", () => openModal());
     listEl.appendChild(empty);
+    ensureSelection([]);
     return;
   }
 
   if (filtered.length === 0) {
     const noRes = document.createElement("div");
     noRes.className = "empty-state";
-    noRes.innerHTML = `<div class="empty-icon"><i class="fas fa-search"></i></div><p>No accounts match your search.</p>`;
+    noRes.innerHTML = `<div class="empty-icon"><i class="fas fa-magnifying-glass"></i></div><p>No accounts match.</p>`;
     listEl.appendChild(noRes);
+    ensureSelection([]);
     return;
   }
 
@@ -1803,6 +1857,7 @@ function renderAccounts() {
       requestCardStats(acc, staggerIndex++ * STATS_STAGGER_MS);
     }
   }
+  ensureSelection(filtered);
 }
 
 // Stats arrive one card at a time; re-sorting by rank after each one used to
@@ -1835,11 +1890,18 @@ function applyStatsToCard(cardEl, stats) {
     ];
     const cls = valid.includes(tierName) ? `rank-${tierName}` : "rank-unranked";
     rankEl.className = `rank card-rank ${cls}`;
-    const tierDisplay =
-      stats.tier && stats.tier !== "Unranked" ? stats.tier : "Unranked";
+    const unavailable = stats.tier === "N/A";
+    const tierDisplay = unavailable
+      ? "Rank unavailable"
+      : stats.tier && stats.tier !== "Unranked"
+        ? stats.tier
+        : "Unranked";
+    if (unavailable && stats.error) rankEl.dataset.tooltip = stats.error;
+    else delete rankEl.dataset.tooltip;
     // Tier/LP can come from OP.GG or an imported backup's cached stats.
-    rankEl.innerHTML = `<span>${escapeHtml(tierDisplay)}</span>${stats.lp ? ` • <span>${escapeHtml(stats.lp)}</span>` : ""}`;
+    rankEl.innerHTML = `<span class="card-tier">${escapeHtml(tierDisplay)}</span>${stats.lp ? `<span class="card-lp">${escapeHtml(stats.lp)}</span>` : ""}`;
   }
+  if (acc && cardEl.dataset.username === _profileUsername) populateProfileModal(acc, stats);
   const iconEl = cardEl.querySelector(".summoner-icon");
   if (iconEl && stats.iconSrc && !acc?.customAvatar) iconEl.src = stats.iconSrc;
 
@@ -1935,7 +1997,7 @@ function fillProfileRank(
   recordEl.textContent = winLose
     ? `${winLose}${ratio ? "  ·  " + ratio : ""}`
     : "";
-  setTierEmblem(emblemEl, tier);
+  setTierEmblem(emblemEl, tier, "");
 }
 
 function populateProfileModal(acc, stats) {
@@ -1951,11 +2013,9 @@ function populateProfileModal(acc, stats) {
     ? "block"
     : "none";
 
-  const meta = [acc.riotId, (acc.region || "").toUpperCase()]
-    .filter(Boolean)
-    .join("  ·  ");
-  document.getElementById("profileMeta").textContent = meta;
+  document.getElementById("profileMeta").textContent = detailMeta(acc);
   document.getElementById("profileLoading").style.display = "none";
+  setLpBar(stats);
 
   fillProfileRank(
     document.getElementById("profileSoloTier"),
@@ -2064,13 +2124,18 @@ function renderMatchHistory(res) {
     .join("");
 }
 
-async function showProfileModal(username) {
+// Shows one account in the panel beside the list: rank, history, recent
+// games and its actions. Rank history, recent games and stale stats are
+// fetched here, on selection, not for every row.
+async function selectAccount(username) {
   _profileUsername = username;
   const acc = allAccounts.find((a) => a.username === username);
   if (!acc) return;
 
-  const modal = document.getElementById("profileModal");
-  openLayer(modal, { onEscape: closeProfileModal, focus: "#closeProfileModal" });
+  document.getElementById("accountDetailEmpty").hidden = true;
+  document.getElementById("accountDetailBody").hidden = false;
+  markSelectedRow();
+  updateDetailActions(acc);
 
   // Rank history is a cheap local read (no rate limit / network concerns),
   // so it's always fetched fresh rather than reusing statsCache below.
@@ -2102,12 +2167,8 @@ async function showProfileModal(username) {
     document.getElementById("profileLabel").textContent =
       acc.label || acc.username;
     document.getElementById("profileLevel").style.display = "none";
-    document.getElementById("profileMeta").textContent = [
-      acc.riotId,
-      (acc.region || "").toUpperCase(),
-    ]
-      .filter(Boolean)
-      .join("  ·  ");
+    document.getElementById("profileMeta").textContent = detailMeta(acc);
+    setLpBar(null);
     document.getElementById("profileLoading").style.display = "flex";
     ["profileSoloTier", "profileFlexTier"].forEach((id) => {
       document.getElementById(id).textContent = "—";
@@ -2152,61 +2213,45 @@ async function showProfileModal(username) {
   }
 }
 
-function closeProfileModal() {
-  closeLayer(document.getElementById("profileModal"));
-  _profileUsername = null;
-}
-
 function createAccountCard(account) {
   const card = document.createElement("div");
   const isActive = account.username === activeAccountUsername;
   card.className = `account-card${isActive ? " is-active" : ""}${account.isFavourite ? " is-favourite" : ""}`;
   card.dataset.username = account.username;
   card.draggable = canReorder();
+  card.tabIndex = 0;
+  card.setAttribute("role", "listitem");
 
   const defaultIcon = "assets/logo.png";
   const iconSrc = safeAvatarUrl(account.customAvatar) || defaultIcon;
   const region = (account.region || "").toUpperCase();
-  const lastUsedText = timeAgo(account.lastUsed);
   const rankDisplay =
     account.customRank ||
-    (account.riotId && account.region ? "Loading stats..." : "—");
+    (account.riotId && account.region ? "Loading" : "No Riot ID");
 
-  // customAvatar/customRank are free-text user input (and can arrive via an
-  // imported .llem backup) — never interpolate them into innerHTML directly.
-  // The icon src and rank text are set below via .src/.textContent instead.
+  // customAvatar/customRank/label are free-text user input (and can arrive
+  // via an imported .llem backup): set through .src/.textContent below,
+  // never interpolated into innerHTML.
   card.innerHTML = `
-        <div class="account-info">
-            <div class="summoner-icon-container">
-                <img class="summoner-icon">
-                <span class="level-badge" style="display:none">1</span>
-                <button class="fav-btn${account.isFavourite ? " is-fav" : ""}" data-tooltip="${account.isFavourite ? "Remove from Favourites" : "Add to Favourites"}" aria-label="${account.isFavourite ? "Remove from Favourites" : "Add to Favourites"}" aria-pressed="${account.isFavourite ? "true" : "false"}"><i class="fas fa-star"></i></button>
-            </div>
-            <div class="text-content">
-                <div class="card-title-row">
-                    <h3 class="card-label"></h3>
-                    ${isActive ? '<span class="active-dot" data-tooltip="Active account"></span>' : ""}
-                    ${account.passwordOk === false ? '<span class="account-warning-badge" data-tooltip="Saved password could not be read (often after a Windows update) — click Edit and re-enter it"><i class="fas fa-triangle-exclamation"></i></span>' : ""}
-                    ${account.honorFlagged ? '<span class="account-warning-badge" data-tooltip="Honor level has dropped since it was last observed"><i class="fas fa-arrow-trend-down"></i></span>' : ""}
-                </div>
-                <div class="card-meta">
-                    <span class="username card-username"></span>
-                    ${region ? `<span class="region-badge">${escapeHtml(region)}</span>` : ""}
-                    ${lastUsedText ? `<span class="last-used">${lastUsedText}</span>` : ""}
-                </div>
-                <div class="rank card-rank"></div>
-                <div class="mastery-badges card-mastery"></div>
-                ${account.notes ? '<div class="notes-preview card-notes"></div>' : ""}
-            </div>
+        <div class="summoner-icon-container">
+            <img class="summoner-icon" alt="">
+            <span class="level-badge" style="display:none"></span>
         </div>
+        <div class="text-content">
+            <div class="card-title-row">
+                <h3 class="card-label"></h3>
+                ${account.isFavourite ? '<span class="fav-mark" aria-label="Favourite"><i class="fas fa-star" aria-hidden="true"></i></span>' : ""}
+                ${isActive ? '<span class="active-dot" data-tooltip="Signed in to the League client" aria-label="Signed in"></span>' : ""}
+                ${account.passwordOk === false ? '<span class="account-warning-badge" data-tooltip="Saved password could not be read (often after a Windows update). Click Edit and enter it again."><i class="fas fa-triangle-exclamation"></i></span>' : ""}
+                ${account.honorFlagged ? '<span class="account-warning-badge" data-tooltip="Honor level has dropped since it was last seen"><i class="fas fa-arrow-trend-down"></i></span>' : ""}
+            </div>
+            <div class="card-meta"><span class="card-username"></span></div>
+        </div>
+        <span class="region-badge card-region"></span>
+        <div class="rank card-rank"></div>
+        <div class="mastery-badges card-mastery"></div>
         <div class="card-actions">
-            <button class="icon-btn info-btn"      data-tooltip="View Profile" aria-label="View Profile"><i class="fas fa-chart-bar"></i></button>
-            ${account.riotId ? `<button class="icon-btn opgg-btn" data-tooltip="Open on OP.GG" aria-label="Open on OP.GG">${OPGG_ICON_SVG}</button>` : ""}
-            <button class="icon-btn copy-user-btn" data-tooltip="Copy Username" aria-label="Copy Username"><i class="fas fa-user"></i></button>
-            <button class="icon-btn copy-pass-btn" data-tooltip="Copy Password" aria-label="Copy Password"><i class="fas fa-key"></i></button>
-            <button class="icon-btn play-btn"      data-tooltip="Launch" aria-label="Launch"><i class="fas fa-play"></i></button>
-            <button class="icon-btn edit-btn"      data-tooltip="Edit" aria-label="Edit"><i class="fas fa-pen"></i></button>
-            <button class="icon-btn delete-btn"    data-tooltip="Delete" aria-label="Delete" data-tooltip-pos="left"><i class="fas fa-trash"></i></button>
+            <button class="icon-btn play-btn" data-tooltip="Play" data-tooltip-pos="left"><i class="fas fa-play"></i></button>
         </div>
     `;
 
@@ -2216,96 +2261,219 @@ function createAccountCard(account) {
     iconEl.src = defaultIcon;
   });
 
+  const label = account.label || account.username;
+  card.querySelector(".card-label").textContent = label;
+  card.querySelector(".card-username").textContent = account.riotId || account.username;
+  const regionEl = card.querySelector(".card-region");
+  if (region) regionEl.textContent = region;
+  else regionEl.remove();
   card.querySelector(".card-rank").textContent = rankDisplay;
-  card.querySelector(".card-label").textContent = account.label || "Account";
-  card.querySelector(".card-username").textContent = account.username;
-  if (account.notes)
-    card.querySelector(".card-notes").textContent = account.notes;
+  card.setAttribute("aria-label", label);
+  card.querySelector(".play-btn").setAttribute("aria-label", `Play as ${label}`);
 
-  card.querySelector(".fav-btn").addEventListener("click", async (e) => {
-    e.stopPropagation();
-    const btn = e.currentTarget;
-    if (btn.dataset.saving) return;
-    btn.dataset.saving = "1";
-    const newFav = !account.isFavourite;
-    // Optimistic update — flip state immediately, revert if saving fails
-    const applyFav = (fav) => {
-      account.isFavourite = fav;
-      const i = allAccounts.findIndex((a) => a.username === account.username);
-      if (i !== -1) allAccounts[i].isFavourite = fav;
-      btn.classList.toggle("is-fav", fav);
-      // Tooltips read data-tooltip (a title attribute showed a second one).
-      btn.dataset.tooltip = fav ? "Remove from Favourites" : "Add to Favourites";
-      btn.setAttribute("aria-label", btn.dataset.tooltip);
-      btn.setAttribute("aria-pressed", String(fav));
-      card.classList.toggle("is-favourite", fav);
-    };
-    applyFav(newFav);
-    let res;
-    try {
-      res = await window.electronAPI.updateAccount({
-        username: account.username,
-        isFavourite: newFav,
-      });
-    } catch (err) {
-      res = { success: false, message: err.message };
-    } finally {
-      delete btn.dataset.saving;
-    }
-    if (res && res.success === false) {
-      applyFav(!newFav);
-      showToast(res.message || "Could not save favourite", "error");
-      return;
-    }
-    if (currentSort === "favourite") renderAccounts();
+  card.addEventListener("click", (e) => {
+    if (e.target.closest("button")) return;
+    selectAccount(account.username);
   });
-
-  card
-    .querySelector(".account-info")
-    .addEventListener("click", () => launchAccount(account.username));
-  card.querySelector(".info-btn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    showProfileModal(account.username);
+  card.addEventListener("dblclick", (e) => {
+    if (e.target.closest("button")) return;
+    launchAccount(account.username);
   });
-  card.querySelector(".opgg-btn")?.addEventListener("click", (e) => {
-    e.stopPropagation();
-    window.electronAPI.openOpgg(account.region, account.riotId).then((res) => {
-      if (!res?.success)
-        showToast(
-          "Could not open OP.GG — check the region and Riot ID",
-          "error",
-        );
-    });
-  });
-  card.querySelector(".copy-user-btn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(account.username);
-    flashCopied(card.querySelector(".copy-user-btn"));
-  });
-  card.querySelector(".copy-pass-btn").addEventListener("click", async (e) => {
-    e.stopPropagation();
-    const pw = await window.electronAPI.getAccountPassword(account.username);
-    if (pw) {
-      navigator.clipboard.writeText(pw);
-      flashCopied(card.querySelector(".copy-pass-btn"));
-    } else {
-      showToast("Could not retrieve password", "error");
+  card.addEventListener("keydown", (e) => {
+    if (e.target !== card) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      selectAccount(account.username);
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = e.key === "ArrowDown" ? card.nextElementSibling : card.previousElementSibling;
+      if (next?.classList.contains("account-card")) {
+        next.focus();
+        selectAccount(next.dataset.username);
+      }
     }
   });
   card.querySelector(".play-btn").addEventListener("click", (e) => {
     e.stopPropagation();
     launchAccount(account.username);
   });
-  card.querySelector(".edit-btn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    editAccount(account.username);
-  });
-  card.querySelector(".delete-btn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    deleteAccount(account.username);
-  });
 
   return card;
+}
+
+// ── Server filter, summary, selected account ────────────────────────────────
+let currentRegion = ""; // "" = every server
+
+function renderRegionFilters() {
+  const el = document.getElementById("regionFilters");
+  if (!el) return;
+  const counts = new Map();
+  for (const a of allAccounts) {
+    const r = (a.region || "").toLowerCase();
+    if (r) counts.set(r, (counts.get(r) || 0) + 1);
+  }
+  if (currentRegion && !counts.has(currentRegion)) currentRegion = "";
+  // One server: nothing to filter by.
+  el.hidden = counts.size < 2;
+  const chips = [["", `All ${allAccounts.length}`]];
+  for (const [r, n] of [...counts].sort()) chips.push([r, `${r.toUpperCase()} ${n}`]);
+  el.innerHTML = chips
+    .map(([r, text]) => {
+      const on = r === currentRegion;
+      return `<button class="region-chip${on ? " active" : ""}" data-region="${escapeHtml(r)}" aria-pressed="${on}">${escapeHtml(text)}</button>`;
+    })
+    .join("");
+}
+
+function initRegionFilters() {
+  document.getElementById("regionFilters")?.addEventListener("click", (e) => {
+    const chip = e.target.closest(".region-chip");
+    if (!chip) return;
+    currentRegion = chip.dataset.region || "";
+    renderAccounts();
+  });
+}
+
+function renderAccountsSummary() {
+  const el = document.getElementById("accountsSummary");
+  if (!el) return;
+  const n = allAccounts.length;
+  if (!n) {
+    el.textContent = "Save your League logins and switch between them in one click.";
+    return;
+  }
+  const servers = new Set(
+    allAccounts.map((a) => (a.region || "").toLowerCase()).filter(Boolean),
+  ).size;
+  const active = allAccounts.find((a) => a.username === activeAccountUsername);
+  let text = `${plural(n, "account")}${servers > 1 ? ` on ${servers} servers` : ""}.`;
+  if (active) text += ` ${active.label || active.username} is signed in.`;
+  el.textContent = text;
+}
+
+function markSelectedRow() {
+  for (const row of document.querySelectorAll("#accountsList .account-card")) {
+    const on = row.dataset.username === _profileUsername;
+    row.classList.toggle("is-selected", on);
+    row.setAttribute("aria-current", on ? "true" : "false");
+  }
+}
+
+// Keeps a visible account selected after the list changes: the current one
+// if it is still shown, else the signed-in account, else the first.
+function ensureSelection(visible) {
+  if (!visible.length) {
+    _profileUsername = null;
+    document.getElementById("accountDetailBody").hidden = true;
+    document.getElementById("accountDetailEmpty").hidden = false;
+    return;
+  }
+  const current = visible.find((a) => a.username === _profileUsername);
+  if (!current) {
+    const pick = visible.find((a) => a.username === activeAccountUsername) || visible[0];
+    selectAccount(pick.username);
+    return;
+  }
+  // Same account: refresh label, notes and actions without refetching.
+  markSelectedRow();
+  updateDetailActions(current);
+  const cached = getCachedStats(current);
+  if (cached) populateProfileModal(current, cached);
+}
+
+function detailMeta(acc) {
+  const region = (acc.region || "").toUpperCase();
+  const id = acc.riotId || "No Riot ID yet";
+  return region ? `${id}, ${region}` : id;
+}
+
+// LP within the division; apex tiers have no ceiling, so the bar is full.
+function setLpBar(stats) {
+  const bar = document.getElementById("profileSoloLpBar");
+  if (!bar) return;
+  const lp = parseInt(stats?.lp, 10);
+  const apex = /master|grandmaster|challenger/i.test(stats?.tier || "");
+  const pct = Number.isFinite(lp) ? (apex ? 100 : Math.max(0, Math.min(lp, 100))) : 0;
+  bar.style.width = `${pct}%`;
+  bar.className = `profile-lp-fill ${tierClass(stats?.tier)}`;
+}
+
+function updateDetailActions(acc) {
+  const label = acc.label || acc.username;
+  document.getElementById("profileLaunchLabel").textContent = `Play as ${label}`;
+  document.getElementById("profileOpggBtn").hidden = !acc.riotId;
+  const fav = document.getElementById("profileFavBtn");
+  const isFav = !!acc.isFavourite;
+  fav.classList.toggle("is-fav", isFav);
+  fav.setAttribute("aria-pressed", String(isFav));
+  fav.dataset.tooltip = isFav ? "Remove from favourites" : "Add to favourites";
+  fav.setAttribute("aria-label", fav.dataset.tooltip);
+}
+
+function selectedAccount() {
+  return allAccounts.find((a) => a.username === _profileUsername) || null;
+}
+
+function initAccountDetail() {
+  const on = (id, fn) => document.getElementById(id).addEventListener("click", fn);
+  on("profileLaunchBtn", () => {
+    if (_profileUsername) launchAccount(_profileUsername);
+  });
+  on("profileEditBtn", () => {
+    if (_profileUsername) editAccount(_profileUsername);
+  });
+  on("profileDeleteBtn", () => {
+    if (_profileUsername) deleteAccount(_profileUsername);
+  });
+  on("profileCopyUserBtn", (e) => {
+    const acc = selectedAccount();
+    if (!acc) return;
+    navigator.clipboard.writeText(acc.username);
+    flashCopied(e.currentTarget);
+  });
+  on("profileCopyPassBtn", async (e) => {
+    const btn = e.currentTarget;
+    const acc = selectedAccount();
+    if (!acc) return;
+    const pw = await window.electronAPI.getAccountPassword(acc.username);
+    if (pw) {
+      navigator.clipboard.writeText(pw);
+      flashCopied(btn);
+    } else {
+      showToast("Could not read the saved password", "error");
+    }
+  });
+  on("profileOpggBtn", () => {
+    const acc = selectedAccount();
+    if (!acc) return;
+    window.electronAPI.openOpgg(acc.region, acc.riotId).then((res) => {
+      if (!res?.success) showToast("Could not open OP.GG. Check the server and Riot ID.", "error");
+    });
+  });
+  on("profileFavBtn", async (e) => {
+    const btn = e.currentTarget;
+    const acc = selectedAccount();
+    if (!acc || btn.dataset.saving) return;
+    btn.dataset.saving = "1";
+    const newFav = !acc.isFavourite;
+    acc.isFavourite = newFav; // optimistic, reverted if saving fails
+    updateDetailActions(acc);
+    let res;
+    try {
+      res = await window.electronAPI.updateAccount({ username: acc.username, isFavourite: newFav });
+    } catch (err) {
+      res = { success: false, message: err.message };
+    } finally {
+      delete btn.dataset.saving;
+    }
+    if (res && res.success === false) {
+      acc.isFavourite = !newFav;
+      updateDetailActions(acc);
+      showToast(res.message || "Could not save the favourite", "error");
+      return;
+    }
+    renderAccounts();
+  });
 }
 
 // Username of the card being dragged (module scope so renderAccounts can
@@ -2314,7 +2482,7 @@ function createAccountCard(account) {
 let _dragUsername = null;
 
 function canReorder() {
-  return currentSort === "default" && !currentQuery;
+  return currentSort === "default" && !currentQuery && !currentRegion;
 }
 
 function endDrag() {
@@ -2450,7 +2618,7 @@ function openModal(account = null) {
 
   if (account && account.username) {
     isEditing = true;
-    document.getElementById("modalTitle").innerText = "Edit Account";
+    document.getElementById("modalTitle").innerText = "Edit account";
     document.getElementById("newUsername").value = account.username;
     document.getElementById("newPassword").value = "";
     document.getElementById("newPassword").placeholder = "Unchanged";
@@ -2476,7 +2644,7 @@ function openModal(account = null) {
     document.getElementById("newUsername").disabled = true;
   } else {
     isEditing = false;
-    document.getElementById("modalTitle").innerText = "New Account";
+    document.getElementById("modalTitle").innerText = "New account";
     document.getElementById("newUsername").value = "";
     document.getElementById("newPassword").value = "";
     document.getElementById("newPassword").placeholder = "Password";
@@ -3214,14 +3382,14 @@ const QUEUE_NAMES = {
 
 const PHASE_CONFIG = {
   None: { label: "Idle", cls: "gameflow-idle" },
-  Lobby: { label: "In Lobby", cls: "gameflow-lobby" },
-  Matchmaking: { label: "In Queue", cls: "gameflow-queue" },
-  ReadyCheck: { label: "Match Found!", cls: "gameflow-ready" },
-  ChampSelect: { label: "Champ Select", cls: "gameflow-champselect" },
-  InProgress: { label: "In Game", cls: "gameflow-ingame" },
-  WaitingForStats: { label: "Post Game", cls: "gameflow-postgame" },
-  PreEndOfGame: { label: "Post Game", cls: "gameflow-postgame" },
-  EndOfGame: { label: "Post Game", cls: "gameflow-postgame" },
+  Lobby: { label: "In lobby", cls: "gameflow-lobby" },
+  Matchmaking: { label: "In queue", cls: "gameflow-queue" },
+  ReadyCheck: { label: "Match found", cls: "gameflow-ready" },
+  ChampSelect: { label: "Champ select", cls: "gameflow-champselect" },
+  InProgress: { label: "In game", cls: "gameflow-ingame" },
+  WaitingForStats: { label: "After the game", cls: "gameflow-postgame" },
+  PreEndOfGame: { label: "After the game", cls: "gameflow-postgame" },
+  EndOfGame: { label: "After the game", cls: "gameflow-postgame" },
 };
 
 function updateGameflowBadge(phase) {
@@ -3679,7 +3847,7 @@ async function loadLiveView() {
       item.className = `match-item ${win ? "win" : "loss"}`;
       item.innerHTML = `
                 <img class="match-champ-icon" src="${escapeHtml(champSrc)}" data-fallback="logo">
-                <span class="match-result-badge">${win ? "WIN" : "LOSS"}</span>
+                <span class="match-result-badge">${win ? "Win" : "Loss"}</span>
                 <div class="match-main">
                     <div class="match-kda-row">
                         <span class="match-kda">${k} / <span class="kda-d">${d}</span> / ${a}</span>
