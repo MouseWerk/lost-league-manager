@@ -8,24 +8,30 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-# One log per run (not appended forever), without the username. A locked log
-# file must not stop the login, so the transcript is best-effort.
+# One log per run (not appended forever), without the username. It used to be
+# a PowerShell transcript, whose header holds the full command line and so the
+# login name. A locked log file must not stop the login: writing is best-effort.
 $logPath = Join-Path $env:TEMP "leaguelogin_debug.txt"
-try { Start-Transcript -Path $logPath -Force | Out-Null } catch { }
+try { Set-Content -Path $logPath -Value $null -Force } catch { }
+
+# Every line goes to the app (stdout) and to the log file.
+function Log ([string]$message) {
+    Write-Host $message
+    try { Add-Content -Path $logPath -Value $message } catch { }
+}
 
 function Exit-Script ([int]$code) {
-    try { Stop-Transcript | Out-Null } catch { }
     exit $code
 }
 
 # Any error nothing else catches ends the script with its own code (5), so the
 # app can tell it apart from "window not found" (1).
 trap {
-    Write-Host "ERROR: $_"
+    Log "ERROR: $_"
     Exit-Script 5
 }
 
-Write-Host "Script Started at $(Get-Date)"
+Log "Script Started at $(Get-Date)"
 
 # Read the password from stdin rather than a command-line argument, so it
 # never appears in this process's argv (visible to other local processes via
@@ -34,7 +40,7 @@ Write-Host "Script Started at $(Get-Date)"
 # page, which garbled every non-ASCII character (umlauts, sharp s, euro sign).
 $encodedPassword = [Console]::In.ReadLine()
 if ([string]::IsNullOrWhiteSpace($encodedPassword)) {
-    Write-Host "ERROR: No password received"
+    Log "ERROR: No password received"
     Exit-Script 4
 }
 $Password = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedPassword.Trim()))
@@ -113,13 +119,40 @@ function Ensure-Focus {
     catch { return $false }
 }
 
+# Process id that owns the foreground window, or 0.
+function Get-ForegroundProcessId {
+    if (-not $winApi) { return 0 }
+    try {
+        [uint32]$fgPid = 0
+        [void][Win32.WinApi]::GetWindowThreadProcessId([Win32.WinApi]::GetForegroundWindow(), [ref]$fgPid)
+        return [int]$fgPid
+    }
+    catch { return 0 }
+}
+
 # Checked right before each keystroke batch: credentials only ever go to the
-# Riot Client window that was focused, never to whatever took focus since.
+# Riot Client, never to whatever took focus since. Any window of a Riot Client
+# UI process started for this login counts: the client replaces its loading
+# window with the login window, so one fixed window handle went stale and the
+# login stopped with "Lost focus" although the Riot Client had the focus.
 function Test-StillFocused {
     param ($hwnd)
     if (-not $winApi) { return $true }  # no API to check with; Wait-ForFocus already ran
-    try { return ([Win32.WinApi]::GetForegroundWindow() -eq $hwnd) }
+    try {
+        if ([Win32.WinApi]::GetForegroundWindow() -eq $hwnd) { return $true }
+        $fgPid = Get-ForegroundProcessId
+        if ($fgPid -eq 0) { return $false }
+        return [bool](Get-RiotUiProcesses | Where-Object { $_.Id -eq $fgPid })
+    }
     catch { return $false }
+}
+
+# Name of the process that has the focus, for the log (never a window title).
+function Get-ForegroundProcessName {
+    $fgPid = Get-ForegroundProcessId
+    if ($fgPid -eq 0) { return "unknown" }
+    try { return (Get-Process -Id $fgPid -ErrorAction Stop).ProcessName }
+    catch { return "unknown" }
 }
 
 function Wait-ForFocus {
@@ -146,14 +179,18 @@ function Test-StartedAfterLaunch ($p) {
     catch { return $false }  # start time unreadable: not provably ours
 }
 
+function Get-RiotUiProcesses {
+    Get-Process -Name $riotUiProcessNames -ErrorAction SilentlyContinue | Where-Object { Test-StartedAfterLaunch $_ }
+}
+
+# A fresh Process object each call: MainWindowHandle is read once per object,
+# so an old one keeps pointing at the loading window.
 function Find-RiotClientWindow {
-    Get-Process -Name $riotUiProcessNames -ErrorAction SilentlyContinue | Where-Object {
-        $_.MainWindowHandle -ne 0 -and (Test-StartedAfterLaunch $_)
-    } | Select-Object -First 1
+    Get-RiotUiProcesses | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
 }
 
 # Wait for Riot Client login window
-Write-Host "Waiting for Riot Client window..."
+Log "Waiting for Riot Client window..."
 $proc = $null
 for ($i = 0; $i -lt 120; $i++) {
     $proc = Find-RiotClientWindow
@@ -162,35 +199,55 @@ for ($i = 0; $i -lt 120; $i++) {
 }
 
 if (-not $proc) {
-    Write-Host "Timeout: Riot Client window not found"
+    Log "Timeout: Riot Client window not found"
     Exit-Script 1
 }
 
-Write-Host "Found window: '$($proc.MainWindowTitle)' - waiting for UI to load..."
+Log "Found window: '$($proc.MainWindowTitle)' - waiting for UI to load..."
 Start-Sleep -Seconds 5
 
+# The window found above is often the loading window, which the client
+# replaces with the login window: look it up again now.
+$fresh = Find-RiotClientWindow
+if ($fresh) { $proc = $fresh }
 $hwnd = $proc.MainWindowHandle
 if (-not (Wait-ForFocus -procId $proc.Id -hwnd $hwnd)) {
-    Write-Host "ERROR: Could not bring the Riot Client window to the foreground after retries - aborting rather than typing into the wrong window"
+    Log "ERROR: Could not bring the Riot Client window to the foreground after retries - aborting rather than typing into the wrong window"
     Exit-Script 2
 }
-Write-Host "Riot Client window focused"
+Log "Riot Client window focused"
 
 # Enter credentials
 $canBlock = ("Win32.InputBlocker" -as [type])
 try {
     if ($canBlock) {
         try { [void][Win32.InputBlocker]::BlockInput($true) }
-        catch { Write-Host "BlockInput failed (admin required)" }
+        catch { Log "BlockInput failed (admin required)" }
     }
 
     $escapedUser = Escape-SendKeys -text $Username
     [System.Windows.Forms.SendKeys]::SendWait($escapedUser)
     Start-Sleep -Milliseconds 300
 
+    # Something took the focus while typing (often the Riot Client bringing up
+    # its login window late): focus the client again and type the name anew,
+    # replacing whatever reached the field.
     if (-not (Test-StillFocused -hwnd $hwnd)) {
-        Write-Host "ERROR: Lost focus on the Riot Client window after the username - aborting"
-        Exit-Script 2
+        Log "Focus moved to '$(Get-ForegroundProcessName)' after the username - focusing the Riot Client again"
+        $fresh = Find-RiotClientWindow
+        if ($fresh) { $proc = $fresh; $hwnd = $proc.MainWindowHandle }
+        if (-not (Wait-ForFocus -procId $proc.Id -hwnd $hwnd -maxAttempts 4 -delayMs 400)) {
+            Log "ERROR: Lost focus on the Riot Client window after the username - aborting"
+            Exit-Script 2
+        }
+        Start-Sleep -Milliseconds 300
+        [System.Windows.Forms.SendKeys]::SendWait("^a")
+        [System.Windows.Forms.SendKeys]::SendWait($escapedUser)
+        Start-Sleep -Milliseconds 300
+        if (-not (Test-StillFocused -hwnd $hwnd)) {
+            Log "ERROR: Lost focus on the Riot Client window after the username - aborting"
+            Exit-Script 2
+        }
     }
     [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
     Start-Sleep -Milliseconds 300
@@ -199,7 +256,7 @@ try {
     # plaintext password into whatever window stole focus in the meantime
     # (a notification, another app) would be worse than just stopping.
     if (-not (Wait-ForFocus -procId $proc.Id -hwnd $hwnd -maxAttempts 3 -delayMs 300)) {
-        Write-Host "ERROR: Lost focus on the Riot Client window before entering the password - aborting"
+        Log "ERROR: Lost focus on the Riot Client window before entering the password - aborting"
         Exit-Script 2
     }
     $escapedPwd = Escape-SendKeys -text $Password
@@ -208,11 +265,11 @@ try {
 
     # Enter in the wrong window could send the password as a chat message.
     if (-not (Test-StillFocused -hwnd $hwnd)) {
-        Write-Host "ERROR: Lost focus on the Riot Client window before submitting - aborting"
+        Log "ERROR: Lost focus on the Riot Client window before submitting - aborting"
         Exit-Script 2
     }
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-    Write-Host "Credentials submitted"
+    Log "Credentials submitted"
 }
 finally {
     # Unlock input immediately; never leave user locked out.
@@ -229,7 +286,7 @@ finally {
 # is re-issued while polling. Only twice and with long gaps: each re-trigger
 # can pull the Riot Client window forward and interrupt someone typing a
 # verification code.
-Write-Host "Polling for League client launch..."
+Log "Polling for League client launch..."
 
 $rcExe = $RiotClientPath
 if (-not ($rcExe -and (Test-Path $rcExe))) {
@@ -242,9 +299,9 @@ if (-not ($rcExe -and (Test-Path $rcExe))) {
 
 function Trigger-LeagueLaunch {
     if ($rcExe -and (Test-Path $rcExe)) {
-        Write-Host "Launch triggered - retrying via RiotClientServices..."
+        Log "Launch triggered - retrying via RiotClientServices..."
         try { Start-Process -FilePath $rcExe -ArgumentList "--launch-product=league_of_legends", "--launch-patchline=live" }
-        catch { Write-Host "Launch trigger failed: $_" }
+        catch { Log "Launch trigger failed: $_" }
     }
 }
 
@@ -259,7 +316,7 @@ while ($elapsedSeconds -lt $maxWaitSeconds) {
     $elapsedSeconds += 0.5
 
     if (Get-Process -Name "LeagueClient" -ErrorAction SilentlyContinue) {
-        Write-Host "League client detected - done!"
+        Log "League client detected - done!"
         $leagueStarted = $true
         break
     }
@@ -271,10 +328,10 @@ while ($elapsedSeconds -lt $maxWaitSeconds) {
 }
 
 if ($leagueStarted) {
-    Write-Host "Login script complete"
+    Log "Login script complete"
     Exit-Script 0
 }
 else {
-    Write-Host "League did not auto-start after $maxWaitSeconds seconds - manual launch required"
+    Log "League did not auto-start after $maxWaitSeconds seconds - manual launch required"
     Exit-Script 3
 }

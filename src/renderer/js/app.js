@@ -2219,7 +2219,8 @@ function fillProfileRank(
   winLose,
   ratio,
 ) {
-  tierEl.textContent = tier || "Unranked";
+  // "N/A" is a failed lookup; the list row says "Rank unavailable" for it too.
+  tierEl.textContent = tier === "N/A" ? "Rank unavailable" : tier || "Unranked";
   tierEl.className = `profile-rank-tier ${tierCls(tier)}`;
   lpEl.textContent = lp || "";
   recordEl.textContent = winLose
@@ -3675,13 +3676,13 @@ const PHASE_CONFIG = {
   EndOfGame: { label: "After the game", cls: "gameflow-postgame" },
 };
 
+// null: no League client is connected ("Offline", not "Idle").
 function updateGameflowBadge(phase) {
   const badge = document.getElementById("gameflowBadge");
   if (!badge) return;
-  const cfg = PHASE_CONFIG[phase] || {
-    label: phase || "Idle",
-    cls: "gameflow-idle",
-  };
+  const cfg = phase == null
+    ? { label: "Offline", cls: "gameflow-offline" }
+    : PHASE_CONFIG[phase] || { label: phase, cls: "gameflow-idle" };
   badge.textContent = cfg.label;
   badge.className = `gameflow-badge ${cfg.cls}`;
 }
@@ -3809,22 +3810,12 @@ function formatDuration(seconds) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+// "GOLD", "Gold" or "Gold II" -> "rank-gold". Full tier text ("Diamond II")
+// used to fall through to rank-unranked, so the account panel showed every
+// rank and its LP bar in grey.
 function tierClass(tier) {
-  if (!tier) return "rank-unranked";
-  const t = tier.toLowerCase();
-  const valid = [
-    "iron",
-    "bronze",
-    "silver",
-    "gold",
-    "platinum",
-    "emerald",
-    "diamond",
-    "master",
-    "grandmaster",
-    "challenger",
-  ];
-  return valid.includes(t) ? `rank-${t}` : "rank-unranked";
+  const t = String(tier || "").trim().toLowerCase().split(/\s+/)[0];
+  return TIERS.includes(t) ? `rank-${t}` : "rank-unranked";
 }
 
 // ── Live view refresh ─────────────────────────────────────────────────────

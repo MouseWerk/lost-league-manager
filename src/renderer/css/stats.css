@@ -70,7 +70,17 @@
 .stats-grid-item:hover { background: var(--bg-hover); }
 .stats-grid-item.selected { background: var(--bg-active); }
 .stats-grid-item img { width: 44px; height: 44px; border-radius: var(--radius-sm); object-fit: cover; display: block; }
-.stats-grid-item span { max-width: 64px; font-size: 11px; color: var(--muted); line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats-grid-item span {
+    max-width: 72px;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.3;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+}
 .stats-grid-item.selected span { color: var(--ink); font-weight: 600; }
 
 .stats-detail {
