@@ -54,6 +54,9 @@
 }
 .optional-tag { color: var(--muted); font-family: var(--font-ui); font-size: 13px; font-weight: 500; }
 .settings-section.is-wip > *:not(.settings-section-title) { opacity: 0.6; }
+/* In development: the switches show off and cannot be used. */
+.settings-section.is-wip input:disabled + .slider { background: var(--line); cursor: not-allowed; }
+.settings-section.is-wip input:disabled + .slider::before { transform: none; }
 
 .setting-row {
     display: flex;

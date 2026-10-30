@@ -23,7 +23,32 @@ test('the login window is chosen by process, not by window title', () => {
     assert.doesNotMatch(script, /MainWindowTitle\s+-match/);
     assert.match(script, /Get-Process -Name \$riotUiProcessNames/);
     assert.match(script, /\$riotUiProcessNames = @\('Riot Client', 'RiotClientUx'\)/);
-    assert.match(script, /\$_\.MainWindowHandle -ne 0 -and \(Test-StartedAfterLaunch \$_\)/);
+    assert.match(script, /function Get-RiotUiProcesses \{\s+Get-Process -Name \$riotUiProcessNames[^\n]*Test-StartedAfterLaunch \$_/);
+    assert.match(script, /Get-RiotUiProcesses \| Where-Object \{ \$_\.MainWindowHandle -ne 0 \}/);
+});
+
+// The client replaces its loading window with the login window; the script
+// kept the first window's handle and stopped with "Lost focus" after typing
+// the username although the Riot Client had the focus.
+test('the login window is looked up again after the client has loaded', () => {
+    const wait = script.indexOf('waiting for UI to load');
+    const focus = script.indexOf('Wait-ForFocus -procId $proc.Id -hwnd $hwnd)', wait);
+    const between = script.slice(wait, focus);
+    assert.match(between, /\$fresh = Find-RiotClientWindow/);
+    assert.match(between, /\$hwnd = \$proc\.MainWindowHandle/);
+});
+
+test('focus counts for any window of the Riot Client started for this login', () => {
+    const fn = script.slice(script.indexOf('function Test-StillFocused'), script.indexOf('function Get-ForegroundProcessName'));
+    assert.match(fn, /Get-ForegroundProcessId/);
+    assert.match(fn, /Get-RiotUiProcesses \| Where-Object \{ \$_\.Id -eq \$fgPid \}/);
+});
+
+test('after losing focus at the username, the client is focused again and the name retyped', () => {
+    const block = script.slice(script.indexOf('after the username - focusing'), script.indexOf('SendWait("{TAB}")'));
+    assert.match(block, /Wait-ForFocus/);
+    assert.match(block, /SendWait\("\^a"\)[\s\S]*SendWait\(\$escapedUser\)/);
+    assert.match(block, /Test-StillFocused/);
 });
 
 test('focus is re-checked before Tab and before Enter', () => {
@@ -34,10 +59,13 @@ test('focus is re-checked before Tab and before Enter', () => {
     assert.ok(typing.lastIndexOf('Test-StillFocused', enter) > typing.indexOf('$escapedPwd'), 'checked before Enter');
 });
 
-test('the transcript is per run, best-effort and without the username', () => {
-    assert.doesNotMatch(script, /Start-Transcript[^\r\n]*-Append/);
-    assert.match(script, /try \{ Start-Transcript/);
-    assert.doesNotMatch(script, /Write-Host "Username/);
+// The PowerShell transcript header held the full command line, so the log in
+// %TEMP% carried the login name.
+test('the log is per run, best-effort and without the username', () => {
+    assert.doesNotMatch(script, /Start-Transcript/);
+    assert.match(script, /try \{ Set-Content -Path \$logPath -Value \$null -Force \} catch/);
+    assert.match(script, /try \{ Add-Content -Path \$logPath/);
+    assert.doesNotMatch(script, /(Log|Write-Host) "[^"\n]*\$Username/);
 });
 
 test('the League launch is re-triggered at most twice', () => {

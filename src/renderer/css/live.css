@@ -22,6 +22,7 @@
 .gameflow-ready { animation: phase-pulse 1s ease 3; }
 .gameflow-ingame { background: var(--success-soft); color: var(--success); }
 .gameflow-postgame { background: var(--bg-active); color: var(--ink); }
+.gameflow-offline { background: transparent; color: var(--subtle); }
 @keyframes phase-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
 
 /* Not connected */

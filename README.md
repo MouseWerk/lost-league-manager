@@ -1,109 +1,103 @@
 <div align="center">
   <img src="src/renderer/assets/logo.png" alt="Lost League Manager" width="80" />
   <h1>Lost League Manager</h1>
-  <p>A lightweight Windows utility for managing multiple League of Legends accounts</p>
+  <p>Save your League of Legends logins once, then switch accounts in one click.</p>
 
-  <!-- Replaced plain text link with a badge button -->
   <a href="https://www.lostleague.com/">
-    <img src="https://img.shields.io/badge/Official%20Website-lostleague.com-0ac8b9?style=for-the-badge" alt="Official Website">
+    <img src="https://img.shields.io/badge/Website-lostleague.com-1F7F74?style=for-the-badge" alt="Official website">
   </a>
-  <br><br>
-  
-  <a href="https://www.buymeacoffee.com/mousewerk">
-    <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me A Coffee">
-  </a>
-  &nbsp;
   <a href="https://github.com/MouseWerk/lost-league-manager/releases/latest">
-    <img src="https://img.shields.io/github/v/release/MouseWerk/lost-league-manager?style=for-the-badge&color=0ac8b9&label=Download" alt="Latest Release">
+    <img src="https://img.shields.io/github/v/release/MouseWerk/lost-league-manager?style=for-the-badge&color=1F7F74&label=Download" alt="Latest release">
   </a>
-  &nbsp;
   <a href="https://github.com/MouseWerk/lost-league-manager/releases">
-    <img src="https://img.shields.io/github/downloads/MouseWerk/lost-league-manager/total?style=for-the-badge&color=5865f2&label=Total%20Downloads" alt="Total Downloads">
+    <img src="https://img.shields.io/github/downloads/MouseWerk/lost-league-manager/total?style=for-the-badge&color=172234&label=Downloads" alt="Total downloads">
   </a>
-  &nbsp;
   <a href="https://github.com/MouseWerk/lost-league-manager/actions/workflows/release.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/MouseWerk/lost-league-manager/release.yml?style=for-the-badge&label=Build" alt="Build Status">
+    <img src="https://img.shields.io/github/actions/workflow/status/MouseWerk/lost-league-manager/release.yml?style=for-the-badge&label=Build" alt="Build status">
   </a>
-  &nbsp;
-  <img src="https://img.shields.io/badge/platform-Windows-blue?style=for-the-badge" alt="Windows">
+  <img src="https://img.shields.io/badge/platform-Windows-172234?style=for-the-badge" alt="Windows">
+  <br><br>
+  <a href="https://www.buymeacoffee.com/mousewerk">
+    <img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy me a coffee">
+  </a>
 
   <br><br>
-  <img src="docs/screenshot.png" alt="Lost League Manager" width="700" />
+  <img src="docs/screenshot.png" alt="The account list with ranks, the selected account's panel and its goal rank" width="760" />
 </div>
 
 ---
 
-## Features
+## What it does
 
-### Account Management
-- **One-click login** — stores multiple accounts and handles the entire login flow automatically
-- **Machine-bound encryption** — passwords are encrypted with AES-256 using a key derived from your hardware, never stored in plain text
-- **Copy username / password** — clipboard buttons on every card for quick access
-- **Account profiles** — view rank, LP, win rate, and match history per account
-- **Search & sort** — filter by name, tag, region; sort by rank, name, region, or last used
-- **Backup & restore** — export all accounts to a portable `.llem` file and import on any machine
+### Accounts
+- **One-click login.** Pick an account and press Play: the app closes the client, starts the Riot
+  Client and signs in for you.
+- **Quick add.** Type a Riot ID or paste an OP.GG link; rank, icon, server and label fill in. Or take
+  the account that is signed into the client.
+- **Ranks at a glance.** Every account shows its solo rank with the ranked emblem from the League
+  client, LP and win rate. Ranks work without a Riot API key (League client, OP.GG, or the Riot API
+  if you add a key).
+- **Account panel.** Rank history, the last five games, notes, today's LP and games, and a goal
+  rank with the LP still to go.
+- **Find and sort.** Search by name or Riot ID, filter by server, sort by rank, name, server, or
+  last played, or drag accounts into your own order.
+- **Safe storage.** Passwords are encrypted on your PC. An optional vault password locks the app,
+  and backups are protected with a password you choose.
 
-### League Client Integration
-- **Live view** — shows your active summoner's ranked stats, champion mastery, and recent match history in real time
-- **Auto-accept** — automatically clicks Accept when a match is found
-- **Auto random skin** — picks a random owned skin at champion select
-- **Appear offline** — launches the client with hidden online status
-- **Dodge queue** — one-click queue dodge from within the app
-- **Client language** — change the League client language without reinstalling
-- **Minimize on game start** — hides the app to the system tray when a match begins
+### While you play
+- **Live view.** Your rank, champion mastery and recent games from the running client.
+- **Lobby check.** The ranks of your party, of your champion select where the game shows names,
+  and of all ten players once the game starts, with one click to OP.GG multi-search. Ranked
+  champion select keeps names hidden, as the game does.
+- **Auto-accept**, a random owned skin in champion select, appear offline, dodge, and a
+  notification when a match is found.
 
-### Tools
-- **Kill Processes** — emergency kill for all Riot/League processes
-- **Repair Client** — removes the lockfile to fix "client won't start" without closing a running game
-- **Clear Cache** — wipes the Riot Client CEF cache to fix broken UI and stuck loading screens
-- **Open Data Folder** — quick access to the app's config and accounts directory
+### Stat viewer and tools
+- **Champion stats** at any level from Riot's data, including the exact attack speed growth.
+- **Item gold value.** What an item's stats are worth in gold, ability haste and penetration
+  included.
+- **Tools.** Close every Riot process, repair a client that will not start, clear the Riot Client
+  cache, change the client language.
 
-### App
-- **Auto-updates** — downloads and installs new versions silently in the background
-- **System tray** — minimizes to tray with a jump list for instant account access
-- **Accounts Backup** — export/import accounts to a portable encrypted file
+### The app
+- Light and dark themes, or follow Windows. Interface size from 75% to 150%.
+- A short setup on first start, automatic updates, tray menu and Windows jump list.
 
----
-
-## Installation
-
-1. Download `Lost-League-Manager-Setup.exe` from the **[latest release](https://github.com/MouseWerk/lost-league-manager/releases/latest)**
-2. Run the installer
-3. Launch **Lost League Manager** from your desktop or Start Menu
-
-> **Windows SmartScreen warning?** Right-click the installer → Properties → check **Unblock** → Apply → run again.
-> This is expected for unsigned apps. The source code is fully open here.
-
----
-
-## Usage
-
-| Action | How |
-|---|---|
-| Add account | Click **+** in the sidebar, fill in username, password, region |
-| Launch account | Click any account card or the play button |
-| Copy credentials | Use the user/key icon buttons on each card |
-| Auto-accept | Toggle the switch in the header or Settings |
-| Live stats | Click **Live** in the sidebar (requires League client open) |
-| Backup accounts | Settings → Accounts Backup → Export |
-| Tools | Click **Tools** in the sidebar |
-
-> **Important:** Do not move your mouse or keyboard during the auto-login sequence — the app types your credentials directly into the client.
+<div align="center">
+  <img src="docs/screenshot2.png" alt="Live view with the ranks of both teams" width="380" />
+  <img src="docs/screenshot-light.png" alt="The account list in the light theme" width="380" />
+</div>
 
 ---
 
-## Building from Source
+## Install
+
+1. Download `Lost-League-Manager-Setup.exe` from the
+   **[latest release](https://github.com/MouseWerk/lost-league-manager/releases/latest)**.
+2. Run the installer and start **Lost League Manager**.
+3. The setup checks your League install and adds your first account.
+
+> **Windows SmartScreen warning?** Right-click the installer, choose Properties, tick **Unblock**,
+> click Apply and run it again. The app is not code-signed; the source is all here.
+
+> **During the login** the app types your login name and password into the Riot Client. Leave
+> mouse and keyboard alone for those few seconds.
+
+---
+
+## Build from source
 
 ```bash
-# Clone
-git clone [https://github.com/MouseWerk/lost-league-manager.git](https://github.com/MouseWerk/lost-league-manager.git)
+git clone https://github.com/MouseWerk/lost-league-manager.git
 cd lost-league-manager
-
-# Install dependencies
 npm install
+npm start        # run the app
+npm test         # unit and guard tests
+npm run build    # build the installer
+```
 
-# Dev mode
-npm start
+---
 
-# Build installer
-npm run build
+Lost League Manager is not endorsed by Riot Games and does not reflect the views or opinions of Riot
+Games or anyone officially involved in producing or managing Riot Games properties. Riot Games and
+all associated properties are trademarks or registered trademarks of Riot Games, Inc.
