@@ -58,15 +58,17 @@ function createMainWindow() {
     });
 }
 
-function createOverlayWindow(owOverlay) {
+function createOverlayWindow(owOverlay, onReady = null) {
     const { width: sw } = screen.getPrimaryDisplay().workAreaSize;
     const w = 480;
+    // The last place the player dragged it to, else the top right.
+    const saved = Number.isInteger(state.config.overlayX) && Number.isInteger(state.config.overlayY);
     const opts = {
         name: 'overlay',
         width: w,
         height: 52,
-        x: sw - w - 16,
-        y: 16,
+        x: saved ? state.config.overlayX : sw - w - 16,
+        y: saved ? state.config.overlayY : 16,
         transparent: true,
         frame: false,
         resizable: false,
@@ -91,16 +93,33 @@ function createOverlayWindow(owOverlay) {
         }
 
         state.overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+        // Keep the place the player dragged it to (Lock in the overlay
+        // stops dragging; Reset position forgets it).
+        let moveTimer = null;
+        state.overlayWindow.on?.('moved', () => {
+            clearTimeout(moveTimer);
+            moveTimer = setTimeout(() => {
+                if (!state.overlayWindow || state.overlayWindow.isDestroyed()) return;
+                const [x, y] = state.overlayWindow.getPosition();
+                state.config.overlayX = x;
+                state.config.overlayY = y;
+                require('./services/storage').saveConfig();
+            }, 400);
+        });
         state.overlayWindow.loadFile(path.join(__dirname, '../renderer/overlay.html'));
 
         state.overlayWindow.webContents.on('did-finish-load', () => {
             if (!state.overlayWindow || state.overlayWindow.isDestroyed()) return;
             const championData = require('./services/champion-data');
-            // Apply saved opacity
+            const itemData = require('./services/item-data');
+            // Opacity is applied by the page (CSS); setOpacity does not work on
+            // transparent windows and doubled it where it did.
             const opacity = typeof state.config.overlayOpacity === 'number'
                 ? state.config.overlayOpacity : 1.0;
-            state.overlayWindow.setOpacity(opacity);
+            const itemNames = {};
+            for (const it of itemData.getItemList?.() || []) if (it?.id && it?.name) itemNames[it.id] = it.name;
             state.overlayWindow.webContents.send('overlay-init', {
+                itemNames,
                 ddragonVersion: championData.getLatestVersion(),
                 champKeyMap: championData.getNameToKeyMap(),
                 showRanked:  state.config.overlayShowRanked  !== false,
@@ -112,19 +131,24 @@ function createOverlayWindow(owOverlay) {
         });
     };
 
-    if (owOverlay) {
-        owOverlay.createWindow(opts)
-            .then(finish)
-            .catch(e => {
-                console.error('[Overlay] createWindow failed, using BrowserWindow fallback:', e.message);
-                const fb = new BrowserWindow(opts);
-                fb.setAlwaysOnTop(true, 'screen-saver');
-                finish(fb);
-            });
-    } else {
+    const done = (rawWin) => {
+        finish(rawWin);
+        if (onReady) onReady();
+    };
+    const fallback = () => {
         const fb = new BrowserWindow(opts);
         fb.setAlwaysOnTop(true, 'screen-saver');
-        finish(fb);
+        done(fb);
+    };
+    if (owOverlay) {
+        owOverlay.createWindow(opts)
+            .then(done)
+            .catch(e => {
+                console.error('[Overlay] createWindow failed, using BrowserWindow fallback:', e.message);
+                fallback();
+            });
+    } else {
+        fallback();
     }
 }
 

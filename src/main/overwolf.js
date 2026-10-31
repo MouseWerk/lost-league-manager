@@ -8,6 +8,7 @@ function send(win, channel, ...args) {
 function initOverwolf() {
     if (!app.overwolf) {
         console.warn('[OW] app.overwolf not available — running outside ow-electron');
+        require('./overlay-manager').ensureOverlay();
         return;
     }
 
@@ -62,6 +63,7 @@ function initOverwolf() {
 
             gep.on('new-info-update', (ev, gameId, data) => {
                 if (gameId !== state.LOL_GEP_GAME_ID) return;
+                if (data?.feature === 'live_client_data') require('./overlay-manager').markGepLive();
                 send(state.mainWindow, 'gep-info-update', data);
                 send(state.overlayWindow, 'gep-info-update', data);
                 handleOverlayVisibility(data);
@@ -116,7 +118,7 @@ function initOverwolf() {
                 if (state.overlayWindow && !state.overlayWindow.isDestroyed()) state.overlayWindow.hide();
             });
 
-            // overlay feature disabled — createOverlayWindow skipped
+            require('./overlay-manager').ensureOverlay();
 
             try {
                 // registerGames returns a promise — an un-awaited rejection here (e.g.
@@ -133,7 +135,8 @@ function initOverwolf() {
 
     packages.on('failed-to-initialize', (e, packageName) => {
         console.warn(`[OW] Package failed to initialize: ${packageName}`);
-        // overlay feature disabled — createOverlayWindow skipped
+        // Without the overlay package the overlay is a plain always-on-top window.
+        if (packageName === 'overlay') require('./overlay-manager').ensureOverlay();
     });
 }
 

@@ -98,7 +98,8 @@ app.whenReady().then(async () => {
         jsonStore.markBooted();
         initAutoUpdater();
         initOverwolf();
-        // No overlay hotkey: the overlay is disabled (see overlay-hotkey.js).
+        // The overlay window and its hotkey come from overlay-manager.js once
+        // Overwolf's overlay package is ready (or failed), if the overlay is on.
         discordRpc.init();
     } catch (e) {
         console.error('[Boot] Failed to initialize application window:', e.message);

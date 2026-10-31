@@ -113,6 +113,7 @@ async function linkRiotIdFromClient(username, conn = connectionSeq) {
 
 function applyGameflowPhase(phase, { fromEvent = false } = {}) {
     send(state.mainWindow, 'lcu-gameflow', phase);
+    require('./overlay-manager').onGameflowPhase(phase);
     discordRpc.setGameflowPhase(phase);
 
     // Queue-pop toast notification (only for a live change, not on connect)
@@ -132,9 +133,9 @@ function applyGameflowPhase(phase, { fromEvent = false } = {}) {
         }
     }
 
-    // Independent of the overlay (which is disabled and never created): this
-    // used to sit inside the overlay branch and so never ran. Once per game,
-    // so a window the user reopens mid-game stays open.
+    // Independent of the overlay (it used to sit inside the overlay branch and
+    // so never ran). Once per game, so a window the user reopens mid-game
+    // stays open.
     if (phase === 'InProgress') {
         const win = state.mainWindow;
         if (state.config.minimizeOnGameStart && !minimizedThisGame && win && !win.isDestroyed()) {
