@@ -212,8 +212,8 @@ function getTopMastery(puuid, platform, count = 3) {
         `mastery for puuid ${puuid.slice(0, 8)}…`);
 }
 
-// count is capped by Riot at match-v5 (start/count both required); 5 keeps this
-// to 6 total requests (1 id list + 5 match details) per profile-modal open.
+// count is capped by Riot at match-v5 (start/count both required); 10 makes
+// 11 requests (1 id list + 10 match details) per panel open, behind the limiter.
 async function getMatchHistory(puuid, platform, count = 5) {
     const regional = getRegional(platform);
     const ids = await riotGet(
@@ -233,6 +233,7 @@ async function getMatchHistory(puuid, platform, count = 5) {
                 championId: p.championId,
                 championName: p.championName, // close to the DDragon key, but not always (FiddleSticks)
                 kda: `${p.kills}/${p.deaths}/${p.assists}`,
+                info: data.info, // the whole game, for the games dialog (matches.js)
             };
         } catch (e) {
             // A rate limit or rejected key sinks every remaining call, so it

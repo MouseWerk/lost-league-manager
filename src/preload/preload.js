@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     lookupSummoner: (input, region) => ipcRenderer.invoke('lookup-summoner', { input, region }),
     getClientSummoner: () => ipcRenderer.invoke('get-client-summoner'),
     getMatchHistory: (region, riotId) => ipcRenderer.invoke('get-match-history', { region, riotId }),
+    getStoredMatches: (riotId) => ipcRenderer.invoke('get-stored-matches', riotId),
+    getMatchDetail: (region, riotId, matchId) => ipcRenderer.invoke('get-match-detail', { region, riotId, matchId }),
     getRankHistory: (riotId) => ipcRenderer.invoke('get-rank-history', riotId),
 
     acceptMatch: () => ipcRenderer.invoke('accept-match'),

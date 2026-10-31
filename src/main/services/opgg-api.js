@@ -1,5 +1,9 @@
 const axios = require('axios');
 const championData = require('./champion-data');
+const matches = require('./matches');
+
+// Per-player numbers asked for every game (list and detail).
+const MATCH_STATS = '{kill,death,assist,result,minion_kill,neutral_minion_kill,gold_earned,total_damage_dealt_to_champions}';
 
 // OP.GG's public MCP endpoint — no API key required, so summoner lookups,
 // ranked stats and match history work out of the box for users who don't
@@ -296,30 +300,48 @@ async function getRecentMatches(gameName, tagLine, region, limit = 5) {
             region:    opggRegion,
             limit:     Math.max(5, limit),
             desired_output_fields: [
-                'data.game_history[].{id,game_type}',
-                'data.game_history[].participants[].{champion_id,champion_name}',
-                'data.game_history[].participants[].stats.{kill,death,assist,result}',
+                'data.game_history[].{id,created_at,game_type,game_length_second}',
+                'data.game_history[].participants[].{champion_id,champion_name,items[],position,team_key}',
+                'data.game_history[].participants[].summoner.{game_name,tagline}',
+                `data.game_history[].participants[].stats.${MATCH_STATS}`,
             ],
         });
-        const idToName  = championData.getIdToNameMap();
-        const idToImage = championData.getIdToImageMap();
-        return (parsed?.data?.game_history || []).slice(0, limit).map(g => {
-            const p   = g.participants?.[0];
-            const st  = p?.stats || {};
-            const key = p ? idToName[p.champion_id] : null;
-            return {
-                win:          st.result === 'WIN',
-                remake:       st.result && st.result !== 'WIN' && st.result !== 'LOSE',
-                kda:          `${st.kill ?? 0}/${st.death ?? 0}/${st.assist ?? 0}`,
-                championName: p?.champion_name || key || '',
-                championIcon: key ? idToImage[key] : null,
-            };
-        }).filter(m => !m.remake);
+        const maps = { idToName: championData.getIdToNameMap(), idToImage: championData.getIdToImageMap() };
+        const riotId = `${gameName}#${tagLine}`;
+        return (parsed?.data?.game_history || []).slice(0, limit)
+            .map(g => matches.fromOpggGame(g, riotId, maps))
+            .filter(m => m && !m.remake);
+    });
+}
+
+// Both teams of one game (the games dialog), by the id and start time that
+// lol_list_summoner_matches returned.
+async function getGameDetail(gameName, tagLine, region, gameId, createdAtIso) {
+    const opggRegion = toOpggRegion(region);
+    if (!opggRegion) throw new Error('OP.GG does not cover this region');
+    const riotId = `${gameName}#${tagLine}`;
+    return cached(`game:${opggRegion}:${gameId}`, async () => {
+        const parsed = await callTool('lol_get_summoner_game_detail', {
+            region: opggRegion,
+            game_id: gameId,
+            created_at: createdAtIso,
+            focus_riot_id: riotId,
+            desired_output_fields: [
+                'data.game_detail.{id,created_at,game_type,game_length_second}',
+                'data.game_detail.teams[].participants[].{champion_id,champion_name,is_target,items[],position,team_key}',
+                'data.game_detail.teams[].participants[].summoner.{game_name,tagline}',
+                `data.game_detail.teams[].participants[].stats.${MATCH_STATS}`,
+            ],
+        });
+        const maps = { idToName: championData.getIdToNameMap(), idToImage: championData.getIdToImageMap() };
+        const match = matches.fromOpggDetail(parsed?.data?.game_detail, riotId, maps);
+        if (!match) throw new Error('OP.GG has no details for this game');
+        return match;
     });
 }
 
 module.exports = {
-    getProfile, getRecentMatches, parseRiotIdInput, toOpggRegion, parseToolText,
+    getProfile, getRecentMatches, getGameDetail, parseRiotIdInput, toOpggRegion, parseToolText,
     // Clears the cache and the busy cooldown between tests.
     _resetForTests() {
         cache.clear();

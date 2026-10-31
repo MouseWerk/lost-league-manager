@@ -351,6 +351,11 @@
     align-items: center;
     justify-content: center;
 }
+button.match-pill { border: 0; padding: 0; cursor: pointer; font: inherit; }
+button.match-pill:hover { filter: brightness(0.96); }
+.profile-match-history-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.link-btn { border: 0; padding: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.link-btn:hover { color: var(--ink); }
 .match-pill.win { background: var(--win); color: var(--win-ink); }
 .match-pill.loss { background: var(--loss); color: var(--loss-ink); }
 .match-pill img { width: 26px; height: 26px; border-radius: var(--radius-xs); object-fit: cover; }

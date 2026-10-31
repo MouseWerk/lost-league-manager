@@ -756,6 +756,11 @@ select option { background: var(--surface-raised); color: var(--ink); }
 
 /* Dialogs */
 :root[data-density="roomy"] .modal-content { width: 520px; padding: 28px; }
+:root[data-density="roomy"] .games-content { width: 940px; }
+:root[data-density="roomy"] .games-pane { grid-template-columns: 280px minmax(0, 1fr); }
+:root[data-density="roomy"] .games-row-icon { width: 40px; height: 40px; }
+:root[data-density="roomy"] .games-row { grid-template-columns: 40px minmax(0, 1fr) auto; }
+:root[data-density="roomy"] .game-player, :root[data-density="roomy"] .champion-stats-row { font-size: 14px; }
 :root[data-density="roomy"] .modal-content h2 { font-size: 21px; }
 :root[data-density="roomy"] .onboarding-content { width: 580px; }
 :root[data-density="roomy"] .confirm-content,

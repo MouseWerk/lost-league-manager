@@ -57,6 +57,7 @@ const state = {
         rankHistory: path.join(APP_DATA_PATH, 'rank-history.json'),
         honorWatch:  path.join(APP_DATA_PATH, 'honor-watch.json'),
         accountStatus: path.join(APP_DATA_PATH, 'account-status.json'),
+        matchStore:  path.join(APP_DATA_PATH, 'match-store.json'),
     },
 
     RESOURCES_PATH,

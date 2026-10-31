@@ -158,7 +158,10 @@
                             </div>
 
                             <div id="profileMatchHistoryWrap" class="profile-match-history-wrap" style="display:none">
-                                <div class="profile-match-history-label">Last 5 games</div>
+                                <div class="profile-match-history-head">
+                                    <span class="profile-match-history-label">Last games</span>
+                                    <button id="profileGamesBtn" type="button" class="link-btn">All games and champions</button>
+                                </div>
                                 <div id="profileMatchHistoryStrip" class="match-history-strip"></div>
                             </div>
 
@@ -950,6 +953,29 @@
 
     <!-- Account Profile Modal -->
     <!-- Patch Notes Modal (shown once on first launch after an update) -->
+    <!-- Games of one account. Filled by openGamesDialog() in app.js. -->
+    <div id="gamesModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="gamesTitle">
+        <div class="modal-content games-content">
+            <button id="closeGamesBtn" class="modal-close-x" data-tooltip="Close" aria-label="Close"><i class="fas fa-times"></i></button>
+            <div class="games-head">
+                <h2 id="gamesTitle">Games</h2>
+                <span id="gamesAccount" class="games-account"></span>
+            </div>
+            <div class="games-tabs" role="tablist" aria-label="Games or champions">
+                <button class="games-tab active" data-games-tab="games" role="tab" aria-selected="true">Games</button>
+                <button class="games-tab" data-games-tab="champions" role="tab" aria-selected="false">Champions</button>
+            </div>
+            <div id="gamesPane" class="games-pane">
+                <div id="gamesList" class="games-list"></div>
+                <div id="gameDetail" class="game-detail"></div>
+            </div>
+            <div id="championsPane" class="champions-pane" hidden>
+                <p id="championsNote" class="games-note"></p>
+                <div id="championStatsTable" class="champion-stats"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="patchNotesModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="patchNotesTitle">
         <div class="modal-content patch-notes-content">
             <button id="closePatchNotesBtn" class="modal-close-x" data-tooltip="Close" aria-label="Close"><i class="fas fa-times"></i></button>
