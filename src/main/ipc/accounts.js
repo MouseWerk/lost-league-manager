@@ -7,6 +7,24 @@ const { loadHonorWatch, getHonorRecord, isFlaggedRecord, forgetHonor } = require
 const vault = require('../services/vault');
 const state = require('../state');
 
+// Tags: trimmed, inner spaces collapsed, at most MAX_TAGS of MAX_TAG_LENGTH
+// characters, the first spelling of a tag kept when it repeats in other case.
+const MAX_TAGS = 8;
+const MAX_TAG_LENGTH = 24;
+function normalizeTags(text) {
+    const seen = new Set();
+    const out = [];
+    for (const raw of String(text).split(',')) {
+        const tag = raw.replace(/\s+/g, ' ').trim().slice(0, MAX_TAG_LENGTH).trim();
+        const key = tag.toLowerCase();
+        if (!tag || seen.has(key)) continue;
+        seen.add(key);
+        out.push(tag);
+        if (out.length === MAX_TAGS) break;
+    }
+    return out.join(', ');
+}
+
 // Fields an account record may carry besides username/password, with their
 // type and the default for a new record. add-account, update-account, import
 // and export all go through this list, so internal fields (_cachedStats,
@@ -25,6 +43,8 @@ const ACCOUNT_FIELDS = {
     customRank:       { type: 'string',  def: '', max: 100 },
     customAvatar:     { type: 'string',  def: '', max: STRING_MAX },
     goalRank:         { type: 'string',  def: '', max: 32 },
+    // Comma-separated, cleaned up by normalizeTags before it is stored.
+    tags:             { type: 'string',  def: '', max: 400, normalize: normalizeTags },
 };
 const ACCOUNT_DEFAULTS = Object.fromEntries(Object.entries(ACCOUNT_FIELDS).map(([k, s]) => [k, s.def]));
 const MAX_USERNAME = 256;
@@ -50,7 +70,7 @@ function pickFields(data, base) {
         }
         if (typeof v !== spec.type) return { ok: false, message: `Invalid value for ${key}` };
         if (spec.type === 'string' && v.length > spec.max) return { ok: false, message: `${key} is too long` };
-        fields[key] = v;
+        fields[key] = spec.normalize ? spec.normalize(v) : v;
     }
     return { ok: true, fields };
 }

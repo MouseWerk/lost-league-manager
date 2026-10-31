@@ -77,3 +77,9 @@ test('the roomy layout covers the live view, stat viewer, settings, tools and di
         assert.ok(roomy.includes(`[data-density="roomy"] ${sel} `) || roomy.includes(`[data-density="roomy"] ${sel},`), sel);
     }
 });
+
+// Dragging a filtered list would reorder only the visible part.
+test('accounts cannot be reordered while a tag filter is on', () => {
+    assert.match(app, /function canReorder\(\) \{\s*return [^;]*!currentTag;/);
+    assert.match(app, /if \(currentTag\) list = list\.filter\(\(a\) => hasTag\(a, currentTag\)\)/);
+});

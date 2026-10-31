@@ -23,6 +23,22 @@
 
 .region-filters { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin: -2px 0 10px; flex-shrink: 0; }
 .region-filters[hidden] { display: none; }
+/* Server and tag chips share one row. */
+.list-filters { display: flex; align-items: center; gap: 4px 14px; flex-wrap: wrap; flex-shrink: 0; margin: -2px 0 10px; }
+.list-filters .region-filters { margin: 0; }
+.list-filters:not(:has(.region-filters:not([hidden]))) { display: none; }
+.tag-chip i, .tag-suggestion i { font-size: 10px; opacity: 0.7; margin-right: 2px; }
+.tag-suggestions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.tag-suggestions[hidden] { display: none; }
+.card-tags { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
+.card-tag {
+    padding: 1px 7px;
+    border-radius: var(--radius-pill);
+    background: var(--bg-active);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 500;
+}
 .region-chip {
     height: var(--control-sm);
     padding: 0 12px;
