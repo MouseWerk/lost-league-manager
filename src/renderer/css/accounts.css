@@ -183,6 +183,7 @@
 .bulk-bar[hidden] { display: none; }
 .bulk-count { font-weight: 600; font-size: 14px; }
 .bulk-spacer { flex: 1; }
+.bulk-bar .secondary-btn, .bulk-bar .danger-btn { height: var(--control-sm); padding: 0 10px; font-size: 13px; gap: 6px; }
 .select-mark {
     position: absolute;
     inset: 0;

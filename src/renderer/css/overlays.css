@@ -449,7 +449,7 @@
 /* ── Season review ────────────────────────────────────────────────────────── */
 .season-content { width: 600px; }
 .season-body { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
-.season-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.season-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .season-tile { padding: 12px 14px; border-radius: var(--radius-lg); background: var(--bg); }
 .season-tile-label { color: var(--muted); font-size: 12px; }
 .season-tile-value { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-weight: 700; font-size: 18px; margin-top: 2px; }

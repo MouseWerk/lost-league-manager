@@ -765,6 +765,7 @@ select option { background: var(--surface-raised); color: var(--ink); }
 /* Dialogs */
 :root[data-density="roomy"] .modal-content { width: 520px; padding: 28px; }
 :root[data-density="roomy"] .games-content { width: 940px; }
+:root[data-density="roomy"] .season-content { width: 680px; }
 :root[data-density="roomy"] .games-pane { grid-template-columns: 280px minmax(0, 1fr); }
 :root[data-density="roomy"] .games-row-icon { width: 40px; height: 40px; }
 :root[data-density="roomy"] .games-row { grid-template-columns: 40px minmax(0, 1fr) auto; }
