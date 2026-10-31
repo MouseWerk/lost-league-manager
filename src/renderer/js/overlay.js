@@ -1,5 +1,5 @@
-// In-game overlay: a bar with your champion and score, and three panels
-// (players, build, settings), one open at a time. Data comes as GEP info
+// In-game overlay: a bar with your champion and score, and four panels
+// (game, players, build, settings), one open at a time. Data comes as GEP info
 // updates, from Overwolf or from the Live Client Data API (overlay-manager.js
 // sends both in the same shape).
 
@@ -20,7 +20,9 @@ let timerTick = null;
 let myName = null;
 let ddragonVersion = '15.1.1';
 let allPlayers = [];
-let openPanel = null; // 'players' | 'build' | 'settings' | null
+let openPanel = null; // 'game' | 'players' | 'build' | 'settings' | null
+let gameEvents = [];  // the game's event feed (kills of towers, dragons, ...)
+let csGoal = 8;       // CS per minute the player aims for (overlay settings)
 let overlayLocked = false;
 
 // Ranked data from the main process: { [riotIdKey]: { tier, lp, ratio, failed? } }
@@ -75,6 +77,10 @@ const ovRespawnCount = $('ovRespawnCount');
 const ovRespawnBar = $('ovRespawnBar');
 const ovRespawnFill = $('ovRespawnFill');
 const ovDeadTip = $('ovDeadTip');
+const ovGameToggle = $('ovGameToggle');
+const ovGame = $('ovGame');
+const ovGameContent = $('ovGameContent');
+const ovCsGoalSelect = $('ovCsGoalSelect');
 const ovToggle = $('ovToggle');
 const ovBuildToggle = $('ovBuildToggle');
 const ovSettingsBtn = $('ovSettingsBtn');
@@ -90,6 +96,8 @@ const ovLockToggle = $('ovLockToggle');
 const ovShowRankedToggle = $('ovShowRankedToggle');
 const ovShowBuildsToggle = $('ovShowBuildsToggle');
 const ovTip = $('ovTip');
+
+const Stats = window.OverlayStats;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function escHtml(s) {
@@ -239,6 +247,7 @@ function resetAll() {
     level = 1;
     gameTime = 0;
     allPlayers = [];
+    gameEvents = [];
     myName = null;
     rankedData = {};
     rankedFetched = false;
@@ -262,12 +271,15 @@ function resetAll() {
 // ── Panels: one open at a time ────────────────────────────────────────────────
 function showPanel(name) {
     openPanel = openPanel === name ? null : name;
+    ovGame.hidden = openPanel !== 'game';
     ovRanked.hidden = openPanel !== 'players';
     ovBuilds.hidden = openPanel !== 'build';
     ovSettingsPanel.hidden = openPanel !== 'settings';
+    ovGameToggle.setAttribute('aria-pressed', String(openPanel === 'game'));
     ovToggle.setAttribute('aria-pressed', String(openPanel === 'players'));
     ovBuildToggle.setAttribute('aria-pressed', String(openPanel === 'build'));
     ovSettingsBtn.setAttribute('aria-pressed', String(openPanel === 'settings'));
+    if (openPanel === 'game') renderGamePanel();
     if (openPanel === 'players') {
         if (!rankedFetched && allPlayers.length) triggerRankedFetch();
         renderRankedPanel();
@@ -278,9 +290,70 @@ function showPanel(name) {
     }
 }
 
+ovGameToggle.addEventListener('click', () => showPanel('game'));
 ovToggle.addEventListener('click', () => showPanel('players'));
 ovBuildToggle.addEventListener('click', () => showPanel('build'));
 ovSettingsBtn.addEventListener('click', () => showPanel('settings'));
+
+// ── Game panel ────────────────────────────────────────────────────────────────
+function myPlayer() {
+    return allPlayers.find((p) => isMe(p)) || null;
+}
+
+function diffCell(mine, theirs, fmt = String) {
+    const d = mine - theirs;
+    const cls = d > 0 ? 'is-ahead' : d < 0 ? 'is-behind' : '';
+    return `<span class="ov-stat-diff ${cls}">${escHtml(d > 0 ? `+${fmt(d)}` : d < 0 ? `-${fmt(-d)}` : '0')}</span>`;
+}
+
+function statRow(name, mine, theirs, fmt = String) {
+    return `<span class="ov-stat-name">${escHtml(name)}</span><span class="ov-stat-val">${escHtml(fmt(mine))}</span><span class="ov-stat-val">${escHtml(fmt(theirs))}</span>${diffCell(mine, theirs, fmt)}`;
+}
+
+function renderGamePanel() {
+    const me = myPlayer();
+    if (!me) { ovGameContent.innerHTML = '<p class="ov-msg">Waiting for the game...</p>'; return; }
+    const us = me.team;
+    const them = us === 'ORDER' ? 'CHAOS' : 'ORDER';
+    const obj = Stats.objectives(gameEvents, allPlayers);
+    const kp = Stats.killParticipation(me, allPlayers);
+    const opp = Stats.laneOpponent(me, allPlayers);
+    const minutes = gameTime / 60;
+    const csm = minutes > 1 ? cs / minutes : 0;
+    const goalPct = Math.min(100, Math.round((csm / csGoal) * 100));
+
+    const rows = [
+        statRow('Item gold', Stats.itemGold(allPlayers, us), Stats.itemGold(allPlayers, them), fmtGold),
+        statRow('Towers', obj[us].towers, obj[them].towers),
+        statRow('Dragons', obj[us].dragons, obj[them].dragons),
+        statRow('Grubs', obj[us].grubs, obj[them].grubs),
+        statRow('Heralds', obj[us].heralds, obj[them].heralds),
+        statRow('Barons', obj[us].barons, obj[them].barons),
+    ].join('');
+    const vsLane = opp
+        ? `<div class="ov-stat-grid">${statRow(`CS vs ${opp.championName || 'lane'}`, cs, opp.scores?.creepScore || 0)}${statRow('Level', level, opp.level || 0)}</div>`
+        : '';
+
+    ovGameContent.innerHTML = `
+        <div class="ov-score-row">
+            <div class="ov-score-side"><span class="ov-score-kills">${escHtml(Stats.kills(allPlayers, us))}</span><span class="ov-score-label">Your team</span></div>
+            <span class="ov-score-vs">kills</span>
+            <div class="ov-score-side is-enemy"><span class="ov-score-kills">${escHtml(Stats.kills(allPlayers, them))}</span><span class="ov-score-label">Enemies</span></div>
+        </div>
+        <div class="ov-stat-grid">
+            <span></span><span class="ov-label">You</span><span class="ov-label">Them</span><span></span>
+            ${rows}
+        </div>
+        <div class="ov-divider"></div>
+        <p class="ov-label">Your game</p>
+        <div class="ov-stat-grid">
+            <span class="ov-stat-name">Kill participation</span><span class="ov-stat-val">${kp === null ? '-' : escHtml(kp + '%')}</span><span></span><span></span>
+            <span class="ov-stat-name">Vision score</span><span class="ov-stat-val">${escHtml(Math.round(me.scores?.wardScore || 0))}</span><span></span><span></span>
+            <span class="ov-stat-name">CS per minute</span><span class="ov-stat-val">${escHtml(csm.toFixed(1))}</span><span class="ov-stat-val">of ${escHtml(csGoal)}</span><span></span>
+        </div>
+        <div class="ov-goal-bar"><span style="width:${escHtml(goalPct)}%"></span></div>
+        ${vsLane ? '<div class="ov-divider"></div>' + vsLane : ''}`;
+}
 
 // ── Build panel ───────────────────────────────────────────────────────────────
 function triggerBuildFetch() {
@@ -302,9 +375,14 @@ function triggerBuildFetch() {
         });
 }
 
+function ownedItems() {
+    return new Set((myPlayer()?.items || []).map((it) => it.itemID));
+}
+
 function itemRow(label, ids) {
     if (!ids?.length) return '';
-    const imgs = ids.map((id) => `<img class="ov-item" src="${escHtml(itemIconUrl(id))}" alt="" data-tip="${escHtml(itemNames[id] || id)}" data-fallback="hide">`).join('');
+    const owned = ownedItems();
+    const imgs = ids.map((id) => `<span class="ov-item-wrap${owned.has(id) ? ' is-owned' : ''}"><img class="ov-item" src="${escHtml(itemIconUrl(id))}" alt="" data-tip="${escHtml((itemNames[id] || id) + (owned.has(id) ? ', bought' : ''))}" data-fallback="hide"></span>`).join('');
     return `<div><p class="ov-label">${escHtml(label)}</p><div class="ov-item-row">${imgs}</div></div>`;
 }
 
@@ -357,6 +435,7 @@ function teamBlock(title, players) {
 }
 
 function playerRow(p) {
+    const opp = Stats.laneOpponent(myPlayer(), allPlayers);
     const name = p.riotIdGameName || p.summonerName || '?';
     const rd = rankedData[playerRiotKey(p)];
     const tier = tierName(rd?.tier);
@@ -367,12 +446,22 @@ function playerRow(p) {
     const k = p.scores?.kills ?? 0;
     const d = p.scores?.deaths ?? 0;
     const a = p.scores?.assists ?? 0;
-    return `<div class="ov-player${isMe(p) ? ' is-me' : ''}${p.isDead ? ' is-dead' : ''}">
-        <img class="ov-player-icon" src="${escHtml(champIconUrl(p.rawChampionName, p.championName))}" alt="" data-fallback="logo" data-tip="${escHtml(p.championName || '')}">
-        <span class="ov-player-name">${escHtml(name)}</span>
-        ${rank}
-        <span class="ov-wr">${escHtml(rd?.ratio || '')}</span>
-        <span class="ov-pkda">${escHtml(`${k}/${d}/${a}`)}</span>
+    const items = (p.items || []).filter((it) => it.itemID && it.slot !== 6)
+        .map((it) => `<img src="${escHtml(itemIconUrl(it.itemID))}" alt="" data-tip="${escHtml(itemNames[it.itemID] || it.displayName || it.itemID)}" data-fallback="hide">`).join('');
+    const isOpp = opp && p === opp;
+    return `<div class="ov-player${isMe(p) ? ' is-me' : ''}${isOpp ? ' is-opponent' : ''}${p.isDead ? ' is-dead' : ''}">
+        <span class="ov-player-champ">
+            <img class="ov-player-icon" src="${escHtml(champIconUrl(p.rawChampionName, p.championName))}" alt="" data-fallback="logo" data-tip="${escHtml(p.championName || '')}">
+            <span class="ov-player-level">${escHtml(p.level || 1)}</span>
+        </span>
+        <span class="ov-player-main">
+            <span class="ov-player-name">${escHtml(name)}${isOpp ? '<span class="ov-vs">vs you</span>' : ''}</span>
+            <span class="ov-player-items">${items}</span>
+        </span>
+        <span class="ov-player-side">
+            ${rank}
+            <span class="ov-sub"><span class="ov-wr">${escHtml(rd?.ratio || '')}</span><span class="ov-pkda">${escHtml([k, d, a].join('/'))}</span></span>
+        </span>
     </div>`;
 }
 
@@ -411,17 +500,37 @@ function triggerRankedFetch(retryPlayers) {
         });
 }
 
-// ── Dragging (by the champion icon) ──────────────────────────────────────────
-$('ovDrag').addEventListener('mousedown', (e) => {
-    if (overlayLocked || e.button !== 0) return;
+// ── Dragging (by the bar) ─────────────────────────────────────────────────────
+// Pointer capture keeps the moves coming when the pointer leaves the window.
+const ovBar = $('ovBar');
+let drag = null;
+ovBar.addEventListener('pointerdown', async (e) => {
+    if (overlayLocked || e.button !== 0 || e.target.closest('button')) return;
     e.preventDefault();
-    window.overlayAPI.startDragging();
+    ovBar.setPointerCapture(e.pointerId);
+    const start = { x: e.screenX, y: e.screenY };
+    drag = { start, win: null, pointerId: e.pointerId };
+    ovBar.classList.add('is-dragging');
+    drag.win = await window.overlayAPI.getPosition();
 });
+ovBar.addEventListener('pointermove', (e) => {
+    if (!drag?.win) return;
+    window.overlayAPI.moveWindow(drag.win.x + e.screenX - drag.start.x, drag.win.y + e.screenY - drag.start.y);
+});
+function endDrag() {
+    if (!drag) return;
+    drag = null;
+    ovBar.classList.remove('is-dragging');
+    window.overlayAPI.savePosition();
+}
+ovBar.addEventListener('pointerup', endDrag);
+ovBar.addEventListener('pointercancel', endDrag);
 
 // Clicks reach the overlay only while the pointer is over it; elsewhere they
 // go through to the game.
 document.addEventListener('mouseenter', () => window.overlayAPI.setInteractive(true));
 document.addEventListener('mouseleave', () => {
+    if (drag) return; // still dragging outside the window
     window.overlayAPI.setInteractive(false);
     ovTip.hidden = true;
 });
@@ -453,6 +562,11 @@ ovOpacitySlider.addEventListener('change', () => {
 });
 ovHotkeySelect.addEventListener('change', () => {
     window.overlayAPI.saveSettings({ hotkey: ovHotkeySelect.value });
+});
+ovCsGoalSelect.addEventListener('change', () => {
+    csGoal = parseInt(ovCsGoalSelect.value, 10) || 8;
+    window.overlayAPI.saveSettings({ csGoal });
+    if (openPanel === 'game') renderGamePanel();
 });
 ovLockToggle.addEventListener('change', () => {
     setLocked(ovLockToggle.checked);
@@ -531,6 +645,9 @@ function onLiveData(key, value) {
             buildFetched = false;
             buildData = null;
         }
+    } else if (key === 'events') {
+        if (Array.isArray(value.Events)) gameEvents = value.Events;
+        if (openPanel === 'game') renderGamePanel();
     } else if (key === 'active_player') {
         myName = value.riotIdGameName || value.summonerName || myName;
         level = value.level ?? level;
@@ -562,6 +679,7 @@ function onLiveData(key, value) {
         if (!rankedFetched && value.length) triggerRankedFetch();
         if (openPanel === 'players') renderRankedPanel();
         if (openPanel === 'build') renderBuildPanel();
+        if (openPanel === 'game') renderGamePanel();
     }
 }
 
@@ -579,6 +697,8 @@ window.overlayAPI.onInit((initData) => {
         ovHotkeySelect.value = initData.hotkey;
     }
     setLocked(initData?.locked);
+    if ([6, 7, 8, 9, 10].includes(initData?.csGoal)) csGoal = initData.csGoal;
+    ovCsGoalSelect.value = String(csGoal);
     const showRanked = initData?.showRanked !== false;
     const showBuilds = initData?.showBuilds !== false;
     ovShowRankedToggle.checked = showRanked;

@@ -88,9 +88,6 @@ function createOverlayWindow(owOverlay, onReady = null) {
         if (!bw) throw new Error('[Overlay] Window handle missing after createWindow');
 
         state.overlayWindow = bw;
-        if (!state.overlayWindow.startDragging && typeof rawWin?.startDragging === 'function') {
-            state.overlayWindow.startDragging = rawWin.startDragging.bind(rawWin);
-        }
 
         state.overlayWindow.setIgnoreMouseEvents(true, { forward: true });
         // Keep the place the player dragged it to (Lock in the overlay
@@ -127,6 +124,7 @@ function createOverlayWindow(owOverlay, onReady = null) {
                 opacity,
                 hotkey:  state.config.overlayHotkey  || 'Ctrl+Shift+H',
                 locked:  state.config.overlayLocked  || false,
+                csGoal:  state.config.overlayCsGoal  || 8,
             });
         });
     };

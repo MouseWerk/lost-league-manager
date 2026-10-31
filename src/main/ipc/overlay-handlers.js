@@ -111,6 +111,7 @@ function cleanOverlaySettings(raw) {
     const out = {};
     if (OVERLAY_HOTKEYS.includes(s.hotkey)) out.hotkey = s.hotkey;
     for (const k of ['locked', 'showRanked', 'showBuilds']) if (typeof s[k] === 'boolean') out[k] = s[k];
+    if ([6, 7, 8, 9, 10].includes(s.csGoal)) out.csGoal = s.csGoal;
     return out;
 }
 
@@ -122,16 +123,20 @@ function register() {
         }
     });
 
-    ipcMain.on('overlay-start-dragging', () => {
-        if (state.overlayWindow && !state.overlayWindow.isDestroyed() && typeof state.overlayWindow.startDragging === 'function') {
-            state.overlayWindow.startDragging();
-        }
-    });
-
+    // Dragged by the page (pointer moves); kept when the drag ends.
     ipcMain.on('overlay-move', (_, x, y) => {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
         if (state.overlayWindow && !state.overlayWindow.isDestroyed()) {
             state.overlayWindow.setPosition(Math.round(x), Math.round(y));
         }
+    });
+
+    ipcMain.on('overlay-save-position', () => {
+        if (!state.overlayWindow || state.overlayWindow.isDestroyed()) return;
+        const [x, y] = state.overlayWindow.getPosition();
+        state.config.overlayX = x;
+        state.config.overlayY = y;
+        saveConfig();
     });
 
     ipcMain.on('overlay-resize', (_, w, h) => {
@@ -170,6 +175,7 @@ function register() {
         if (settings.locked      !== undefined) state.config.overlayLocked      = settings.locked;
         if (settings.showRanked  !== undefined) state.config.overlayShowRanked  = settings.showRanked;
         if (settings.showBuilds  !== undefined) state.config.overlayShowBuilds  = settings.showBuilds;
+        if (settings.csGoal      !== undefined) state.config.overlayCsGoal      = settings.csGoal;
         saveConfig();
         // Push UI updates back to the overlay
         if (state.overlayWindow && !state.overlayWindow.isDestroyed()) {

@@ -98,8 +98,8 @@ test('overlay settings from its page: only known hotkeys and real booleans', () 
 
 test('player names, ranks and item names are escaped in the overlay', () => {
     const src = read('src', 'renderer', 'js', 'overlay.js');
-    assert.match(src, /<span class="ov-player-name">\$\{escHtml\(name\)\}<\/span>/);
-    assert.match(src, /data-tip="\$\{escHtml\(itemNames\[id\] \|\| id\)\}"/);
+    assert.match(src, /<span class="ov-player-name">\$\{escHtml\(name\)\}/);
+    assert.match(src, /data-tip="\$\{escHtml\(\(itemNames\[id\] \|\| id\)/);
     // Every property put into the overlay's markup goes through escHtml.
     const member = /\$\{\s*[A-Za-z_$][\w$]*(?:\??\.[\w$]+|\[[^\]]+\])+\s*\}/;
     assert.deepEqual(src.split('\n').filter((l) => l.includes('<') && member.test(l)), []);
@@ -149,4 +149,46 @@ test('the overlay starts at the place it was dragged to', () => {
     const src = read('src', 'main', 'windows.js');
     assert.match(src, /x: saved \? state\.config\.overlayX/);
     assert.match(src, /on\?\.\('moved'/);
+});
+
+// More in the overlay: team numbers from the scoreboard and the event feed.
+const stats = require('../src/renderer/js/overlay-stats.js');
+const P = (name, team, position, k, d, a, items = []) => ({ riotIdGameName: name, team, position, scores: { kills: k, deaths: d, assists: a }, items });
+
+test('game stats: kills, item gold, objectives, kill participation and the lane opponent', () => {
+    const players = [
+        P('Me', 'ORDER', 'MIDDLE', 3, 1, 1, [{ itemID: 3020, price: 1100, count: 1 }, { itemID: 2003, price: 50, count: 2 }]),
+        P('Ally', 'ORDER', 'TOP', 2, 2, 1),
+        P('Foe', 'CHAOS', 'MIDDLE', 1, 3, 0, [{ itemID: 1056, price: 400, count: 1 }]),
+        P('Foe2', 'CHAOS', 'TOP', 4, 2, 0),
+    ];
+    assert.equal(stats.kills(players, 'ORDER'), 5);
+    assert.equal(stats.itemGold(players, 'ORDER'), 1200);
+    assert.equal(stats.killParticipation(players[0], players), 80); // (3 + 1) of 5 team kills
+    assert.equal(stats.laneOpponent(players[0], players).riotIdGameName, 'Foe');
+    assert.equal(stats.laneOpponent({ ...players[0], position: 'NONE' }, players), null, 'practice tool: no position');
+    const events = [
+        { EventName: 'TurretKilled', TurretKilled: 'Turret_T2_L_03_A', KillerName: 'Me' },
+        { EventName: 'TurretKilled', TurretKilled: 'Turret_T1_C_05_A', KillerName: 'Foe' },
+        { EventName: 'DragonKill', KillerName: 'Ally' },
+        { EventName: 'DragonKill', KillerName: 'Me' },
+        { EventName: 'BaronKill', KillerName: 'Foe2' },
+        { EventName: 'HordeKill', KillerName: 'Me' },
+        { EventName: 'ChampionKill', KillerName: 'Me' },
+    ];
+    const o = stats.objectives(events, players);
+    assert.deepEqual([o.ORDER.towers, o.ORDER.dragons, o.ORDER.grubs, o.CHAOS.towers, o.CHAOS.barons], [1, 2, 1, 1, 1]);
+});
+
+test('the overlay is dragged by its bar, in both window modes, and the place is kept', () => {
+    const src = read('src', 'renderer', 'js', 'overlay.js');
+    assert.match(src, /ovBar\.setPointerCapture\(e\.pointerId\)/);
+    assert.match(src, /window\.overlayAPI\.moveWindow\(/);
+    assert.match(src, /window\.overlayAPI\.savePosition\(\)/);
+    assert.doesNotMatch(src, /startDragging/, 'the Overwolf-only drag did nothing in the plain window');
+});
+
+test('the CS goal is one of the offered values', () => {
+    assert.deepEqual(cleanOverlaySettings({ csGoal: 9 }), { csGoal: 9 });
+    assert.deepEqual(cleanOverlaySettings({ csGoal: 99 }), {});
 });

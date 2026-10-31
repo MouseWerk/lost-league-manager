@@ -79,8 +79,11 @@ img { display: block; }
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
     overflow: hidden;
 }
-.ov-champ { position: relative; flex-shrink: 0; cursor: grab; }
-.ov-root.is-locked .ov-champ { cursor: default; }
+.ov-bar { cursor: grab; touch-action: none; }
+.ov-bar.is-dragging { cursor: grabbing; }
+.ov-root.is-locked .ov-bar { cursor: default; }
+.ov-bar .ov-btn { cursor: pointer; }
+.ov-champ { position: relative; flex-shrink: 0; }
 .ov-champ-icon { width: 40px; height: 40px; border-radius: 9px; object-fit: cover; }
 .ov-level {
     position: absolute;
@@ -139,22 +142,48 @@ img { display: block; }
 .ov-msg { margin: 4px 2px 6px; color: var(--muted); font-size: 12px; }
 .ov-label { margin: 0 2px 4px; color: var(--muted); font-size: 11px; font-weight: 600; }
 
+/* Game */
+.ov-score-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; margin: 0 2px 8px; }
+.ov-score-side { display: flex; flex-direction: column; gap: 1px; }
+.ov-score-side.is-enemy { text-align: right; }
+.ov-score-kills { font-family: var(--font-display); font-weight: 700; font-size: 22px; font-variant-numeric: tabular-nums; }
+.ov-score-label { color: var(--muted); font-size: 11px; }
+.ov-score-vs { color: var(--subtle); font-size: 11px; }
+.ov-stat-grid { display: grid; grid-template-columns: 1fr auto auto auto; gap: 3px 10px; align-items: center; margin: 0 2px; font-size: 12px; }
+.ov-stat-grid .ov-stat-name { color: var(--muted); }
+.ov-stat-grid .ov-stat-val { font-family: var(--font-display); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.ov-stat-grid .ov-stat-diff { font-family: var(--font-display); font-size: 11px; text-align: right; min-width: 44px; }
+.is-ahead { color: var(--success); }
+.is-behind { color: var(--danger); }
+.ov-divider { height: 1px; margin: 8px 2px; background: var(--line); }
+.ov-goal-bar { height: 4px; margin: 4px 2px 0; border-radius: 999px; background: var(--raised); overflow: hidden; }
+.ov-goal-bar span { display: block; height: 100%; background: var(--primary); }
+
 /* Players */
 .ov-team + .ov-team { margin-top: 8px; }
 .ov-player {
     display: grid;
-    grid-template-columns: 22px minmax(0, 1fr) 70px 34px 52px;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
     align-items: center;
     gap: 8px;
-    height: 26px;
-    padding: 0 6px 0 2px;
+    min-height: 38px;
+    padding: 3px 6px 3px 2px;
     border-radius: 6px;
     font-size: 12px;
 }
 .ov-player.is-me { background: var(--active); font-weight: 600; }
-.ov-player-icon { width: 22px; height: 22px; border-radius: 5px; object-fit: cover; }
+.ov-player.is-opponent { background: rgba(240, 138, 132, 0.10); }
+.ov-player-champ { position: relative; }
+.ov-player-icon { width: 28px; height: 28px; border-radius: 6px; object-fit: cover; }
+.ov-player-level { position: absolute; right: -3px; bottom: -3px; padding: 0 3px; border-radius: 999px; background: var(--raised); font-family: var(--font-display); font-size: 9px; font-weight: 700; line-height: 12px; }
 .ov-player.is-dead .ov-player-icon { filter: grayscale(1); opacity: 0.55; }
+.ov-player-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ov-player-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ov-vs { margin-left: 4px; padding: 0 5px; border-radius: 999px; background: rgba(240, 138, 132, 0.18); color: var(--danger); font-size: 10px; font-weight: 600; }
+.ov-player-items { display: flex; gap: 2px; }
+.ov-player-items img { width: 16px; height: 16px; border-radius: 3px; }
+.ov-player-side { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.ov-player-side .ov-sub { gap: 6px; }
 .ov-rank { display: flex; align-items: center; gap: 4px; font-family: var(--font-display); font-size: 11px; font-weight: 600; white-space: nowrap; color: var(--muted); }
 .ov-rank img { width: 18px; height: 18px; object-fit: contain; }
 .ov-wr, .ov-pkda { color: var(--muted); font-family: var(--font-display); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
@@ -179,7 +208,19 @@ img { display: block; }
 .ov-rune.is-key { color: var(--primary); font-weight: 600; }
 .ov-items { display: flex; flex-wrap: wrap; gap: 6px 12px; }
 .ov-item-row { display: flex; gap: 3px; }
+.ov-item-wrap { position: relative; }
 .ov-item { width: 26px; height: 26px; border-radius: 5px; border: 1px solid var(--line); }
+.ov-item-wrap.is-owned::after {
+    content: '';
+    position: absolute;
+    right: -3px;
+    bottom: -3px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--success);
+    border: 2px solid #0F1624;
+}
 .ov-skills { margin: 8px 2px 0; color: var(--muted); font-size: 11px; }
 .ov-skills b { color: var(--ink); font-family: var(--font-display); }
 
