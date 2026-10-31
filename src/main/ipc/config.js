@@ -27,6 +27,7 @@ const ALLOWED_CONFIG_KEYS = {
     autoImportBuild:       v => typeof v === 'boolean',
     checkUpdatesOnStartup: v => typeof v === 'boolean',
     discordRpcEnabled:     v => typeof v === 'boolean',
+    discordShowDetails:    v => typeof v === 'boolean',
     lastSeenPatchNotesVersion: v => typeof v === 'string' && v.length <= 64,
     density:               v => DENSITIES.includes(v),
     // Launch and repair start or delete files next to this path.
@@ -150,6 +151,9 @@ function register() {
 
         if (state.config.theme !== prev.theme) applyTheme();
 
+        if (state.config.discordShowDetails !== prev.discordShowDetails && state.config.discordShowDetails === false) {
+            discordRpc.setContext({});
+        }
         if (state.config.discordRpcEnabled !== prev.discordRpcEnabled) {
             discordRpc.setEnabled(state.config.discordRpcEnabled);
         }

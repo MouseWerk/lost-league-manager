@@ -1147,6 +1147,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     bindSettingToggle("toastOnQueuePopToggle", "toastOnQueuePop", true);
     bindSettingToggle("autoImportBuildToggle", "autoImportBuild", false);
     bindSettingToggle("discordRpcEnabledToggle", "discordRpcEnabled", true);
+    bindSettingToggle("discordShowDetailsToggle", "discordShowDetails", true);
 
     // UI Scale — only apply if non-default; let ow-electron manage native DPI at 1.0
     const savedScale = config.uiScale ?? 1.0;

@@ -201,7 +201,7 @@ test('a locked vault matches no account on connect; unlocking does', async () =>
     fakes.fakeVault.locked = true;
     await connect();
     assert.equal(state.currentAccount, null);
-    assert.equal(count('GET', '/lol-summoner/v1/current-summoner'), 0, 'no Riot ID linking');
+    assert.equal(fakes.readAccounts()[0].riotId, undefined, 'no Riot ID linking');
     fakes.fakeVault.locked = false;
     await require('../src/main/lcu-events').onVaultUnlocked();
     assert.equal(state.currentAccount?.username, 'main');

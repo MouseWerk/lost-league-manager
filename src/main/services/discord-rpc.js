@@ -15,8 +15,9 @@ const BUTTONS = [
     { label: 'Download', url: 'https://github.com/MouseWerk/lost-league-manager/releases/latest' },
 ];
 
-// Deliberately excludes any account/summoner identifiers — only the
-// League client's coarse gameflow phase is reflected.
+// Never an account or summoner name: the phase, and (Settings > App
+// behavior > Show rank and champion) the solo rank and the champion and
+// queue of the current game.
 const PHASE_LABELS = {
     None: 'In Main Menu',
     Lobby: 'In Lobby',
@@ -33,6 +34,12 @@ const PHASE_LABELS = {
 
 const RETRY_DELAY_MS = 15000;
 const IDLE_LABEL = 'Managing Accounts';
+
+const EMBLEM_URL = (tier) => `https://raw.githubusercontent.com/MouseWerk/lost-league-manager/master/src/renderer/assets/ranks/${tier}.png`;
+const TIERS = ['iron', 'bronze', 'silver', 'gold', 'platinum', 'emerald', 'diamond', 'master', 'grandmaster', 'challenger'];
+
+// Rank and game of the signed-in player: { rank, tier, champion, championIcon, queue }.
+let context = {};
 
 let client = null;
 let connecting = false;
@@ -94,21 +101,46 @@ function discard(c) {
 
 let appliedDetails = null;
 
+function showsDetails() {
+    return state.config.discordShowDetails !== false;
+}
+
+// The activity for a phase label and the current context.
+function buildActivity(details) {
+    const c = showsDetails() ? context : {};
+    const parts = [c.champion && c.queue ? `${c.champion}, ${c.queue}` : c.champion || '', c.rank || ''].filter(Boolean);
+    const activity = {
+        details,
+        largeImageUrl: c.championIcon || LARGE_IMAGE_URL,
+        largeImageText: c.champion || 'Lost League Manager',
+        instance: false,
+        buttons: BUTTONS,
+    };
+    if (parts.length) activity.state = parts.join(' | ').slice(0, 128);
+    if (c.tier && TIERS.includes(c.tier)) {
+        activity.smallImageUrl = EMBLEM_URL(c.tier);
+        activity.smallImageText = c.rank || c.tier;
+    }
+    return activity;
+}
+
 function applyActivity(details, { force = false } = {}) {
     lastDetails = details;
     if (!isEnabled() || !client?.isConnected || !client.user) return;
+    const activity = buildActivity(details);
     // Re-sending the same status would reset its "elapsed" timer.
-    if (!force && details === appliedDetails) return;
-    appliedDetails = details;
-    client.user.setActivity({
-        details,
-        startTimestamp: Date.now(),
-        largeImageUrl: LARGE_IMAGE_URL,
-        largeImageText: 'Lost League Manager',
-        instance: false,
-        buttons: BUTTONS,
-    }).then(() => console.log('[DiscordRPC] Activity set:', details))
-      .catch((e) => console.log('[DiscordRPC] setActivity failed:', e.message));
+    const key = JSON.stringify(activity);
+    if (!force && key === appliedDetails) return;
+    appliedDetails = key;
+    client.user.setActivity({ ...activity, startTimestamp: Date.now() })
+        .then(() => console.log('[DiscordRPC] Activity set:', details))
+        .catch((e) => console.log('[DiscordRPC] setActivity failed:', e.message));
+}
+
+// New rank or game: the status follows (same phase label).
+function setContext(next) {
+    context = next && typeof next === 'object' ? next : {};
+    if (lastDetails) applyActivity(lastDetails);
 }
 
 function setGameflowPhase(phase) {
@@ -144,4 +176,4 @@ function setEnabled(enabled) {
     else shutdown();
 }
 
-module.exports = { init, shutdown, setEnabled, setGameflowPhase, setIdle };
+module.exports = { init, shutdown, setEnabled, setGameflowPhase, setIdle, setContext, buildActivity };

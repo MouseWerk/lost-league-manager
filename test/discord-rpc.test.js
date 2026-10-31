@@ -71,3 +71,21 @@ test('re-enabling during a pending login connects right away and keeps the curre
 
     discordRpc.shutdown();
 });
+
+// The status shows the solo rank (with its emblem) and, in a game, the champion
+// and queue; never a name. A setting turns the extra lines off.
+test('rank and champion in the status, and a setting to leave them out', () => {
+    const state = require('../src/main/state');
+    discordRpc.setContext({ rank: 'Diamond II 64 LP', tier: 'diamond', champion: 'Ahri', championIcon: 'ahri.png', queue: 'Ranked Solo/Duo' });
+    const a = discordRpc.buildActivity('In Game');
+    assert.equal(a.details, 'In Game');
+    assert.equal(a.state, 'Ahri, Ranked Solo/Duo | Diamond II 64 LP');
+    assert.equal(a.largeImageUrl, 'ahri.png');
+    assert.match(a.smallImageUrl, /ranks\/diamond\.png$/);
+    state.config.discordShowDetails = false;
+    const plain = discordRpc.buildActivity('In Game');
+    assert.equal(plain.state, undefined);
+    assert.equal(plain.smallImageUrl, undefined);
+    state.config.discordShowDetails = true;
+    discordRpc.setContext({});
+});
