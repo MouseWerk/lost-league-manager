@@ -1363,8 +1363,45 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // Listen for external account updates
+  // The client is signed in with an account that is not saved: offer to add
+  // it with the Riot ID and server filled in (only the password is missing).
+  const dismissedUnknown = new Set();
+  let unknownAccount = null;
+  window.electronAPI.onUnknownAccount?.((info) => {
+    if (!info?.username || dismissedUnknown.has(info.username.toLowerCase())) return;
+    if (allAccounts.some((a) => a.username.toLowerCase() === info.username.toLowerCase())) return;
+    unknownAccount = info;
+    document.getElementById("unknownAccountText").textContent =
+      `The League client is signed in as ${info.riotId}, which is not saved here. Add it?`;
+    document.getElementById("unknownAccountBanner").hidden = false;
+  });
+  document.getElementById("unknownAccountDismiss").addEventListener("click", () => {
+    if (unknownAccount) dismissedUnknown.add(unknownAccount.username.toLowerCase());
+    unknownAccount = null;
+    document.getElementById("unknownAccountBanner").hidden = true;
+  });
+  document.getElementById("unknownAccountAdd").addEventListener("click", () => {
+    const info = unknownAccount;
+    document.getElementById("unknownAccountBanner").hidden = true;
+    if (!info) return;
+    openModal(null);
+    document.getElementById("newUsername").value = info.username;
+    document.getElementById("newRiotId").value = info.riotId;
+    if (info.region) document.getElementById("newRegion").value = info.region;
+    if (!document.getElementById("newLabel").value) document.getElementById("newLabel").value = info.riotId.split("#")[0];
+    document.getElementById("newPassword").focus();
+    showToast("Enter the password of this account, then Save.", "info");
+  });
+  window.electronAPI.onRiotIdChanged?.((info) => {
+    if (info?.oldId && info?.newId) showToast(`Riot ID changed: ${info.oldId} is now ${info.newId}`, "info");
+  });
+
   window.electronAPI.onAccountsUpdated(async () => {
     await loadAccounts();
+    if (unknownAccount && allAccounts.some((a) => a.username.toLowerCase() === unknownAccount.username.toLowerCase())) {
+      unknownAccount = null;
+      document.getElementById("unknownAccountBanner").hidden = true;
+    }
     if (currentView === "overviewView") renderOverview();
   });
 
@@ -2445,6 +2482,21 @@ function renderStatus(acc) {
   wrap.hidden = list.childElementCount === 0;
 }
 
+// Blue Essence and RP as the client showed them at the last sign-in.
+function renderWallet(acc) {
+  const wrap = document.getElementById("profileWalletWrap");
+  const w = acc.status?.wallet;
+  if (!wrap || !w || (w.be == null && w.rp == null)) {
+    if (wrap) wrap.hidden = true;
+    return;
+  }
+  const n = (v) => (v == null ? "-" : Number(v).toLocaleString());
+  document.getElementById("profileWalletBe").textContent = n(w.be);
+  document.getElementById("profileWalletRp").textContent = n(w.rp);
+  document.getElementById("profileWalletWhen").textContent = w.checkedAt ? `at last sign-in, ${timeAgo(w.checkedAt)}` : "";
+  wrap.hidden = false;
+}
+
 function renderToday(history) {
   const wrap = document.getElementById("profileTodayWrap");
   const day = dailySummary(history);
@@ -2723,6 +2775,7 @@ async function selectAccount(username) {
   document.getElementById("profileTodayWrap").hidden = true;
   renderGoal(acc, []);
   renderStatus(acc);
+  renderWallet(acc);
   if (acc.riotId) {
     window.electronAPI.getRankHistory(acc.riotId).then((history) => {
       if (_profileUsername !== username) return;

@@ -195,6 +195,14 @@ async function getAccountByRiotId(gameName, tagLine, region) {
     return { account, platform };
 }
 
+// The current Riot ID of a PUUID (it stays the same when the name changes).
+async function getAccountByPuuid(puuid, region) {
+    const platform = getPlatform(region);
+    const cluster = getAccountCluster(platform);
+    return riotGet(`https://${cluster}.api.riotgames.com/riot/account/v1/accounts/by-puuid/${encodeURIComponent(puuid)}`,
+        `puuid ${String(puuid).slice(0, 8)}…`);
+}
+
 function getSummonerByPuuid(puuid, platform) {
     // returns: puuid, profileIconId, revisionDate, summonerLevel
     return riotGet(`https://${platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${puuid}`,
@@ -344,7 +352,7 @@ async function getSoloRank(gameName, tagLine, region) {
 }
 
 module.exports = {
-    getStats, getSoloRank, getPlatform, getMatchHistory, getAccountByRiotId, getApiKey,
+    getStats, getSoloRank, getPlatform, getMatchHistory, getAccountByRiotId, getAccountByPuuid, getApiKey,
     createRateLimiter,
     // Clears cooldowns and pacing state between tests.
     _resetForTests() {
