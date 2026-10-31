@@ -88,7 +88,18 @@
                                 <option value="lastUsed">Recently used</option>
                                 <option value="lastPlayed">Last played</option>
                             </select>
+                            <button id="selectModeBtn" class="secondary-btn" aria-pressed="false" data-tooltip="Select several accounts"><i class="fas fa-list-check" aria-hidden="true"></i> Select</button>
                             <button id="addAccountBtn" class="primary-btn add-account-btn"><i class="fas fa-plus" aria-hidden="true"></i> Add account</button>
+                        </div>
+                        <!-- Several accounts at once (Select). Filled by updateBulkBar() in app.js. -->
+                        <div id="bulkBar" class="bulk-bar" hidden>
+                            <span id="bulkCount" class="bulk-count"></span>
+                            <button type="button" class="link-btn" id="bulkAllBtn">Select all shown</button>
+                            <span class="bulk-spacer"></span>
+                            <button type="button" class="secondary-btn" id="bulkTagBtn"><i class="fas fa-tag" aria-hidden="true"></i> Add tag</button>
+                            <button type="button" class="secondary-btn" id="bulkRefreshBtn"><i class="fas fa-rotate" aria-hidden="true"></i> Refresh ranks</button>
+                            <button type="button" class="secondary-btn" id="bulkExportBtn"><i class="fas fa-file-export" aria-hidden="true"></i> Export</button>
+                            <button type="button" class="danger-btn" id="bulkDeleteBtn"><i class="fas fa-trash" aria-hidden="true"></i> Delete</button>
                         </div>
                         <div class="list-filters">
                             <div id="regionFilters" class="region-filters" role="group" aria-label="Filter by server"></div>

@@ -48,7 +48,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setVaultPassword: ({ current, next } = {}) => ipcRenderer.invoke('set-vault-password', { current, next }),
     disableVault: (current) => ipcRenderer.invoke('disable-vault', current),
     getAccountPassword: (username) => ipcRenderer.invoke('get-account-password', username),
-    exportAccounts: (passphrase) => ipcRenderer.invoke('export-accounts', passphrase),
+    exportAccounts: (passphrase, usernames = null) => ipcRenderer.invoke('export-accounts', passphrase, usernames),
     importAccounts: ({ passphrase } = {}) => ipcRenderer.invoke('import-accounts', { passphrase }),
     openFileDialog: (options) => ipcRenderer.invoke('open-file-dialog', options),
     getCurrentAccount: () => ipcRenderer.invoke('get-current-account'),

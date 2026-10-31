@@ -179,6 +179,24 @@
 .profile-wallet { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 0 2px; font-size: 13px; color: var(--muted); }
 .profile-wallet b { font-family: var(--font-display); color: var(--ink); font-weight: 600; }
 .profile-wallet-when { font-size: 12px; color: var(--subtle); }
+.bulk-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; padding: 8px 10px 8px 14px; border-radius: var(--radius-lg); background: var(--surface); flex-shrink: 0; }
+.bulk-bar[hidden] { display: none; }
+.bulk-count { font-weight: 600; font-size: 14px; }
+.bulk-spacer { flex: 1; }
+.select-mark {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    background: rgba(15, 22, 36, 0.55);
+    color: #fff;
+    font-size: 16px;
+}
+.accounts-list.is-selecting .account-card.is-picked .select-mark { display: flex; }
+.accounts-list.is-selecting .account-card.is-picked { background: var(--bg-active); }
+.accounts-list.is-selecting .account-card .play-btn { visibility: hidden; }
 .notice-banner { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 10px 12px 10px 14px; border-radius: var(--radius-lg); background: var(--surface); font-size: 14px; flex-shrink: 0; }
 .notice-banner[hidden] { display: none; }
 .notice-banner > i { color: var(--muted); }
