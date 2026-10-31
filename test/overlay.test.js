@@ -14,8 +14,9 @@ const spawned = [];
 require('child_process').spawn = (cmd, args) => {
     const child = new EventEmitter();
     child.stdout = new EventEmitter();
-    child.kill = () => {};
-    spawned.push(args);
+    child.kill = () => { child.killed = true; };
+    child.args = args;
+    spawned.push(child);
     return child;
 };
 
@@ -281,4 +282,26 @@ test('the overlay window is never activated, so the keyboard stays with League',
     const opts = src.slice(src.indexOf('function createOverlayWindow'), src.indexOf('webPreferences', src.indexOf('function createOverlayWindow')));
     assert.match(opts, /focusable: false/);
     assert.doesNotMatch(read('src', 'main', 'overlay-manager.js'), /on\('blur'/, 'no focus race that hid and showed it again');
+});
+
+// Changing the key restarted the watch, then the old one's close event
+// dropped the new one: the old key kept working, the new one never did.
+test('a new show-or-hide key replaces the watch, and the old one closing does not undo it', () => {
+    state.config.overlayEnabled = true;
+    state.overlayViaOverwolf = false;
+    state.overlayWindow = { isDestroyed: () => false, isVisible: () => false, showInactive() {}, hide() {}, webContents: { send() {} } };
+    spawned.length = 0;
+    manager.setHotkey('F10');
+    manager.onGameflowPhase('InProgress');
+    const first = spawned.at(-1);
+    assert.equal(first.args.at(-1), '121');
+    manager.setHotkey('Ctrl+Shift+X');
+    const second = spawned.at(-1);
+    assert.equal(first.killed, true);
+    assert.equal(second.args.at(-1), '17,16,88');
+    first.emit('close');
+    manager.onGameflowPhase('EndOfGame');
+    assert.equal(second.killed, true, 'the new watch is still the one that gets stopped');
+    state.overlayWindow = null;
+    state.config.overlayEnabled = false;
 });

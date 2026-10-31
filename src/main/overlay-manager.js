@@ -40,6 +40,11 @@ function hotkeyToVks(text) {
     return vks;
 }
 
+// What the overlay does, in the dev app's log only.
+function devLog(...args) {
+    if (!require('electron').app.isPackaged) console.log('[Overlay]', ...args);
+}
+
 function overlayAlive() {
     return !!state.overlayWindow && !state.overlayWindow.isDestroyed();
 }
@@ -85,6 +90,7 @@ function shouldShow() {
 // The show-or-hide keys (overlay settings); the watcher restarts with them.
 function setHotkey(text) {
     if (!hotkeyToVks(text).length) return;
+    devLog('hotkey', text, watcher ? '(restarting the watch)' : '');
     hotkey = text;
     if (watcher) {
         stopWatcher();
@@ -156,7 +162,7 @@ function sendToOverlay(channel, data) {
 
 // One line of game-input-watch.ps1.
 function onWatchLine(line) {
-    if (!require('electron').app.isPackaged) console.log('[Overlay] watch:', String(line).trim());
+    devLog('watch:', String(line).trim());
     const [kind, value] = String(line).trim().split('|');
     if (kind === 'fg') {
         gameInFront = isGameInFront(line);
@@ -200,13 +206,17 @@ function startWatcher() {
         buffer = lines.pop();
         for (const line of lines) if (line.trim()) onWatchLine(line);
     });
-    watcher.on('error', (e) => {
+    // Only this run's child: a stopped one closes after the next has started.
+    const child = watcher;
+    child.on('error', (e) => {
         console.warn('[Overlay] Foreground watch failed:', e.message);
+        if (watcher !== child) return;
         watcher = null;
         gameInFront = true;
         applyVisibility();
     });
-    watcher.on('close', () => { watcher = null; });
+    child.on('close', () => { if (watcher === child) watcher = null; });
+    devLog('watch started for', hotkey);
 }
 
 function stopWatcher() {
