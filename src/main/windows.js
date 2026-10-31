@@ -73,7 +73,9 @@ function createOverlayWindow(owOverlay, onReady = null) {
         frame: false,
         resizable: false,
         skipTaskbar: true,
-        focusable: true,
+        // Never activated: clicks reach it, but the keyboard stays with League
+        // (a focused overlay swallowed every key until the game was clicked).
+        focusable: false,
         show: false,
         webPreferences: {
             preload: path.join(__dirname, '../preload/overlay-preload.js'),
