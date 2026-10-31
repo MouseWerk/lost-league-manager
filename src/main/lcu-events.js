@@ -11,7 +11,6 @@ const BOOT_RETRIES = 6;
 const BOOT_RETRY_MS = 5000;
 
 const GAME_PHASES = new Set(['GameStart', 'InProgress', 'Reconnect']);
-const OVERLAY_HIDE_PHASES = new Set(['None', 'Lobby', 'EndOfGame', 'WaitingForStats', 'PreEndOfGame']);
 
 // Bumped on every connect and disconnect: work started for one connection
 // (account detection, Riot ID linking) is dropped once it is stale.
@@ -153,14 +152,6 @@ function applyGameflowPhase(phase, { fromEvent = false } = {}) {
         accountStatus.captureStatus(username)
             .then(() => require('./windows').broadcastAccountsUpdate())
             .catch((e) => console.log('[LCU] Status after game skipped:', e.message));
-    }
-
-    if (state.overlayWindow && !state.overlayWindow.isDestroyed()) {
-        if (phase === 'InProgress') {
-            if (state.config.overlayEnabled) state.overlayWindow.show();
-        } else if (OVERLAY_HIDE_PHASES.has(phase)) {
-            state.overlayWindow.hide();
-        }
     }
 }
 

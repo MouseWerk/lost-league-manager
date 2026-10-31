@@ -363,6 +363,6 @@ test('League is started through the Riot Client once the sign-in is done, not be
     signedIn = true;
     await fx.waitFor(() => launches.length === 1, 'League started through the Riot Client', 4000);
     assert.equal(launches[0], `Basic ${Buffer.from('riot:secret').toString('base64')}`);
-    assert.match(lastStatus().message, /Launching League/);
+    await fx.waitFor(() => /Launching League/.test(lastStatus()?.message || ''), 'the Launching League status');
     script.exit(0);
 });

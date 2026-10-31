@@ -45,9 +45,7 @@ function initOverwolf() {
                     }
                 }
 
-                if (state.config.overlayEnabled && state.overlayWindow && !state.overlayWindow.isDestroyed()) {
-                    state.overlayWindow.show();
-                }
+                require('./overlay-manager').showIfInGame();
             });
 
             gep.on('game-exit', (ev, gameId) => {
@@ -98,16 +96,12 @@ function initOverwolf() {
                     console.error('[Overlay] inject() threw:', err.message);
                 }
 
-                if (state.config.overlayEnabled && state.overlayWindow && !state.overlayWindow.isDestroyed()) {
-                    state.overlayWindow.show();
-                }
+                require('./overlay-manager').showIfInGame();
             });
 
             owOverlay.on('game-injected', (gameInfo) => {
                 console.log('[Overlay] game-injected into game:', gameInfo?.id ?? gameInfo);
-                if (state.config.overlayEnabled && state.overlayWindow && !state.overlayWindow.isDestroyed()) {
-                    state.overlayWindow.show();
-                }
+                require('./overlay-manager').showIfInGame();
             });
 
             owOverlay.on('game-injection-error', (err, gameInfo) => {
@@ -140,15 +134,10 @@ function initOverwolf() {
     });
 }
 
+// GEP's match state: the overlay manager decides with the client's phase.
 function handleOverlayVisibility(data) {
-    if (!state.overlayWindow || state.overlayWindow.isDestroyed()) return;
     if (data?.feature !== 'matchState' || data?.key !== 'matchState') return;
-    const s = data.value;
-    if (s === 'InProgress') {
-        if (state.config.overlayEnabled) state.overlayWindow.show();
-    } else if (s === 'EndOfGame' || s === 'PreGame') {
-        state.overlayWindow.hide();
-    }
+    require('./overlay-manager').showIfInGame();
 }
 
 module.exports = { initOverwolf };

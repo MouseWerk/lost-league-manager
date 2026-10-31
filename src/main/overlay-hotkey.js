@@ -5,8 +5,7 @@ let _current = null;
 
 function toggleOverlayVisibility() {
     if (!state.overlayWindow || state.overlayWindow.isDestroyed()) return;
-    if (state.overlayWindow.isVisible()) state.overlayWindow.hide();
-    else state.overlayWindow.show();
+    require('./overlay-manager').toggleByHotkey();
 }
 
 function registerOverlayHotkey(hotkey) {
