@@ -45,3 +45,28 @@ test('all histories come in one call, only for saved accounts', async () => {
     const res = await invoke('get-all-rank-history');
     assert.deepEqual(Object.keys(res), ['one#euw']);
 });
+
+test('season review: peak, current, longest ranked win streak, champions', async (t) => {
+    const matches = require('../src/main/services/matches');
+    const opgg = require('../src/main/services/opgg-api');
+    const championData = require('../src/main/services/champion-data');
+    const { getSeasonReview, longestWinStreak } = require('../src/main/ipc/stats');
+    const now = new Date(2026, 9, 31).getTime();
+    fs.writeFileSync(state.paths.rankHistory, JSON.stringify({ 'season#euw': [
+        { ts: new Date(2025, 11, 20).getTime(), tier: 'MASTER', division: null, lp: 50, score: 2850 }, // last season
+        { ts: new Date(2026, 2, 1).getTime(), tier: 'GOLD', division: 'I', lp: 10, score: 1510 },
+        { ts: new Date(2026, 6, 1).getTime(), tier: 'PLATINUM', division: 'III', lp: 40, score: 1740 },
+        { ts: new Date(2026, 9, 20).getTime(), tier: 'PLATINUM', division: 'IV', lp: 5, score: 1605 },
+    ] }));
+    fs.rmSync(state.paths.matchStore, { force: true });
+    const g = (d, win, queue = 'Ranked Solo') => ({ id: `g${d}`, createdAt: new Date(2026, 9, d).getTime(), win, queue, champion: `C${d}` });
+    matches.mergeMatches('Season#EUW', [g(1, true), g(2, true), g(3, true), g(4, false), g(5, true), g(6, true, 'ARAM')]);
+    t.mock.method(championData, 'whenReady', async () => {});
+    t.mock.method(opgg, 'getProfile', async () => ({ winLose: '60W 40L', ratio: '60%', championPool: [{ id: 103, name: 'Ahri', games: 40, wins: 26 }] }));
+    const r = await getSeasonReview('euw', 'Season#EUW', now);
+    assert.equal(r.peak.tier, 'PLATINUM', 'last season does not count');
+    assert.equal(r.current.division, 'IV');
+    assert.equal(r.longestWinStreak, 3, 'ranked only');
+    assert.deepEqual(r.champions.map((c) => [c.name, c.games, c.winRate]), [['Ahri', 40, 65]]);
+    assert.equal(longestWinStreak([]), 0);
+});

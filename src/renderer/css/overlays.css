@@ -444,3 +444,21 @@
 .champion-stats-name { font-weight: 600; }
 .champion-stats-row .is-good { color: var(--success); }
 .champion-stats-row .is-bad { color: var(--danger); }
+
+/* ── Season review ────────────────────────────────────────────────────────── */
+.season-content { width: 600px; }
+.season-body { display: flex; flex-direction: column; gap: 14px; margin-top: 14px; }
+.season-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.season-tile { padding: 12px 14px; border-radius: var(--radius-lg); background: var(--bg); }
+.season-tile-label { color: var(--muted); font-size: 12px; }
+.season-tile-value { display: flex; align-items: center; gap: 6px; font-family: var(--font-display); font-weight: 700; font-size: 18px; margin-top: 2px; }
+.season-tile-value img { width: 28px; height: 28px; object-fit: contain; }
+.season-tile-sub { color: var(--muted); font-size: 12px; }
+.season-chart { display: block; width: 100%; height: 120px; }
+.season-chart polyline { fill: none; stroke: var(--primary); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.season-chart line { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.season-champs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.season-champ { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius); background: var(--bg); font-size: 13px; }
+.season-champ img { width: 30px; height: 30px; border-radius: var(--radius-xs); object-fit: cover; }
+.season-champ b { display: block; font-weight: 600; }
+.season-note { color: var(--muted); font-size: 12px; margin: 0; }

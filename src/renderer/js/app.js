@@ -1022,6 +1022,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initGamesDialog();
   initOverview();
   initBulkActions();
+  initSeasonReview();
   initChampBuild();
   initAccountDetail();
   initTooltips();
@@ -2689,6 +2690,60 @@ function renderMatchHistory(res) {
     `;
     })
     .join("");
+}
+
+// ── Season review ─────────────────────────────────────────────────────────
+function seasonTile(label, value, sub = "", tier = "") {
+  const emblem = tier && tierEmblemSrc(tier) ? `<img src="${escapeHtml(tierEmblemSrc(tier))}" alt="">` : "";
+  return `<div class="season-tile"><div class="season-tile-label">${escapeHtml(label)}</div><div class="season-tile-value ${escapeHtml(tierClass(tier))}">${emblem}${escapeHtml(value)}</div>${sub ? `<div class="season-tile-sub">${escapeHtml(sub)}</div>` : ""}</div>`;
+}
+
+async function openSeasonReview(acc) {
+  if (!acc?.riotId) return;
+  document.getElementById("seasonAccount").textContent = acc.label || acc.riotId;
+  const body = document.getElementById("seasonBody");
+  body.innerHTML = '<p class="season-note">Loading the season...</p>';
+  openLayer(document.getElementById("seasonModal"), { onEscape: closeSeasonReview });
+  const r = await window.electronAPI.getSeasonReview(acc.region, acc.riotId).catch(() => null);
+  if (!r) {
+    body.innerHTML = '<p class="season-note">The season could not be loaded.</p>';
+    return;
+  }
+  const label = (e) => (e ? `${formatRankHistoryLabel(e)} ${e.lp} LP` : "-");
+  const tiles =
+    seasonTile("Peak rank", label(r.peak), r.peak ? new Date(r.peak.ts).toLocaleDateString() : "no rank saved yet", r.peak?.tier || "") +
+    seasonTile("Now", label(r.current), "", r.current?.tier || "") +
+    seasonTile("Season", r.seasonRecord || "-", r.seasonRatio ? `${r.seasonRatio} win rate (solo/duo)` : "") +
+    seasonTile("Longest win streak", r.longestWinStreak ? plural(r.longestWinStreak, "win") : "-", `in ${plural(r.rankedGamesSaved, "saved ranked game")}`);
+  let chart = "";
+  if (r.history.length > 1) {
+    const from = r.history[0].ts;
+    const to = Date.now();
+    const c = rankChart([{ key: 0, history: r.history }], from, to, 560, 120, 6);
+    const pts = c.series[0].points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+    chart = `<svg class="season-chart" viewBox="0 0 560 120" preserveAspectRatio="none" role="img" aria-label="Rank over the season">${c.ticks.map((t) => `<line x1="0" x2="560" y1="${t.y.toFixed(1)}" y2="${t.y.toFixed(1)}"></line>`).join("")}<polyline points="${pts}"></polyline></svg>`;
+  }
+  const champs = r.champions.length
+    ? `<p class="ov-label season-note">Most played this season (OP.GG)</p><div class="season-champs">${r.champions
+        .map((c) => `<div class="season-champ">${c.icon ? `<img src="${escapeHtml(c.icon)}" alt="">` : ""}<span><b>${escapeHtml(c.name)}</b>${escapeHtml(plural(c.games, "game"))}${c.winRate == null ? "" : escapeHtml(", " + c.winRate + "%")}</span></div>`)
+        .join("")}</div>`
+    : "";
+  body.innerHTML = `<div class="season-tiles">${tiles}</div>${chart}${champs}<p class="season-note">Season ${escapeHtml(r.season)}. Peak and curve come from the ranks the app saved; the longest streak from the saved games.</p>`;
+}
+
+function closeSeasonReview() {
+  closeLayer(document.getElementById("seasonModal"));
+}
+
+function initSeasonReview() {
+  document.getElementById("profileSeasonBtn")?.addEventListener("click", () => {
+    const acc = selectedAccount();
+    if (acc) openSeasonReview(acc);
+  });
+  document.getElementById("closeSeasonBtn")?.addEventListener("click", closeSeasonReview);
+  document.getElementById("seasonModal")?.addEventListener("click", (e) => {
+    if (e.target.id === "seasonModal") closeSeasonReview();
+  });
 }
 
 // ── Games dialog: stored games, one in detail, and champion stats ─────────

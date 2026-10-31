@@ -341,6 +341,52 @@ async function getMatchDetail(region, riotId, matchId) {
     }
 }
 
+// One account's season: rank history (peak and curve), OP.GG's season
+// numbers (games, win rate, champions) and the longest ranked win streak in
+// the saved games. The season starts on January 1st (ranked splits keep the
+// season's rank history).
+function longestWinStreak(list) {
+    let best = 0;
+    let run = 0;
+    for (const m of [...list].sort((a, b) => a.createdAt - b.createdAt)) {
+        if (m.win) best = Math.max(best, ++run);
+        else run = 0;
+    }
+    return best;
+}
+
+async function getSeasonReview(region, riotId, now = Date.now()) {
+    const start = new Date(new Date(now).getFullYear(), 0, 1).getTime();
+    const history = getRankHistory(riotId).filter((e) => e.ts >= start);
+    const peak = history.reduce((best, e) => (!best || e.score > best.score ? e : best), null);
+    const ranked = matches.getStoredMatches(riotId).filter((m) => m.createdAt >= start && (m.queue === 'Ranked Solo' || m.queue === 'Ranked Flex'));
+    let profile = null;
+    const parsed = opgg.parseRiotIdInput(riotId);
+    if (parsed && region && norm(region) !== 'cn') {
+        try {
+            await championData.whenReady();
+            profile = await opgg.getProfile(parsed.gameName, parsed.tagLine, region);
+        } catch { /* season numbers from OP.GG are optional */ }
+    }
+    const pool = (profile?.championPool || []).slice(0, 6).map((c) => ({
+        name: c.name,
+        icon: championData.getIdToImageMap()[championData.getIdToNameMap()[c.id]] || null,
+        games: c.games,
+        winRate: c.games ? Math.round((c.wins / c.games) * 100) : null,
+    }));
+    return {
+        season: new Date(now).getFullYear(),
+        peak,
+        current: history[history.length - 1] || null,
+        history,
+        seasonRecord: profile?.winLose || '',
+        seasonRatio: profile?.ratio || '',
+        champions: pool,
+        longestWinStreak: longestWinStreak(ranked),
+        rankedGamesSaved: ranked.length,
+    };
+}
+
 function register() {
     // The account list re-renders while results arrive, and the profile modal
     // asks again for the card it was opened from: identical calls share one run.
@@ -356,6 +402,9 @@ function register() {
     const locked = () => require('../services/vault').isVaultLocked();
     ipcMain.handle('get-rank-history', (event, riotId) => (locked() ? [] : getRankHistory(riotId)));
     // Reads the account list: nothing while the vault is locked.
+    ipcMain.handle('get-season-review', (event, { region, riotId } = {}) => (locked() || typeof riotId !== 'string'
+        ? null
+        : getSeasonReview(region, riotId)));
     ipcMain.handle('get-all-rank-history', () => (require('../services/vault').isVaultLocked()
         ? {}
         : getRankHistories(loadAccounts().map((a) => a.riotId).filter(Boolean))));
@@ -413,4 +462,4 @@ function register() {
     });
 }
 
-module.exports = { register, LCU_REGION_TO_APP, getClientRegion, notifyRename, followRename };
+module.exports = { register, LCU_REGION_TO_APP, getClientRegion, notifyRename, followRename, getSeasonReview, longestWinStreak };
