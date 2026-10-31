@@ -256,6 +256,18 @@
                 <!-- Connected state -->
                 <div id="lcuOnline" style="display:none">
 
+                    <!-- Today's session: games, record, LP, streak. Filled by loadSession() in app.js. -->
+                    <div id="sessionCard" class="session-card" hidden>
+                        <div class="session-main">
+                            <span class="session-label">Today</span>
+                            <span id="sessionGames" class="session-games"></span>
+                            <span id="sessionRecord" class="session-record"></span>
+                            <span id="sessionLp" class="session-lp"></span>
+                        </div>
+                        <div id="sessionStrip" class="session-strip" aria-label="Today's games, newest last"></div>
+                        <p id="sessionHint" class="session-hint" hidden></p>
+                    </div>
+
                     <!-- Context action bar (contextual, hidden by default) -->
                     <div class="ov-action-bar" id="ovActionBar" style="display:none">
                         <button id="ovDodgeBtn"  class="action-btn danger-btn"><i class="fas fa-right-from-bracket"></i> Dodge queue</button>

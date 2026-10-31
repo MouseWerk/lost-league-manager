@@ -287,3 +287,20 @@
 .ov-build-item-row .match-item-icon { width: 32px; height: 32px; }
 .ov-build-actions { display: flex; align-items: center; gap: 8px; }
 .ov-build-note { flex: 1; color: var(--muted); font-size: 13px; }
+
+/* Today's session */
+.session-card { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; padding: 14px 18px; border-radius: var(--radius-lg); background: var(--surface); }
+.session-card[hidden] { display: none; }
+.session-main { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.session-label { color: var(--muted); font-size: 13px; }
+.session-games { font-family: var(--font-display); font-weight: 700; font-size: 17px; }
+.session-record { color: var(--muted); font-size: 14px; }
+.session-lp { font-family: var(--font-display); font-weight: 700; font-size: 15px; }
+.session-lp.is-up { color: var(--success); }
+.session-lp.is-down { color: var(--danger); }
+.session-strip { display: flex; gap: 4px; flex-wrap: wrap; }
+.session-dot { width: 26px; height: 26px; border-radius: var(--radius-xs); overflow: hidden; }
+.session-dot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.session-dot.is-win { box-shadow: inset 0 -3px 0 var(--success); }
+.session-dot.is-loss { box-shadow: inset 0 -3px 0 var(--danger); }
+.session-hint { margin: 0; padding: 8px 10px; border-radius: var(--radius); background: var(--warning-soft); color: var(--warning); font-size: 13px; }
