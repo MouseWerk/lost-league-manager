@@ -173,6 +173,83 @@
     return { goal, current, left: Math.max(0, goal - current), pct, reached: current >= goal };
   }
 
+  // A ladder score back to words: 1257 -> "Gold IV 57 LP", 2950 -> "Master 150 LP".
+  function scoreLabel(score) {
+    const s = Math.max(0, Math.round(score || 0));
+    const idx = Math.min(LADDER.length - 1, Math.floor(s / 400));
+    const tier = LADDER[idx].charAt(0).toUpperCase() + LADDER[idx].slice(1);
+    const rest = s - idx * 400;
+    if (APEX_TIERS.has(LADDER[idx])) return `${tier} ${rest} LP`;
+    return `${tier} ${["IV", "III", "II", "I"][Math.floor(rest / 100)]} ${rest % 100} LP`;
+  }
+
+  // LP and games over the last seven days, like dailySummary: the week starts
+  // from the last entry before it, or its first one. null without entries.
+  const WEEK_MS = 7 * 86400000;
+  function weeklySummary(history, now = Date.now()) {
+    if (!Array.isArray(history) || !history.length) return null;
+    const start = now - WEEK_MS;
+    const week = history.filter((e) => e.ts >= start && e.ts <= now);
+    if (!week.length) return null;
+    const before = history.filter((e) => e.ts < start);
+    const base = before.length ? before[before.length - 1] : week[0];
+    const last = week[week.length - 1];
+    const out = { lp: last.score - base.score, wins: null, losses: null };
+    if ([base.wins, base.losses, last.wins, last.losses].every(Number.isInteger)) {
+      const w = last.wins - base.wins;
+      const l = last.losses - base.losses;
+      if (w >= 0 && l >= 0) Object.assign(out, { wins: w, losses: l });
+    }
+    return out;
+  }
+
+  // Several rank histories on one chart from `from` to `to`, on one shared
+  // ladder scale. Each series starts at its last entry before `from` (drawn
+  // at the left edge) and ends at `to` with its latest score. ticks are the
+  // tier lines (every 400) inside the range, with the tier name.
+  function rankChart(histories, from, to, w, h, pad = 6) {
+    const span = Math.max(1, to - from);
+    const series = [];
+    let min = Infinity;
+    let max = -Infinity;
+    for (const { key, history } of histories) {
+      const list = Array.isArray(history) ? history : [];
+      const inside = list.filter((e) => e.ts >= from && e.ts <= to);
+      const before = list.filter((e) => e.ts < from).pop();
+      const pts = [];
+      if (before) pts.push({ ts: from, score: before.score });
+      pts.push(...inside.map((e) => ({ ts: e.ts, score: e.score })));
+      if (!pts.length) continue;
+      pts.push({ ts: to, score: pts[pts.length - 1].score });
+      for (const p of pts) {
+        min = Math.min(min, p.score);
+        max = Math.max(max, p.score);
+      }
+      series.push({ key, pts });
+    }
+    if (!series.length) return { series: [], ticks: [], min: 0, max: 0 };
+    min = Math.floor(min / 100) * 100;
+    max = Math.ceil(max / 100) * 100;
+    if (max - min < 400) {
+      const mid = (min + max) / 2;
+      min = Math.max(0, Math.floor((mid - 200) / 100) * 100);
+      max = min + 400;
+    }
+    const x = (ts) => pad + ((ts - from) / span) * (w - pad * 2);
+    const y = (s) => h - pad - ((s - min) / (max - min)) * (h - pad * 2);
+    const ticks = [];
+    for (let s = Math.ceil(min / 400) * 400; s <= max; s += 400) {
+      const tier = LADDER[Math.floor(s / 400)];
+      if (tier) ticks.push({ y: y(s), score: s, tier: tier.charAt(0).toUpperCase() + tier.slice(1) });
+    }
+    return {
+      min,
+      max,
+      ticks,
+      series: series.map((s) => ({ key: s.key, points: s.pts.map((p) => ({ x: x(p.ts), y: y(p.score), ts: p.ts, score: p.score })) })),
+    };
+  }
+
   // ── Tags ───────────────────────────────────────────────────────────────────
   // An account's tags are one comma-separated string; the main process
   // normalizes it (accounts.js), this only splits it.
@@ -334,6 +411,9 @@
     tagCounts,
     statusWarnings,
     championStats,
+    weeklySummary,
+    rankChart,
+    scoreLabel,
     hasTag,
     lobbyMemberLabel,
     normalizeLoginStatus,

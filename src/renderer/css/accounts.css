@@ -590,3 +590,70 @@ button.match-pill:hover { filter: brightness(0.96); }
     .account-card .card-mastery { display: none; }
     .account-detail { width: 320px; }
 }
+
+
+/* ── Overview ─────────────────────────────────────────────────────────────── */
+.overview-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-bottom: 8px; }
+.overview-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.overview-tile { padding: 14px 16px; border-radius: var(--radius-lg); background: var(--surface); }
+.overview-tile-label { color: var(--muted); font-size: 13px; }
+.overview-tile-value { font-family: var(--font-display); font-weight: 700; font-size: 26px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.overview-tile-sub { color: var(--muted); font-size: 12px; }
+.overview-card { padding: 16px 18px; border-radius: var(--radius-lg); background: var(--surface); }
+.overview-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; }
+.overview-card-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.overview-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.overview-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.series-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--series-color); flex-shrink: 0; }
+.overview-chart-wrap { position: relative; padding-left: 92px; }
+.overview-chart { display: block; width: 100%; height: 220px; overflow: visible; }
+.overview-grid { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.overview-line { fill: none; stroke: var(--series-color); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.overview-cross { stroke: var(--line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.overview-tick { position: absolute; left: 0; transform: translateY(-50%); color: var(--muted); font-size: 12px; }
+.overview-tip {
+    position: absolute;
+    top: 6px;
+    min-width: 170px;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+    box-shadow: var(--shadow-pop);
+    font-size: 12px;
+    pointer-events: none;
+}
+.overview-tip-date { color: var(--muted); margin-bottom: 4px; }
+.overview-tip-row { display: flex; align-items: center; gap: 6px; }
+.overview-tip-row b { margin-left: auto; padding-left: 10px; font-weight: 600; }
+.overview-empty { color: var(--muted); font-size: 13px; margin: 6px 0; }
+.overview-table { display: flex; flex-direction: column; gap: 2px; }
+.overview-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1.4fr) minmax(0, 1.2fr) 64px 80px minmax(0, 1fr) 64px;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+}
+button.overview-row { cursor: pointer; }
+button.overview-row:hover { background: var(--bg-hover); }
+.overview-head { color: var(--muted); font-size: 12px; font-weight: 600; }
+.overview-emblem { width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; }
+.overview-emblem .tier-emblem { width: 34px; height: 34px; object-fit: contain; }
+.overview-name { display: flex; flex-direction: column; min-width: 0; font-weight: 600; }
+.overview-sub, .overview-muted { color: var(--muted); font-weight: 400; font-size: 12px; }
+.overview-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.overview-rank { font-family: var(--font-display); font-weight: 600; }
+.overview-lp { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; }
+.overview-lp.is-up { color: var(--success); }
+.overview-lp.is-down { color: var(--danger); }
+.overview-goal { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
+.overview-goal-bar { flex: 1; height: 5px; border-radius: var(--radius-pill); background: var(--bg-active); overflow: hidden; }
+.overview-goal-bar span { display: block; height: 100%; background: var(--primary); }
+.overview-flags { display: flex; gap: 6px; justify-content: flex-end; }

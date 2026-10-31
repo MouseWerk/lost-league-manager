@@ -4,7 +4,7 @@ const { loadAccounts, saveAccounts } = require('../services/storage');
 const riotApi = require('../services/riot-api');
 const opgg = require('../services/opgg-api');
 const championData = require('../services/champion-data');
-const { recordRankSnapshot, getRankHistory, parseRecord } = require('../services/rank-history');
+const { recordRankSnapshot, getRankHistory, getRankHistories, parseRecord } = require('../services/rank-history');
 const matches = require('../services/matches');
 const { recordLastPlayed } = require('../services/account-status');
 
@@ -316,6 +316,10 @@ function register() {
     });
 
     ipcMain.handle('get-rank-history', (event, riotId) => getRankHistory(riotId));
+    // Reads the account list: nothing while the vault is locked.
+    ipcMain.handle('get-all-rank-history', () => (require('../services/vault').isVaultLocked()
+        ? {}
+        : getRankHistories(loadAccounts().map((a) => a.riotId).filter(Boolean))));
 
     // On-demand only (profile modal), not per-card.
     ipcMain.handle('get-match-history', (event, { region, riotId } = {}) => getMatchHistory(region, riotId));
