@@ -48,6 +48,9 @@ function toOpggRegion(region) {
 // The `class` header lines give each constructor's positional field names.
 
 function parseToolText(text) {
+    if (/^\s*[{[]/.test(text)) {
+        try { return JSON.parse(text); } catch { /* not JSON after all: parse the notation */ }
+    }
     const lines  = text.split('\n');
     const schema = {};
     let i = 0;
@@ -387,6 +390,74 @@ async function getChampionBuild(champKey, position, mode = 'ranked') {
     });
 }
 
+// ── Matchup and synergy (champion select) ─────────────────────────────────
+
+const sum = (list, key) => (Array.isArray(list) ? list.reduce((s, x) => s + (Number(x?.[key]) || 0), 0) : 0);
+const champArg = (key) => {
+    const c = String(key || '').toUpperCase();
+    if (!/^[A-Z]+$/.test(c)) throw new Error('Unknown champion');
+    return c;
+};
+
+// How a champion does against one lane opponent, and what to build for it:
+// { games, winRate, runes, items: { starter, boots, core }, spells, skills }.
+async function getMatchupGuide(champKey, opponentKey, position) {
+    const me = champArg(champKey);
+    const them = champArg(opponentKey);
+    const pos = BUILD_POSITIONS.includes(position) ? position : 'none';
+    return cached(`matchup:${me}:${them}:${pos}`, async () => {
+        const res = await callTool('lol_get_lane_matchup_guide', { position: pos, my_champion: me, opponent_champion: them });
+        const d = res?.data || {};
+        const games = sum(d.summoner_spells, 'play');
+        const wins = sum(d.summoner_spells, 'win');
+        const page = Array.isArray(d.runes) ? d.runes[0] : null;
+        const perks = page ? [...ids(page.primary_rune_ids), ...ids(page.secondary_rune_ids), ...ids(page.stat_mod_ids)] : [];
+        const runes = page && perks.length === 9 ? {
+            primaryStyleId: page.primary_page_id,
+            subStyleId: page.secondary_page_id,
+            perkIds: perks,
+            primaryName: page.primary_page_name || '',
+            secondaryName: page.secondary_page_name || '',
+            names: [...(page.primary_rune_names || []), ...(page.secondary_rune_names || [])].filter((n) => typeof n === 'string'),
+        } : null;
+        return {
+            champion: res?.my_champion || champKey,
+            opponent: res?.opponent_champion || opponentKey,
+            position: res?.position || pos,
+            games,
+            winRate: games ? Math.round((wins / games) * 1000) / 10 : null,
+            runes,
+            items: {
+                starter: firstIds(d.starter_items),
+                boots: firstIds(d.boots),
+                core: firstIds(d.core_items),
+            },
+            spells: Array.isArray(d.summoner_spells?.[0]?.ids_names) ? d.summoner_spells[0].ids_names.filter((n) => typeof n === 'string') : [],
+            skills: (Array.isArray(d.skill_masteries?.[0]?.ids) ? d.skill_masteries[0].ids : []).filter((s) => /^[QWER]$/.test(s)),
+        };
+    });
+}
+
+// Teammates in one position that go best with a champion:
+// [{ champion, championId, winRate (0-100), games, rank }].
+async function getSynergies(champKey, myPosition, allyPosition) {
+    const me = champArg(champKey);
+    if (!BUILD_POSITIONS.includes(myPosition) || !BUILD_POSITIONS.includes(allyPosition)) throw new Error('Unknown position');
+    return cached(`synergy:${me}:${myPosition}:${allyPosition}`, async () => {
+        const res = await callTool('lol_get_champion_synergies', {
+            champion: me, my_position: myPosition, synergy_position: allyPosition,
+            desired_output_fields: ['data.synergies[].{synergy_champion_name,synergy_champion_id,play,win_rate,score_rank}'],
+        });
+        return (res?.data?.synergies || []).map((s) => ({
+            champion: s.synergy_champion_name || '',
+            championId: s.synergy_champion_id,
+            winRate: typeof s.win_rate === 'number' ? Math.round(s.win_rate * 1000) / 10 : null,
+            games: s.play || 0,
+            rank: s.score_rank || null,
+        }));
+    });
+}
+
 // Both teams of one game (the games dialog), by the id and start time that
 // lol_list_summoner_matches returned.
 async function getGameDetail(gameName, tagLine, region, gameId, createdAtIso) {
@@ -414,7 +485,7 @@ async function getGameDetail(gameName, tagLine, region, gameId, createdAtIso) {
 }
 
 module.exports = {
-    getProfile, getRecentMatches, getGameDetail, getChampionBuild, BUILD_POSITIONS, parseRiotIdInput, toOpggRegion, parseToolText,
+    getProfile, getRecentMatches, getGameDetail, getChampionBuild, getMatchupGuide, getSynergies, BUILD_POSITIONS, parseRiotIdInput, toOpggRegion, parseToolText,
     // Clears the cache and the busy cooldown between tests.
     _resetForTests() {
         cache.clear();

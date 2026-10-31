@@ -177,3 +177,51 @@ test('no build in modes OP.GG has none for (Arena, URF)', async (t) => {
     assert.equal(runes.mock.callCount(), 0);
     state.config.autoImportBuild = false;
 });
+
+// Matchup guide: OP.GG answers this tool in plain JSON.
+const MATCHUP_JSON = JSON.stringify({
+    my_champion: 'Ahri', opponent_champion: 'Zed', position: 'mid',
+    data: {
+        summoner_spells: [{ ids: [4, 14], ids_names: ['Flash', 'Ignite'], play: 600, win: 300 }, { ids: [4, 12], ids_names: ['Flash', 'Teleport'], play: 400, win: 220 }],
+        starter_items: [{ ids: [1056, 2003] }], boots: [{ ids: [3020] }], core_items: [{ ids: [3118, 4645, 3157] }],
+        runes: [{ primary_page_id: 8100, primary_page_name: 'Domination', primary_rune_ids: [8112, 8139, 8140, 8106], primary_rune_names: ['Electrocute', 'Taste of Blood', 'Grisly Mementos', 'Ultimate Hunter'], secondary_page_id: 8200, secondary_page_name: 'Sorcery', secondary_rune_ids: [8210, 8226], secondary_rune_names: ['Transcendence', 'Manaflow Band'], stat_mod_ids: [5005, 5008, 5001] }],
+        skill_masteries: [{ ids: ['Q', 'E', 'W'] }],
+    },
+});
+
+test('matchup guide: win rate over all games, runes, items, spells and skills against one champion', async (t) => {
+    const posted = [];
+    t.mock.method(axios, 'post', async (url, body) => { posted.push(body.params.arguments); return mcp(MATCHUP_JSON); });
+    const g = await opgg.getMatchupGuide('Ahri', 'Zed', 'mid');
+    assert.deepEqual(posted[0], { position: 'mid', my_champion: 'AHRI', opponent_champion: 'ZED' });
+    assert.equal(g.games, 1000);
+    assert.equal(g.winRate, 52);
+    assert.equal(g.runes.perkIds.length, 9);
+    assert.deepEqual(g.items, { starter: [1056, 2003], boots: [3020], core: [3118, 4645, 3157] });
+    assert.deepEqual(g.spells, ['Flash', 'Ignite']);
+    assert.deepEqual(g.skills, ['Q', 'E', 'W']);
+});
+
+test('duo synergy: OP.GG partners for a champion and position', async (t) => {
+    const SYN = 'class LolGetChampionSynergies: data\nclass Data: synergies\nclass Synergie: synergy_champion_id,synergy_champion_name,score_rank,play,win_rate\n\nLolGetChampionSynergies(Data([Synergie(412,"Thresh",1,8592,0.53),Synergie(117,"Lulu",2,7525,0.5)]))';
+    t.mock.method(axios, 'post', async () => mcp(SYN));
+    const list = await opgg.getSynergies('Jinx', 'adc', 'support');
+    assert.deepEqual(list[1], { champion: 'Lulu', championId: 117, winRate: 50, games: 7525, rank: 2 });
+    await assert.rejects(opgg.getSynergies('Jinx', 'adc', 'nowhere'), /Unknown position/);
+});
+
+test('draft: enemy picks with their lane, and party members as duo', async (t) => {
+    t.mock.method(championData, 'getIdToNameMap', () => ({ 238: 'Zed', 117: 'Lulu', 222: 'Jinx' }));
+    t.mock.method(championData, 'getChampionList', () => [{ key: 'Zed', name: 'Zed' }, { key: 'Lulu', name: 'Lulu' }, { key: 'Jinx', name: 'Jinx' }]);
+    t.mock.method(championData, 'getIdToImageMap', () => ({}));
+    fakeLcu({ 'GET /lol-lobby/v2/lobby': { members: [{ puuid: 'me' }, { puuid: 'friend' }] } }, []);
+    const session = {
+        localPlayerCellId: 0,
+        myTeam: [{ cellId: 0, puuid: 'me', championId: 222, assignedPosition: 'bottom' }, { cellId: 1, puuid: 'friend', championId: 117, assignedPosition: 'utility' }, { cellId: 2, puuid: 'rando', championId: 1 }],
+        theirTeam: [{ championId: 238, assignedPosition: 'middle' }, { championId: 0 }],
+    };
+    const d = await champBuild.draftContext(session, { position: 'mid' });
+    assert.deepEqual(d.enemies.map((e) => [e.key, e.position]), [['Zed', 'mid']]);
+    assert.equal(d.laneOpponent, 'Zed');
+    assert.deepEqual(d.duo.map((x) => [x.key, x.position]), [['Lulu', 'support']]);
+});
