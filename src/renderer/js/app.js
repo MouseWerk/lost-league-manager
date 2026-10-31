@@ -189,6 +189,10 @@ const {
   hasTag,
   statusWarnings,
   championStats,
+  weeklySummary,
+  rankChart,
+  scoreLabel,
+  ladderScore,
   lobbyMemberLabel,
   normalizeLoginStatus,
   needsLaunchAttention,
@@ -981,6 +985,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initTagFilters();
   initTagSuggestions();
   initGamesDialog();
+  initOverview();
   initAccountDetail();
   initTooltips();
 
@@ -1499,6 +1504,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       showView(btn.dataset.view);
       if (btn.dataset.view === "liveView") loadLiveView();
       if (btn.dataset.view === "statsView") initStatsView();
+      if (btn.dataset.view === "overviewView") renderOverview();
     });
   });
 
@@ -2928,6 +2934,161 @@ function initTagSuggestions() {
     renderTagSuggestions();
   });
   input?.addEventListener("input", renderTagSuggestions);
+}
+
+// ── Overview ────────────────────────────────────────────────────────────
+// Series colors follow the account (its place in your order), at most six
+// lines; the table below lists every account.
+const OVERVIEW_SERIES = 6;
+const CHART_DAYS = 30;
+let _overview = null; // { chart, accounts } for the hover layer
+
+function overviewRows(histories, now) {
+  return allAccounts.map((acc) => {
+    const history = (acc.riotId && histories[acc.riotId.trim().toLowerCase()]) || [];
+    const stats = getCachedStats(acc);
+    return {
+      acc,
+      history,
+      stats,
+      week: weeklySummary(history, now),
+      goal: acc.goalRank ? goalProgress(history, acc.goalRank) : null,
+      warnings: accountWarnings(acc),
+    };
+  });
+}
+
+function overviewTile(label, value, sub = "") {
+  return `<div class="overview-tile"><div class="overview-tile-label">${escapeHtml(label)}</div><div class="overview-tile-value">${escapeHtml(value)}</div>${sub ? `<div class="overview-tile-sub">${escapeHtml(sub)}</div>` : ""}</div>`;
+}
+
+function signed(n) {
+  return n > 0 ? `+${n}` : String(n);
+}
+
+async function renderOverview() {
+  const now = Date.now();
+  const histories = (await window.electronAPI.getAllRankHistory()) || {};
+  const rows = overviewRows(histories, now);
+
+  // Tiles
+  let wins = 0, losses = 0, lp = 0, counted = 0;
+  for (const r of rows) {
+    if (!r.week) continue;
+    lp += r.week.lp;
+    counted += 1;
+    if (r.week.wins !== null) {
+      wins += r.week.wins;
+      losses += r.week.losses;
+    }
+  }
+  const games = wins + losses;
+  const attention = rows.filter((r) => r.warnings.some((w) => w.kind !== "inactive")).length;
+  document.getElementById("overviewTiles").innerHTML =
+    overviewTile("Games this week", String(games), games ? `${wins} won, ${losses} lost` : "") +
+    overviewTile("Win rate", games ? `${Math.round((wins / games) * 100)}%` : "-", "") +
+    overviewTile("LP this week", counted ? signed(lp) : "-", counted ? `over ${plural(counted, "account")}` : "") +
+    overviewTile("Need attention", String(attention), attention ? "decay or restriction" : "nothing to do");
+
+  // Chart: the accounts in your order that have a rank saved, at most six.
+  const svg = document.getElementById("overviewChart");
+  const box = svg.viewBox.baseVal;
+  const charted = rows.filter((r) => r.history.length).slice(0, OVERVIEW_SERIES);
+  const from = now - CHART_DAYS * 86400000;
+  const chart = rankChart(charted.map((r, i) => ({ key: i, history: r.history })), from, now, box.width, box.height, 10);
+  const empty = !chart.series.length;
+  document.getElementById("overviewChartEmpty").hidden = !empty;
+  svg.style.display = empty ? "none" : "";
+  const ticks = chart.ticks
+    .map((t) => `<line class="overview-grid" x1="0" x2="${escapeHtml(box.width)}" y1="${t.y.toFixed(1)}" y2="${t.y.toFixed(1)}"></line>`)
+    .join("");
+  const lines = chart.series
+    .map((s) => `<polyline class="overview-line series-${s.key + 1}" points="${s.points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ")}"></polyline>`)
+    .join("");
+  svg.innerHTML = ticks + lines + '<line id="overviewCross" class="overview-cross" y1="0" y2="240" x1="0" x2="0" visibility="hidden"></line>';
+  // Tier names sit in HTML beside the chart, so they do not stretch with it.
+  const wrap = svg.parentElement;
+  wrap.querySelectorAll(".overview-tick").forEach((n) => n.remove());
+  for (const t of chart.ticks) {
+    const label = document.createElement("span");
+    label.className = "overview-tick";
+    label.style.top = `${(t.y / box.height) * 100}%`;
+    label.textContent = t.tier;
+    wrap.appendChild(label);
+  }
+  document.getElementById("overviewLegend").innerHTML = charted
+    .map((r, i) => `<span class="overview-legend-item"><i class="series-dot series-${i + 1}"></i>${escapeHtml(r.acc.label || r.acc.riotId || r.acc.username)}</span>`)
+    .join("");
+  _overview = { chart, rows: charted, from, now, box };
+
+  // Table: every account.
+  document.getElementById("overviewTable").innerHTML =
+    `<div class="overview-row overview-head"><span></span><span>Account</span><span>Rank</span><span>LP</span><span>Games</span><span>Goal</span><span></span></div>` +
+    rows
+      .map((r) => {
+        // Without fresh stats, the last saved rank.
+        const last = r.history[r.history.length - 1];
+        const tier = r.stats?.tier || (last ? formatRankHistoryLabel(last) : "");
+        const rankLp = r.stats?.lp || (last ? `${last.lp} LP` : "");
+        const lpText = r.week ? signed(r.week.lp) : "-";
+        const lpCls = r.week ? (r.week.lp > 0 ? "is-up" : r.week.lp < 0 ? "is-down" : "") : "";
+        const gamesText = r.week && r.week.wins !== null ? `${r.week.wins}W ${r.week.losses}L` : "-";
+        const goal = r.goal
+          ? `<span class="overview-goal"><span class="overview-goal-bar"><span style="width:${escapeHtml(r.goal.pct)}%"></span></span>${escapeHtml(r.goal.reached ? "Reached" : r.goal.pct + "%")}</span>`
+          : '<span class="overview-muted">-</span>';
+        return `
+        <button type="button" class="overview-row" data-username="${escapeHtml(r.acc.username)}">
+            <span class="overview-emblem" data-tier="${escapeHtml(tier)}"></span>
+            <span class="overview-name">${escapeHtml(r.acc.label || r.acc.username)}<span class="overview-sub">${escapeHtml(r.acc.riotId || "")}</span></span>
+            <span class="overview-rank ${escapeHtml(tierClass(tier))}">${escapeHtml(tier || "Unknown")}${rankLp ? ` <span class="overview-muted">${escapeHtml(rankLp)}</span>` : ""}</span>
+            <span class="overview-lp ${lpCls}">${escapeHtml(lpText)}</span>
+            <span>${escapeHtml(gamesText)}</span>
+            ${goal}
+            <span class="overview-flags">${r.warnings.map(warningBadge).join("")}</span>
+        </button>`;
+      })
+      .join("");
+  document.querySelectorAll("#overviewTable .overview-emblem").forEach((el) => setTierEmblem(el, el.dataset.tier, ""));
+}
+
+// Crosshair and tooltip: every charted account's rank at the hovered day.
+function overviewHover(e) {
+  const tip = document.getElementById("overviewChartTip");
+  const cross = document.getElementById("overviewCross");
+  if (!_overview || !_overview.chart.series.length || !cross) return;
+  const svg = document.getElementById("overviewChart");
+  const rect = svg.getBoundingClientRect();
+  const fx = (e.clientX - rect.left) / rect.width;
+  const x = fx * _overview.box.width;
+  const ts = _overview.from + fx * (_overview.now - _overview.from);
+  cross.setAttribute("visibility", "visible");
+  cross.setAttribute("x1", x.toFixed(1));
+  cross.setAttribute("x2", x.toFixed(1));
+  const lines = _overview.chart.series.map((s) => {
+    const at = s.points.filter((p) => p.ts <= ts).pop() || s.points[0];
+    const acc = _overview.rows[s.key].acc;
+    return `<div class="overview-tip-row"><i class="series-dot series-${s.key + 1}"></i><span>${escapeHtml(acc.label || acc.username)}</span><b>${escapeHtml(scoreLabel(at.score))}</b></div>`;
+  });
+  tip.innerHTML = `<div class="overview-tip-date">${escapeHtml(new Date(ts).toLocaleDateString())}</div>${lines.join("")}`;
+  tip.hidden = false;
+  const left = Math.min(e.clientX - rect.left + 14, rect.width - tip.offsetWidth - 4);
+  tip.style.left = `${Math.max(4, left)}px`;
+}
+
+function initOverview() {
+  const svg = document.getElementById("overviewChart");
+  svg?.addEventListener("mousemove", overviewHover);
+  svg?.addEventListener("mouseleave", () => {
+    document.getElementById("overviewChartTip").hidden = true;
+    document.getElementById("overviewCross")?.setAttribute("visibility", "hidden");
+  });
+  // A row opens that account in the Accounts view.
+  document.getElementById("overviewTable")?.addEventListener("click", (e) => {
+    const row = e.target.closest(".overview-row[data-username]");
+    if (!row) return;
+    document.querySelector('.nav-btn[data-view="accountsView"]')?.click();
+    selectAccount(row.dataset.username);
+  });
 }
 
 function renderAccountsSummary() {

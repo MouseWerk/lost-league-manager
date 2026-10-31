@@ -115,6 +115,14 @@
     --control-sm: 32px;  /* navigation, tabs, chips, icon buttons */
     --control: 38px;     /* buttons, fields, selects */
     --control-lg: 44px;  /* main actions */
+
+    /* Chart series (Overview), checked for color vision and contrast */
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #6250d6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -776,3 +784,21 @@ select option { background: var(--surface-raised); color: var(--ink); }
 :root[data-density="roomy"] .cancel-launch-btn,
 :root[data-density="roomy"] .vault-lock-btn { padding: 0 22px; font-size: 15px; }
 :root[data-density="roomy"] .vault-lock-input { font-size: 15px; }
+
+/* Series in the dark theme: the same hues, stepped for the dark surface. */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --series-1: #3987e5;
+        --series-2: #d95926;
+        --series-3: #199e70;
+        --series-4: #c98500;
+        --series-5: #d55181;
+        --series-6: #9085e9;
+    }
+}
+.series-1 { --series-color: var(--series-1); }
+.series-2 { --series-color: var(--series-2); }
+.series-3 { --series-color: var(--series-3); }
+.series-4 { --series-color: var(--series-4); }
+.series-5 { --series-color: var(--series-5); }
+.series-6 { --series-color: var(--series-6); }

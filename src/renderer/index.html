@@ -28,6 +28,7 @@
 
             <nav class="nav-links" aria-label="Main">
                 <button class="nav-btn active" data-view="accountsView">Accounts</button>
+                <button class="nav-btn" data-view="overviewView">Overview</button>
                 <button class="nav-btn" data-view="liveView" id="liveNavBtn">
                     Live <span class="lcu-nav-dot" id="lcuNavDot" aria-hidden="true"></span>
                 </button>
@@ -182,6 +183,34 @@
                             </div>
                         </div>
                     </aside>
+                </div>
+            </div>
+
+            <!-- Overview: every account's week and rank chart. Filled by renderOverview() in app.js. -->
+            <div id="overviewView" class="view">
+                <div class="view-header">
+                    <div class="view-title-row">
+                        <h1 class="view-title">Overview</h1>
+                    </div>
+                    <p class="view-sub">The last seven days of all your accounts.</p>
+                </div>
+                <div class="overview-scroll">
+                    <div id="overviewTiles" class="overview-tiles"></div>
+                    <section class="overview-card">
+                        <div class="overview-card-head">
+                            <h2>Rank, last 30 days</h2>
+                            <div id="overviewLegend" class="overview-legend"></div>
+                        </div>
+                        <div class="overview-chart-wrap">
+                            <svg id="overviewChart" class="overview-chart" viewBox="0 0 800 240" preserveAspectRatio="none" role="img" aria-label="Rank of each account over the last 30 days"></svg>
+                            <div id="overviewChartTip" class="overview-tip" hidden></div>
+                        </div>
+                        <p id="overviewChartEmpty" class="overview-empty" hidden>No rank changes saved yet. Ranks are saved each time the app looks them up.</p>
+                    </section>
+                    <section class="overview-card">
+                        <div class="overview-card-head"><h2>This week</h2></div>
+                        <div id="overviewTable" class="overview-table"></div>
+                    </section>
                 </div>
             </div>
 

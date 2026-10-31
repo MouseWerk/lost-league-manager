@@ -117,10 +117,22 @@ function getRankHistory(riotId) {
     return loadRankHistory()[key] || [];
 }
 
+// Every saved account's history in one read (the Overview), keyed by the
+// lower-cased Riot ID.
+function getRankHistories(riotIds) {
+    const all = loadRankHistory();
+    const out = {};
+    for (const id of riotIds) {
+        const key = riotIdKey(id);
+        if (key && all[key]) out[key] = all[key];
+    }
+    return out;
+}
+
 // "12W 8L" -> { wins: 12, losses: 8 }; null when it isn't that shape.
 function parseRecord(winLose) {
     const m = /^\s*(\d+)\s*W\s+(\d+)\s*L\s*$/i.exec(String(winLose || ''));
     return m ? { wins: Number(m[1]), losses: Number(m[2]) } : null;
 }
 
-module.exports = { recordRankSnapshot, getRankHistory, rankScore, parseRecord };
+module.exports = { recordRankSnapshot, getRankHistory, getRankHistories, rankScore, parseRecord };
