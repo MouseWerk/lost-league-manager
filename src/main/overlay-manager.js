@@ -185,6 +185,7 @@ function liveDataToGepUpdates(all) {
     add('game_data', all.gameData);
     add('active_player', all.activePlayer);
     add('all_players', Array.isArray(all.allPlayers) ? all.allPlayers : undefined);
+    add('events', all.events);
     return out;
 }
 

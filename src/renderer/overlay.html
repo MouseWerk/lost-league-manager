@@ -10,7 +10,7 @@
     <!-- In-game overlay. The window takes the size of #ovRoot (overlay.js). -->
     <div class="ov-root" id="ovRoot">
 
-        <!-- The bar: your champion and score. Dragging it moves the overlay. -->
+        <!-- The bar: your champion and score. Dragging it (not its buttons) moves the overlay. -->
         <div class="ov-bar" id="ovBar">
             <div class="ov-champ" id="ovDrag">
                 <img class="ov-champ-icon" id="ovChampIcon" src="assets/logo.png" alt="" data-fallback="logo">
@@ -34,6 +34,9 @@
             <div class="ov-time" id="ovTimer">00:00</div>
 
             <div class="ov-actions">
+                <button class="ov-btn" id="ovGameToggle" aria-pressed="false" aria-label="Game" data-tip="Game">
+                    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 13.5h12"/><path d="M4 11V7.5M8 11V3.5M12 11V6"/></svg>
+                </button>
                 <button class="ov-btn" id="ovToggle" aria-pressed="false" aria-label="Players" data-tip="Players">
                     <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6" cy="5.5" r="2.5"/><path d="M1.5 13.5c.6-2.4 2.3-3.6 4.5-3.6s3.9 1.2 4.5 3.6"/><path d="M10.5 3.2a2.4 2.4 0 0 1 0 4.6M12 9.9c1.3.5 2.1 1.7 2.5 3.6"/></svg>
                 </button>
@@ -46,6 +49,11 @@
             </div>
             <div class="ov-respawn-bar" id="ovRespawnBar" hidden><span id="ovRespawnFill"></span></div>
         </div>
+
+        <!-- Game: both teams' kills, item gold and objectives, and how you are doing. -->
+        <section class="ov-panel" id="ovGame" hidden>
+            <div id="ovGameContent"><p class="ov-msg">Waiting for the game...</p></div>
+        </section>
 
         <!-- Players: both teams with rank, win rate and score. -->
         <section class="ov-panel" id="ovRanked" hidden>
@@ -81,6 +89,16 @@
                 <span class="ov-switch"><input type="checkbox" id="ovLockToggle"><span class="ov-switch-track"></span></span>
             </label>
             <label class="ov-row">
+                <span>CS per minute goal</span>
+                <select class="ov-select" id="ovCsGoalSelect">
+                    <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                </select>
+            </label>
+            <label class="ov-row">
                 <span>Players button</span>
                 <span class="ov-switch"><input type="checkbox" id="ovShowRankedToggle" checked><span class="ov-switch-track"></span></span>
             </label>
@@ -92,6 +110,7 @@
 
         <div class="ov-tip" id="ovTip" hidden></div>
     </div>
+    <script src="js/overlay-stats.js"></script>
     <script src="js/overlay.js"></script>
 </body>
 </html>
