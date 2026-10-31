@@ -49,6 +49,62 @@ async function buildForPick(pick, position) {
     return { champ, build };
 }
 
+// Champion select around you: the enemies picked so far (with their lane if
+// the game shows it) and your party members' picks.
+async function draftContext(session, pick) {
+    const s = session || await lcu.request('GET', '/lol-champ-select/v1/session');
+    const enemies = (Array.isArray(s?.theirTeam) ? s.theirTeam : [])
+        .filter((m) => m.championId > 0)
+        .map((m) => ({ ...championInfo(m.championId), championId: m.championId, position: LCU_POSITIONS[String(m.assignedPosition || '').toLowerCase()] || null }));
+    const lobby = await lcu.request('GET', '/lol-lobby/v2/lobby');
+    const party = new Set((lobby?.members || []).map((m) => m.puuid).filter(Boolean));
+    const me = (s?.myTeam || []).find((m) => m.cellId === s.localPlayerCellId);
+    const duo = (s?.myTeam || [])
+        .filter((m) => m.cellId !== s?.localPlayerCellId && m.puuid && party.has(m.puuid) && (m.championId || m.championPickIntent))
+        .map((m) => ({ ...championInfo(m.championId || m.championPickIntent), position: LCU_POSITIONS[String(m.assignedPosition || '').toLowerCase()] || null }));
+    const lane = pick?.position ? enemies.find((e) => e.position === pick.position) : null;
+    return { enemies, duo, laneOpponent: lane?.key || null, myPuuid: me?.puuid || null };
+}
+
+async function getMatchup(opponentKey, position) {
+    if (!lcu.connected) return { success: false, message: 'The League client is not running' };
+    await championData.whenReady();
+    const pick = await currentPick();
+    if (!pick?.championId) return { success: false, message: 'Pick or hover a champion first' };
+    const me = championInfo(pick.championId);
+    const opp = championData.getChampionList().find((c) => c.key === opponentKey);
+    if (!me.key || !opp) return { success: false, message: 'Unknown champion' };
+    try {
+        const guide = await opgg.getMatchupGuide(me.key, opp.key, position || pick.position);
+        // Your own games against this champion, from the saved games.
+        const { matchupStats } = require('../../renderer/js/ui-lib.js');
+        const riotId = state.currentAccount?.riotId;
+        const mine = riotId ? matchupStats(require('../services/matches').getStoredMatches(riotId)).find((r) => r.opponent === opp.key) : null;
+        return { success: true, champion: me.name, opponent: opp.name, opponentKey: opp.key, guide, mine: mine || null, version: championData.getLatestVersion() };
+    } catch (e) {
+        return { success: false, message: e.message };
+    }
+}
+
+async function getDuoSynergy() {
+    if (!lcu.connected) return { success: false };
+    await championData.whenReady();
+    const pick = await currentPick();
+    if (!pick?.championId || !pick.position) return { success: false };
+    const me = championInfo(pick.championId);
+    const { duo } = await draftContext(null, pick);
+    const out = [];
+    for (const d of duo) {
+        if (!d.key || !d.position || d.position === pick.position) continue;
+        try {
+            const list = await opgg.getSynergies(me.key, pick.position, d.position);
+            const hit = list.find((s) => String(s.championId) === String(championData.getChampionIdByKey(d.key)));
+            out.push({ champion: d.name, icon: d.icon, position: d.position, ...(hit ? { winRate: hit.winRate, games: hit.games, rank: hit.rank } : {}), best: list.slice(0, 3).map((s) => s.champion) });
+        } catch { /* OP.GG has nothing for this pair */ }
+    }
+    return { success: true, champion: me.name, duo: out };
+}
+
 async function getChampBuild(position) {
     if (!lcu.connected) return { success: false, message: 'The League client is not running' };
     await championData.whenReady();
@@ -57,7 +113,8 @@ async function getChampBuild(position) {
     if (!pick.championId) return { success: false, waiting: true, message: 'Pick or hover a champion first' };
     try {
         const { champ, build } = await buildForPick(pick, position);
-        return { success: true, championId: pick.championId, champion: champ.name, icon: champ.icon, version: championData.getLatestVersion(), build };
+        const draft = await draftContext(null, pick).catch(() => ({ enemies: [], duo: [], laneOpponent: null }));
+        return { success: true, championId: pick.championId, champion: champ.name, icon: champ.icon, version: championData.getLatestVersion(), build, enemies: draft.enemies, laneOpponent: draft.laneOpponent };
     } catch (e) {
         return { success: false, message: e.message };
     }
@@ -111,6 +168,8 @@ function resetAutoImport() {
 function register() {
     ipcMain.handle('get-champ-build', (event, { position } = {}) => getChampBuild(position));
     ipcMain.handle('import-champ-build', (event, opts) => importBuild(opts && typeof opts === 'object' ? opts : {}));
+    ipcMain.handle('get-matchup', (event, { opponentKey, position } = {}) => (typeof opponentKey === 'string' ? getMatchup(opponentKey, position) : { success: false }));
+    ipcMain.handle('get-duo-synergy', () => getDuoSynergy());
 }
 
-module.exports = { register, pickFromSession, currentPick, getChampBuild, importBuild, autoImportOnLock, resetAutoImport, LCU_POSITIONS };
+module.exports = { register, draftContext, getMatchup, getDuoSynergy, pickFromSession, currentPick, getChampBuild, importBuild, autoImportOnLock, resetAutoImport, LCU_POSITIONS };

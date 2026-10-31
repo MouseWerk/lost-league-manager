@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getClientSummoner: () => ipcRenderer.invoke('get-client-summoner'),
     getMatchHistory: (region, riotId) => ipcRenderer.invoke('get-match-history', { region, riotId }),
     getChampBuild: (position) => ipcRenderer.invoke('get-champ-build', { position }),
+    getMatchup: (opponentKey, position) => ipcRenderer.invoke('get-matchup', { opponentKey, position }),
+    getDuoSynergy: () => ipcRenderer.invoke('get-duo-synergy'),
     importChampBuild: (opts) => ipcRenderer.invoke('import-champ-build', opts),
     onBuildImported: (callback) => ipcRenderer.on('build-imported', (event, data) => callback(data)),
     onUnknownAccount: (callback) => ipcRenderer.on('unknown-account-signed-in', (event, data) => callback(data)),

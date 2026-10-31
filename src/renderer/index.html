@@ -364,6 +364,13 @@
                             </div>
                             <div id="ovBuildRunes" class="ov-build-runes"></div>
                             <div id="ovBuildItems" class="ov-build-items"></div>
+                            <!-- Matchup against an enemy pick, and your duo. Filled by loadMatchup() / loadDuo(). -->
+                            <div id="ovMatchup" class="ov-matchup" hidden>
+                                <div class="ov-build-label">Matchup</div>
+                                <div id="ovMatchupChips" class="ov-matchup-chips" role="group" aria-label="Enemy champion"></div>
+                                <div id="ovMatchupBody" class="ov-matchup-body"></div>
+                            </div>
+                            <div id="ovDuo" class="ov-duo" hidden></div>
                             <div class="ov-build-actions">
                                 <span id="ovBuildNote" class="ov-build-note"></span>
                                 <button id="ovImportRunes" type="button" class="secondary-btn">Import runes</button>

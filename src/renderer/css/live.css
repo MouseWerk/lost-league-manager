@@ -304,3 +304,23 @@
 .session-dot.is-win { box-shadow: inset 0 -3px 0 var(--success); }
 .session-dot.is-loss { box-shadow: inset 0 -3px 0 var(--danger); }
 .session-hint { margin: 0; padding: 8px 10px; border-radius: var(--radius); background: var(--warning-soft); color: var(--warning); font-size: 13px; }
+
+/* Matchup and duo in champion select */
+.ov-matchup { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ov-matchup[hidden] { display: none; }
+.ov-matchup-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ov-matchup-chip { display: inline-flex; align-items: center; gap: 6px; height: var(--control-sm); padding: 0 10px 0 4px; border: 0; border-radius: var(--radius-pill); background: var(--bg); color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.ov-matchup-chip img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.ov-matchup-chip:hover { color: var(--ink); background: var(--bg-hover); }
+.ov-matchup-chip[aria-pressed="true"] { background: var(--bg-active); color: var(--ink); font-weight: 600; }
+.ov-matchup-body { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.ov-matchup-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ov-matchup-wr { font-family: var(--font-display); font-weight: 700; font-size: 16px; }
+.ov-matchup-wr.is-good { color: var(--success); }
+.ov-matchup-wr.is-bad { color: var(--danger); }
+.ov-matchup-sub { color: var(--muted); }
+.ov-matchup-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--muted); }
+.ov-matchup-line b { color: var(--ink); font-weight: 600; }
+.ov-duo { padding: 8px 10px; border-radius: var(--radius); background: var(--bg); font-size: 13px; color: var(--muted); }
+.ov-duo[hidden] { display: none; }
+.ov-duo b { color: var(--ink); }

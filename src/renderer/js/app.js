@@ -1288,9 +1288,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.electronAPI.onChampSelectUpdate?.((session) => {
     const me = (session?.myTeam || []).find((m) => m.cellId === session?.localPlayerCellId);
     const champ = me?.championId || me?.championPickIntent || 0;
-    if (champ !== _buildChampion && currentView === "liveView") {
+    const enemyKey = (session?.theirTeam || []).map((m) => m.championId || 0).join(",");
+    if ((champ !== _buildChampion || enemyKey !== _enemyKey) && currentView === "liveView") {
+      if (champ !== _buildChampion) _buildPosition = null;
       _buildChampion = champ;
-      _buildPosition = null;
+      _enemyKey = enemyKey;
       clearTimeout(_buildTimer);
       _buildTimer = setTimeout(loadChampBuild, 600);
     }
@@ -4414,6 +4416,70 @@ function renderChampBuild(res) {
   document.getElementById("ovBuildNote").textContent = b.skills.length ? `Skill order ${b.skills.join(" > ")}` : "";
   document.getElementById("ovImportRunes").disabled = !b.runes;
   el.hidden = false;
+  renderMatchupChips(res);
+  loadDuo();
+}
+
+// ── Matchup and duo (champion select) ──────────────────────────────────────
+let _matchupWith = null; // enemy champion key shown in the matchup
+let _matchupGen = 0;
+let _enemyKey = "";
+
+function renderMatchupChips(res) {
+  const wrap = document.getElementById("ovMatchup");
+  const enemies = res.enemies || [];
+  if (!enemies.length || res.build?.mode === "aram") {
+    wrap.hidden = true;
+    _matchupWith = null;
+    return;
+  }
+  if (!_matchupWith || !enemies.some((e) => e.key === _matchupWith)) _matchupWith = res.laneOpponent || enemies[0].key;
+  document.getElementById("ovMatchupChips").innerHTML = enemies
+    .map((e) => `<button type="button" class="ov-matchup-chip" data-key="${escapeHtml(e.key)}" aria-pressed="${String(e.key === _matchupWith)}">${e.icon ? `<img src="${escapeHtml(e.icon)}" alt="">` : ""}${escapeHtml(e.name)}</button>`)
+    .join("");
+  wrap.hidden = false;
+  loadMatchup();
+}
+
+async function loadMatchup() {
+  const gen = ++_matchupGen;
+  const body = document.getElementById("ovMatchupBody");
+  body.innerHTML = '<span class="ov-matchup-sub">Loading the matchup from OP.GG...</span>';
+  const res = await window.electronAPI.getMatchup(_matchupWith, _buildPosition).catch(() => null);
+  if (gen !== _matchupGen) return;
+  if (!res?.success) {
+    body.innerHTML = `<span class="ov-matchup-sub">${escapeHtml(res?.message || "No matchup data")}</span>`;
+    return;
+  }
+  const g = res.guide;
+  const wrCls = g.winRate == null ? "" : g.winRate >= 50 ? "is-good" : "is-bad";
+  const mine = res.mine ? `You: ${plural(res.mine.games, "game")}, ${res.mine.winRate}% won` : "";
+  const items = [...g.items.starter, ...g.items.boots, ...g.items.core];
+  const matchupLine = `${res.champion} against ${res.opponent}, ${Number(g.games || 0).toLocaleString()} games on OP.GG`;
+  body.innerHTML = `
+    <div class="ov-matchup-head">
+        <span class="ov-matchup-wr ${wrCls}">${g.winRate == null ? "-" : escapeHtml(g.winRate + "%")}</span>
+        <span class="ov-matchup-sub">${escapeHtml(matchupLine)}</span>
+        ${mine ? `<span class="ov-matchup-sub">${escapeHtml(mine)}</span>` : ""}
+    </div>
+    ${g.runes ? `<div class="ov-matchup-line">Runes <b>${escapeHtml(g.runes.names.slice(0, 1).join(""))}</b> ${escapeHtml(g.runes.names.slice(1).join(", "))}</div>` : ""}
+    ${items.length ? `<div class="ov-matchup-line">Items <span class="ov-build-item-row">${itemIcons(items, res.version)}</span></div>` : ""}
+    ${g.spells.length || g.skills.length ? `<div class="ov-matchup-line">${g.spells.length ? `Spells <b>${escapeHtml(g.spells.join(" + "))}</b>` : ""}${g.skills.length ? ` Max <b>${escapeHtml(g.skills.join(" > "))}</b>` : ""}</div>` : ""}`;
+}
+
+async function loadDuo() {
+  const el = document.getElementById("ovDuo");
+  const res = await window.electronAPI.getDuoSynergy().catch(() => null);
+  const d = res?.duo?.[0];
+  if (!res?.success || !d) {
+    el.hidden = true;
+    return;
+  }
+  const where = { top: "top", jungle: "jungle", mid: "mid", adc: "bot", support: "support" }[d.position] || d.position;
+  el.innerHTML = d.winRate != null
+    ? `With your duo <b>${escapeHtml(d.champion)}</b> (${escapeHtml(where)}): ${escapeHtml(d.winRate + "%")} win rate together${d.rank ? `, #${escapeHtml(d.rank)} for ${escapeHtml(res.champion)}` : ""}.`
+    : `Your duo's <b>${escapeHtml(d.champion)}</b> is not among the best partners for ${escapeHtml(res.champion)}${d.best.length ? ` (best: ${escapeHtml(d.best.join(", "))})` : ""}.`;
+  el.hidden = false;
 }
 
 async function importChampBuild(what) {
@@ -4437,6 +4503,13 @@ async function importChampBuild(what) {
 function initChampBuild() {
   document.getElementById("ovImportRunes")?.addEventListener("click", () => importChampBuild("runes"));
   document.getElementById("ovImportItems")?.addEventListener("click", () => importChampBuild("items"));
+  document.getElementById("ovMatchupChips")?.addEventListener("click", (e) => {
+    const chip = e.target.closest(".ov-matchup-chip");
+    if (!chip) return;
+    _matchupWith = chip.dataset.key;
+    document.querySelectorAll("#ovMatchupChips .ov-matchup-chip").forEach((c) => c.setAttribute("aria-pressed", String(c === chip)));
+    loadMatchup();
+  });
   document.getElementById("ovBuildPositions")?.addEventListener("click", (e) => {
     const btn = e.target.closest(".scale-btn");
     if (!btn) return;
