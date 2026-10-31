@@ -186,7 +186,14 @@ test('a locked vault matches no account on connect; unlocking does', async () =>
     const fakes = require('./helpers/a-fakes');
     setup({
         accounts: [{ username: 'main', password: 'x' }],
-        routes: { 'GET /lol-login/v1/session': { username: 'main' }, 'GET /lol-gameflow/v1/gameflow-phase': 'Lobby' },
+        // The client answers at once: linking would otherwise wait for it in
+        // 5 s steps and outlive the test (it hung on the CI runner).
+        routes: {
+            'GET /lol-login/v1/session': { username: 'main' },
+            'GET /lol-gameflow/v1/gameflow-phase': 'Lobby',
+            'GET /lol-summoner/v1/current-summoner': { gameName: 'Main', tagLine: 'EUW' },
+            'GET /riotclient/region-locale': { region: 'EUW' },
+        },
     });
     fakes.fakeVault.locked = true;
     await connect();
@@ -195,4 +202,5 @@ test('a locked vault matches no account on connect; unlocking does', async () =>
     fakes.fakeVault.locked = false;
     await require('../src/main/lcu-events').onVaultUnlocked();
     assert.equal(state.currentAccount?.username, 'main');
+    assert.equal(fakes.readAccounts()[0].riotId, 'Main#EUW', 'linked after unlocking');
 });
