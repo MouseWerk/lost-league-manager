@@ -230,18 +230,35 @@ img { display: block; }
 .ov-row-control { display: flex; align-items: center; gap: 8px; }
 .ov-row-val { width: 34px; text-align: right; color: var(--muted); font-family: var(--font-display); font-size: 11px; }
 .ov-range { width: 120px; accent-color: var(--primary); }
-.ov-select {
-    height: 26px;
-    padding: 0 6px;
-    border: 1px solid var(--line);
+.ov-row-stack { flex-direction: column; align-items: flex-start; gap: 4px; padding: 4px 2px; cursor: default; }
+.ov-hint { color: var(--subtle); font-size: 11px; }
+.ov-seg { display: flex; gap: 2px; padding: 2px; border-radius: 8px; background: var(--raised); }
+.ov-seg button {
+    height: 22px;
+    padding: 0 8px;
+    border: 0;
     border-radius: 6px;
-    background: var(--raised);
-    color: var(--ink);
+    background: transparent;
+    color: var(--muted);
     font: inherit;
-    font-size: 12px;
+    font-size: 11px;
+    cursor: pointer;
 }
-.ov-select:focus { outline: none; }
-.ov-select:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.ov-seg button:hover { color: var(--ink); }
+.ov-seg button[aria-pressed="true"] { background: var(--active); color: var(--ink); font-weight: 600; }
+.ov-seg button:focus { outline: none; }
+.ov-seg button:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+
+/* Player tags and champion record (Porofessor-style) */
+.ov-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+.ov-tag { padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 600; line-height: 15px; background: var(--raised); color: var(--muted); }
+.ov-tag.is-info { color: var(--tier-diamond); background: rgba(147, 182, 242, 0.14); }
+.ov-tag.is-bad { color: var(--danger); background: rgba(240, 138, 132, 0.14); }
+.ov-tag.is-good { color: var(--success); background: rgba(109, 203, 152, 0.14); }
+.ov-champ-rec { color: var(--subtle); font-size: 10px; }
+.ov-loading-title { display: flex; justify-content: space-between; align-items: baseline; margin: 0 2px 6px; }
+.ov-timers { display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; margin: 0 2px; font-size: 12px; }
+.ov-timers span:nth-child(even) { font-family: var(--font-display); text-align: right; font-variant-numeric: tabular-nums; }
 .ov-switch { position: relative; width: 30px; height: 17px; flex-shrink: 0; }
 .ov-switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
 .ov-switch-track { position: absolute; inset: 0; border-radius: 999px; background: var(--line); transition: background-color 0.15s ease; }

@@ -7,11 +7,13 @@ const liveClient = require('./services/live-client');
 // data when Overwolf's game events (GEP) are missing (then the Live Client
 // Data API is read every two seconds and sent in the same shape GEP uses).
 //
-// Visible only while a game runs, the overlay is switched on, the player has
-// not hidden it with the hotkey, and the game is in front: Overwolf draws its
-// window inside the game; the plain-window fallback follows the foreground
-// window (foreground-watch.ps1), so it never floats over other apps. It is
-// shown without taking the focus from the game.
+// Visible while a game loads or runs, the overlay is switched on, the player
+// has not hidden it with the hotkey, and the game is in front: Overwolf draws
+// its window inside the game; the plain-window fallback follows the
+// foreground window, so it never floats over other apps. It is shown without
+// taking the focus from the game. Holding Tab shows it too (and its player
+// list), as Porofessor does. game-input-watch.ps1 reports the foreground
+// window, Tab and the show-or-hide keys without taking them from the game.
 
 const POLL_MS = 2000;
 // GEP counts as delivering while its last live data is this recent.
@@ -21,9 +23,23 @@ const GAME_PROCESS = 'League of Legends';
 let creating = false;
 let pollTimer = null;
 let userHidden = false;   // hidden with the hotkey until the next game
-let gameInFront = false;  // plain-window mode: League is the foreground window
+let gameInFront = false;  // League is the foreground window
+let tabHeld = false;      // Tab is down while League is in front
 let overlayFocused = false;
 let watcher = null;
+let hotkey = 'Ctrl+Shift+H';
+
+// Virtual-key codes of the hotkeys the overlay offers (overlay-handlers.js).
+const VK = { Ctrl: 0x11, Shift: 0x10, Alt: 0x12, F9: 0x78, F10: 0x79 };
+function hotkeyToVks(text) {
+    const vks = [];
+    for (const part of String(text || '').split('+')) {
+        if (VK[part]) vks.push(VK[part]);
+        else if (/^[A-Z]$/.test(part)) vks.push(part.charCodeAt(0));
+        else return [];
+    }
+    return vks;
+}
 
 function overlayAlive() {
     return !!state.overlayWindow && !state.overlayWindow.isDestroyed();
@@ -40,7 +56,8 @@ function ensureOverlay() {
     createOverlayWindow(ow, () => {
         creating = false;
         trackOverlayFocus();
-        require('./overlay-hotkey').registerOverlayHotkey(state.config.overlayHotkey || 'Ctrl+Shift+H');
+        sendToOverlay('overlay-phase', state.gameflowPhase || 'None');
+        setHotkey(state.config.overlayHotkey || 'Ctrl+Shift+H');
         showIfInGame();
     });
 }
@@ -52,18 +69,29 @@ function destroyOverlay() {
     if (overlayAlive()) state.overlayWindow.destroy();
     state.overlayWindow = null;
     creating = false;
-    require('./overlay-hotkey').registerOverlayHotkey(null);
 }
 
+// The loading screen counts: it shows the players, as Porofessor does.
 function inGame() {
-    return state.gameflowPhase === 'InProgress';
+    return state.gameflowPhase === 'InProgress' || state.gameflowPhase === 'GameStart';
 }
 
 // Whether the overlay should be on screen now.
 function shouldShow() {
-    if (!state.config.overlayEnabled || !overlayAlive() || !inGame() || userHidden) return false;
+    if (!state.config.overlayEnabled || !overlayAlive() || !inGame()) return false;
+    if (userHidden && !tabHeld) return false;
     if (state.overlayViaOverwolf) return true; // drawn inside the game only
     return gameInFront || overlayFocused;
+}
+
+// The show-or-hide keys (overlay settings); the watcher restarts with them.
+function setHotkey(text) {
+    if (!hotkeyToVks(text).length) return;
+    hotkey = text;
+    if (watcher) {
+        stopWatcher();
+        startWatcher();
+    }
 }
 
 function applyVisibility() {
@@ -93,7 +121,7 @@ function showIfInGame() {
                 useWindowFallback();
             });
     }
-    if (!state.overlayViaOverwolf) startWatcher();
+    startWatcher();
     applyVisibility();
 }
 
@@ -116,37 +144,62 @@ function toggleByHotkey() {
     applyVisibility();
 }
 
-// ── Foreground window (plain-window mode) ───────────────────────────────────
+// ── Foreground window and keys ──────────────────────────────────────────────
 
-// One line of foreground-watch.ps1: "<pid>|<name>".
+// "fg|<pid>|<name>" from game-input-watch.ps1.
 function isGameInFront(line) {
-    const name = String(line).split('|')[1] || '';
+    const name = String(line).split('|')[2] || '';
     return name.trim() === GAME_PROCESS;
 }
 
-function onForegroundLine(line) {
-    gameInFront = isGameInFront(line);
+function sendToOverlay(channel, data) {
+    if (overlayAlive()) state.overlayWindow.webContents.send(channel, data);
+}
+
+// One line of game-input-watch.ps1.
+function onWatchLine(line) {
+    const [kind, value] = String(line).trim().split('|');
+    if (kind === 'fg') {
+        gameInFront = isGameInFront(line);
+        if (!gameInFront && tabHeld) {
+            tabHeld = false;
+            sendToOverlay('overlay-tab', false);
+        }
+    } else if (kind === 'tab') {
+        // Only Tab pressed in the game; elsewhere it is someone else's key.
+        const down = value === '1' && gameInFront;
+        if (down === tabHeld) return;
+        tabHeld = down;
+        sendToOverlay('overlay-tab', down);
+    } else if (kind === 'hotkey') {
+        if (gameInFront || overlayFocused) toggleByHotkey();
+        return;
+    }
     applyVisibility();
 }
 
 function startWatcher() {
     if (watcher) return;
-    const script = path.join(state.RESOURCES_PATH, 'scripts', 'foreground-watch.ps1');
+    const script = path.join(state.RESOURCES_PATH, 'scripts', 'game-input-watch.ps1');
     try {
         watcher = childProcess.spawn('powershell.exe', [
-            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-ParentPid', String(process.pid),
+            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script,
+            '-ParentPid', String(process.pid), '-HotkeyKeys', hotkeyToVks(hotkey).join(','),
         ], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
     } catch (e) {
         console.warn('[Overlay] Foreground watch could not start:', e.message);
         gameInFront = true; // better shown over everything than never
         return;
     }
+    // It must not keep the app (or a test run) alive on its own.
+    watcher.unref?.();
+    watcher.stdout?.unref?.();
     let buffer = '';
     watcher.stdout?.on('data', (chunk) => {
         buffer += chunk.toString();
         const lines = buffer.split(/\r?\n/);
         buffer = lines.pop();
-        for (const line of lines) if (line.trim()) onForegroundLine(line);
+        for (const line of lines) if (line.trim()) onWatchLine(line);
     });
     watcher.on('error', (e) => {
         console.warn('[Overlay] Foreground watch failed:', e.message);
@@ -163,6 +216,7 @@ function stopWatcher() {
     }
     watcher = null;
     gameInFront = false;
+    tabHeld = false;
 }
 
 // Clicking the overlay brings it to the front; it stays while it has focus.
@@ -221,11 +275,12 @@ function stopPolling() {
 function onGameflowPhase(phase) {
     const wasInGame = inGame();
     state.gameflowPhase = phase;
+    sendToOverlay('overlay-phase', phase);
     if (inGame()) {
         if (!wasInGame) userHidden = false; // a new game shows it again
         ensureOverlay();
         showIfInGame();
-        startPolling();
+        if (phase === 'InProgress') startPolling();
     } else {
         stopPolling();
         stopWatcher();
@@ -238,5 +293,6 @@ function onGameflowPhase(phase) {
 
 module.exports = {
     ensureOverlay, destroyOverlay, showIfInGame, applyVisibility, shouldShow, useWindowFallback, toggleByHotkey,
-    isGameInFront, onForegroundLine, liveDataToGepUpdates, markGepLive, onGameflowPhase, pollOnce, stopPolling,
+    setHotkey, hotkeyToVks, isGameInFront, onWatchLine, liveDataToGepUpdates, markGepLive, onGameflowPhase,
+    pollOnce, stopPolling,
 };

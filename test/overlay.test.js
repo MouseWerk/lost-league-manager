@@ -8,6 +8,17 @@ const manager = require('../src/main/overlay-manager');
 const windows = require('../src/main/windows');
 const { cleanOverlaySettings } = require('../src/main/ipc/overlay-handlers');
 
+// No real watcher process in tests: a stand-in that prints nothing.
+const { EventEmitter } = require('events');
+const spawned = [];
+require('child_process').spawn = (cmd, args) => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.kill = () => {};
+    spawned.push(args);
+    return child;
+};
+
 const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
 
 test('Live Client data reaches the overlay in the shape of GEP updates', () => {
@@ -120,9 +131,9 @@ test('the overlay shows only in a game, with League in front, and without taking
         webContents: { send() {} },
     };
     state.gameflowPhase = 'InProgress';
-    manager.onForegroundLine('1234|chrome');
+    manager.onWatchLine('fg|1234|chrome');
     assert.equal(visible, false, 'another app in front: hidden');
-    manager.onForegroundLine('5678|League of Legends');
+    manager.onWatchLine('fg|5678|League of Legends');
     assert.equal(visible, true);
     assert.ok(!calls.includes('show'), 'never show(): that takes focus');
     manager.toggleByHotkey();
@@ -191,4 +202,75 @@ test('the overlay is dragged by its bar, in both window modes, and the place is 
 test('the CS goal is one of the offered values', () => {
     assert.deepEqual(cleanOverlaySettings({ csGoal: 9 }), { csGoal: 9 });
     assert.deepEqual(cleanOverlaySettings({ csGoal: 99 }), {});
+});
+
+// Porofessor-style: tags from a player's record and their champion.
+test('player tags: one-trick, main, new on the champion, win rates, few games', () => {
+    assert.deepEqual(stats.playerTags({ winLose: '40W 20L', champGames: 45, champWins: 30, mainChampion: 'Ahri', poolSize: 5 }, 'Ahri').map((t) => t.text),
+        ['One-trick', '67% on champ', 'High win rate']);
+    assert.deepEqual(stats.playerTags({ winLose: '30W 30L', champGames: 12, champWins: 6, mainChampion: 'Zed', poolSize: 12 }, 'Zed').map((t) => t.text), ['Main']);
+    assert.deepEqual(stats.playerTags({ winLose: '20W 30L', champGames: 0, champWins: 0, mainChampion: 'Zed', poolSize: 12 }, 'Ahri').map((t) => t.text),
+        ['New on champ', 'Low win rate']);
+    assert.deepEqual(stats.playerTags({ winLose: '4W 5L' }, 'Ahri').map((t) => t.text), ['Few games']);
+    assert.deepEqual(stats.playerTags(null, 'Ahri'), []);
+});
+
+test('objective timers: next dragon and baron, inhibitors back, only future ones', () => {
+    const events = [
+        { EventName: 'DragonKill', EventTime: 600, DragonType: 'Fire' },
+        { EventName: 'BaronKill', EventTime: 1500 },
+        { EventName: 'InhibKilled', EventTime: 1600, InhibKilled: 'Barracks_T2_L1' },
+        { EventName: 'DragonKill', EventTime: 100 },
+    ];
+    assert.deepEqual(stats.objectiveTimers(events, 1650), [
+        { name: 'Baron', at: 1860 },
+        { name: 'Red inhibitor', at: 1900 },
+    ]);
+    assert.deepEqual(stats.objectiveTimers(events, 700).map((t) => t.name), ['Dragon', 'Baron', 'Red inhibitor']);
+});
+
+test('Tab held in League shows the overlay even when hidden; the hotkey works only in the game', () => {
+    let visible = false;
+    state.config.overlayEnabled = true;
+    state.overlayViaOverwolf = false;
+    const sent = [];
+    state.overlayWindow = {
+        isDestroyed: () => false, isVisible: () => visible,
+        showInactive: () => { visible = true; }, hide: () => { visible = false; },
+        webContents: { send: (ch, v) => sent.push([ch, v]) },
+    };
+    manager.onGameflowPhase('InProgress');
+    manager.onWatchLine('fg|1|League of Legends');
+    manager.onWatchLine('hotkey');
+    assert.equal(visible, false, 'hidden with the hotkey');
+    manager.onWatchLine('tab|1');
+    assert.equal(visible, true, 'Tab shows it');
+    assert.deepEqual(sent.at(-1), ['overlay-tab', true]);
+    manager.onWatchLine('tab|0');
+    assert.equal(visible, false);
+    manager.onWatchLine('fg|2|chrome');
+    manager.onWatchLine('hotkey');
+    manager.onWatchLine('fg|1|League of Legends');
+    assert.equal(visible, false, 'the hotkey pressed in another app did nothing');
+    manager.onWatchLine('hotkey');
+    assert.equal(visible, true);
+    manager.onGameflowPhase('EndOfGame');
+    state.overlayWindow = null;
+    state.config.overlayEnabled = false;
+});
+
+test('the show-or-hide keys become virtual-key codes for the watcher', () => {
+    assert.deepEqual(manager.hotkeyToVks('Ctrl+Shift+H'), [0x11, 0x10, 0x48]);
+    assert.deepEqual(manager.hotkeyToVks('F9'), [0x78]);
+    assert.deepEqual(manager.hotkeyToVks('Ctrl+Bogus'), []);
+});
+
+test('the loading screen lists both teams from the client session', () => {
+    const { playersFromGameflow } = require('../src/main/ipc/lobby-check');
+    const session = { gameData: {
+        teamOne: [{ puuid: 'me', championId: 103, selectedPosition: 'MIDDLE', gameName: 'Me', tagLine: 'EUW' }],
+        teamTwo: [{ puuid: 'x', championId: 238, selectedPosition: 'MIDDLE' }],
+    } };
+    const players = playersFromGameflow(session, { x: { gameName: 'Foe', tagLine: 'EUW' } }, 'me', { 103: 'Ahri', 238: 'Zed' });
+    assert.deepEqual(players.map((p) => [p.gameName, p.team, p.champion, p.isSelf]), [['Me', 'mine', 'Ahri', true], ['Foe', 'enemy', 'Zed', false]]);
 });

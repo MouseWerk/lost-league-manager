@@ -143,12 +143,11 @@ test('the first ready-to-show does not undo minimize on launch', async () => {
     assert.equal(state.mainWindow.shown, 1, 'normal start still shows the window');
 });
 
-test('the overlay hotkey is not registered while the overlay does not exist', () => {
-    state.overlayWindow = null;
-    registerOverlayHotkey('Ctrl+Shift+H');
-    assert.deepEqual(registered, []);
+// The global shortcut never reached the overlay while League had the keyboard;
+// the keys are read by the game input watcher instead and stay with the game.
+test('the overlay hotkey is never registered as a global shortcut', () => {
     state.overlayWindow = { isDestroyed: () => false };
     registerOverlayHotkey('Ctrl+Shift+H');
-    assert.deepEqual(registered, ['Ctrl+Shift+H']);
+    assert.deepEqual(registered, []);
     state.overlayWindow = null;
 });

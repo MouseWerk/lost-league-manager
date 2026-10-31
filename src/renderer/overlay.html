@@ -74,30 +74,29 @@
                     <span class="ov-row-val" id="ovOpacityVal">100%</span>
                 </span>
             </label>
-            <label class="ov-row">
-                <span>Show or hide</span>
-                <select class="ov-select" id="ovHotkeySelect">
-                    <option value="Ctrl+Shift+H">Ctrl+Shift+H</option>
-                    <option value="Ctrl+Shift+X">Ctrl+Shift+X</option>
-                    <option value="Ctrl+Shift+O">Ctrl+Shift+O</option>
-                    <option value="F9">F9</option>
-                    <option value="F10">F10</option>
-                </select>
-            </label>
+            <div class="ov-row ov-row-stack">
+                <span>Show or hide <span class="ov-hint">(hold Tab to see the players)</span></span>
+                <div class="ov-seg" id="ovHotkeySeg" role="group" aria-label="Show or hide key">
+                    <button type="button" data-value="Ctrl+Shift+H">Ctrl+Shift+H</button>
+                    <button type="button" data-value="Ctrl+Shift+X">Ctrl+Shift+X</button>
+                    <button type="button" data-value="F9">F9</button>
+                    <button type="button" data-value="F10">F10</button>
+                </div>
+            </div>
             <label class="ov-row">
                 <span>Lock position</span>
                 <span class="ov-switch"><input type="checkbox" id="ovLockToggle"><span class="ov-switch-track"></span></span>
             </label>
-            <label class="ov-row">
+            <div class="ov-row">
                 <span>CS per minute goal</span>
-                <select class="ov-select" id="ovCsGoalSelect">
-                    <option value="6">6</option>
-                    <option value="7">7</option>
-                    <option value="8">8</option>
-                    <option value="9">9</option>
-                    <option value="10">10</option>
-                </select>
-            </label>
+                <div class="ov-seg" id="ovCsGoalSeg" role="group" aria-label="CS per minute goal">
+                    <button type="button" data-value="6">6</button>
+                    <button type="button" data-value="7">7</button>
+                    <button type="button" data-value="8">8</button>
+                    <button type="button" data-value="9">9</button>
+                    <button type="button" data-value="10">10</button>
+                </div>
+            </div>
             <label class="ov-row">
                 <span>Players button</span>
                 <span class="ov-switch"><input type="checkbox" id="ovShowRankedToggle" checked><span class="ov-switch-track"></span></span>

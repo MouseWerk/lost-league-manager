@@ -281,6 +281,13 @@ async function getProfile(gameName, tagLine, region) {
             flexRatio:   flex.ratio,
             masteryChampions: [],
             topChampions: champs,
+            // Every champion OP.GG lists this season, most played first (overlay tags).
+            championPool: (s.most_champions?.champion_stats || []).map(c => ({
+                id: c.id,
+                name: c.champion_name || idToName[c.id] || '',
+                games: c.play || 0,
+                wins: c.win || 0,
+            })),
             iconSrc:     s.profile_image_url || null,
             level:       s.level != null ? String(s.level) : '',
             source:      'opgg',
