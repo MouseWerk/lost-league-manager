@@ -209,7 +209,10 @@ function register() {
         const wasLocked = vault.isVaultLocked();
         const res = await vault.unlockVault(password);
         // Tray menu and jump list list no accounts while locked; rebuild them.
-        if (res.success && wasLocked) broadcastAccountsUpdate();
+        if (res.success && wasLocked) {
+            broadcastAccountsUpdate();
+            require('../lcu-events').onVaultUnlocked().catch((e) => console.log('[LCU] After unlock:', e.message));
+        }
         return res;
     });
 

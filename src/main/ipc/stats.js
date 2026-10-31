@@ -242,12 +242,16 @@ async function getStats(region, riotId, force) {
 
 // Keeps the games for the games dialog and notes when each account with
 // this Riot ID last played.
+const RANKED_QUEUES = new Set(['Ranked Solo', 'Ranked Flex']);
 function keepMatches(riotId, list) {
     matches.mergeMatches(riotId, list.filter((m) => m.id));
     const newest = Math.max(0, ...list.map((m) => m.createdAt || 0));
+    const newestRanked = Math.max(0, ...list.filter((m) => RANKED_QUEUES.has(m.queue)).map((m) => m.createdAt || 0));
     if (!newest) return;
     for (const a of loadAccounts()) {
-        if (norm(a.riotId) === norm(riotId)) recordLastPlayed(a.username, newest);
+        if (norm(a.riotId) !== norm(riotId)) continue;
+        recordLastPlayed(a.username, newest);
+        if (newestRanked) recordLastPlayed(a.username, newestRanked, { ranked: true });
     }
 }
 
@@ -315,17 +319,20 @@ function register() {
         return p;
     });
 
-    ipcMain.handle('get-rank-history', (event, riotId) => getRankHistory(riotId));
+    const locked = () => require('../services/vault').isVaultLocked();
+    ipcMain.handle('get-rank-history', (event, riotId) => (locked() ? [] : getRankHistory(riotId)));
     // Reads the account list: nothing while the vault is locked.
     ipcMain.handle('get-all-rank-history', () => (require('../services/vault').isVaultLocked()
         ? {}
         : getRankHistories(loadAccounts().map((a) => a.riotId).filter(Boolean))));
 
     // On-demand only (profile modal), not per-card.
-    ipcMain.handle('get-match-history', (event, { region, riotId } = {}) => getMatchHistory(region, riotId));
+    ipcMain.handle('get-match-history', (event, { region, riotId } = {}) => (locked() ? { matches: [] } : getMatchHistory(region, riotId)));
     // The games dialog: every stored game, and one in detail.
-    ipcMain.handle('get-stored-matches', (event, riotId) => ({ matches: matches.getStoredMatches(riotId), version: championData.getLatestVersion() }));
-    ipcMain.handle('get-match-detail', async (event, { region, riotId, matchId } = {}) => ({ ...(await getMatchDetail(region, riotId, matchId)), version: championData.getLatestVersion() }));
+    ipcMain.handle('get-stored-matches', (event, riotId) => ({ matches: locked() ? [] : matches.getStoredMatches(riotId), version: championData.getLatestVersion() }));
+    ipcMain.handle('get-match-detail', async (event, { region, riotId, matchId } = {}) => (locked()
+        ? { success: false, locked: true, message: 'Vault is locked' }
+        : { ...(await getMatchDetail(region, riotId, matchId)), version: championData.getLatestVersion() }));
 
     // Quick-add lookup: accepts "Name#TAG" or an OP.GG profile link, returns a
     // preview (icon, level, rank, top champions) plus the normalised Riot ID

@@ -74,6 +74,7 @@ function playersFromGameflow(session, names, selfPuuid, idToKey = {}) {
             tagLine: n.tagLine || '',
             team: mine ? 'mine' : 'enemy',
             champion: idToKey[championId] || '',
+            championName: names?.[`champ:${championId}`] || idToKey[championId] || '',
             position: String(p.selectedPosition || '').toUpperCase(),
             isSelf: !!selfPuuid && p.puuid === selfPuuid,
         };
@@ -104,7 +105,9 @@ async function collectPlayers(phase) {
         const session = await lcu.request('GET', '/lol-gameflow/v1/session');
         const all = [...(session?.gameData?.teamOne || []), ...(session?.gameData?.teamTwo || [])];
         const missing = all.filter((p) => p.puuid && !p.gameName).map((p) => p.puuid);
-        const players = playersFromGameflow(session, await namesForPuuids(missing), me?.puuid, championData.getIdToNameMap());
+        const names = await namesForPuuids(missing);
+        for (const c of championData.getChampionList()) names[`champ:${c.id}`] = c.name;
+        const players = playersFromGameflow(session, names, me?.puuid, championData.getIdToNameMap());
         if (players.length) return players;
     }
     if (phase === 'InProgress' || phase === 'GameStart') {

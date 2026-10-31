@@ -153,3 +153,14 @@ test('champion stats: games, win rate, KDA and CS per minute, most played first'
     assert.equal(s[0].csPerMin, 9);
     assert.equal(s[1].kda, null); // no deaths: perfect
 });
+
+// Riot API and OP.GG name one game differently: switching source stored it twice.
+test('one game from both sources is stored once, under its first id', () => {
+    matches.mergeMatches('Dup#EUW', [{ id: 'abc=', createdAt: 1_000_000, champion: 'Ahri', win: true }]);
+    const list = matches.mergeMatches('Dup#EUW', [
+        { id: 'EUW1_42', createdAt: 1_000_000 + 30_000, champion: 'Ahri', win: true, players: [{ name: 'x' }] },
+        { id: 'EUW1_43', createdAt: 1_000_000 + 30_000, champion: 'Zed', win: false },
+    ]);
+    assert.deepEqual(list.map((m) => m.id).sort(), ['EUW1_43', 'abc=']);
+    assert.equal(list.find((m) => m.id === 'abc=').players.length, 1, 'the details are kept');
+});

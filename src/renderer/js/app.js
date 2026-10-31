@@ -2218,6 +2218,9 @@ function scheduleRankResort() {
 
 function applyStatsToCard(cardEl, stats) {
   const acc = allAccounts.find((a) => a.username === cardEl.dataset.username);
+  // Decay estimates need the tier, which arrives here.
+  const badges = cardEl.querySelector(".status-badges");
+  if (badges && acc) badges.innerHTML = statusWarnings(acc.status, stats?.tier, Date.now()).map(warningBadge).join("");
 
   const rankEl = cardEl.querySelector(".rank");
   if (rankEl && !acc?.customRank) {
@@ -2835,7 +2838,7 @@ function createAccountCard(account) {
                 ${isActive ? '<span class="active-dot" data-tooltip="Signed in to the League client" aria-label="Signed in"></span>' : ""}
                 ${account.passwordOk === false ? '<span class="account-warning-badge" data-tooltip="Saved password could not be read (often after a Windows update). Click Edit and enter it again."><i class="fas fa-triangle-exclamation"></i></span>' : ""}
                 ${account.honorFlagged ? '<span class="account-warning-badge" data-tooltip="Honor level has dropped since it was last seen"><i class="fas fa-arrow-trend-down"></i></span>' : ""}
-                ${accountWarnings(account).map(warningBadge).join("")}
+                <span class="status-badges">${accountWarnings(account).map(warningBadge).join("")}</span>
             </div>
             <div class="card-meta"><span class="card-username"></span><span class="card-tags"></span></div>
         </div>

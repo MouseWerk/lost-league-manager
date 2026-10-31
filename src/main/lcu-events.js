@@ -52,6 +52,11 @@ async function setAppearOffline() {
 // previous value can belong to an account that was launched earlier, failed,
 // or was replaced by a manual sign-in, and its settings must not apply.
 async function detectSignedInAccount(conn) {
+    // Locked: no account is read; unlocking runs this again (onVaultUnlocked).
+    if (isVaultLocked()) {
+        state.currentAccount = null;
+        return null;
+    }
     let session = null;
     for (let i = 0; i < BOOT_RETRIES; i++) {
         session = await lcu.request('GET', '/lol-login/v1/session');
@@ -148,7 +153,12 @@ function applyGameflowPhase(phase, { fromEvent = false } = {}) {
     // A finished game: the account has played, and its decay bank changed.
     if (fromEvent && phase === 'EndOfGame' && state.currentAccount?.username) {
         const username = state.currentAccount.username;
-        accountStatus.recordLastPlayed(username);
+        lcu.request('GET', '/lol-gameflow/v1/session')
+            .then((session) => {
+                const queue = String(session?.gameData?.queue?.type || '');
+                accountStatus.recordLastPlayed(username, Date.now(), { ranked: queue.startsWith('RANKED_') });
+            })
+            .catch(() => accountStatus.recordLastPlayed(username));
         accountStatus.captureStatus(username)
             .then(() => require('./windows').broadcastAccountsUpdate())
             .catch((e) => console.log('[LCU] Status after game skipped:', e.message));
@@ -278,4 +288,17 @@ function registerLcuEvents() {
     lcu.onEvent(onEvent);
 }
 
-module.exports = { registerLcuEvents, linkRiotIdFromClient };
+// After the vault is unlocked: match the signed-in account, link its Riot ID
+// and read its status, which were skipped while it was locked.
+async function onVaultUnlocked() {
+    if (!lcu.connected) return;
+    const conn = connectionSeq;
+    const username = await detectSignedInAccount(conn);
+    if (conn !== connectionSeq || !username) return;
+    await linkRiotIdFromClient(username, conn);
+    if (conn !== connectionSeq) return;
+    await accountStatus.captureStatus(username);
+    require('./windows').broadcastAccountsUpdate();
+}
+
+module.exports = { registerLcuEvents, linkRiotIdFromClient, onVaultUnlocked };
