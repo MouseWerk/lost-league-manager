@@ -274,3 +274,11 @@ test('the loading screen lists both teams from the client session', () => {
     const players = playersFromGameflow(session, { x: { gameName: 'Foe', tagLine: 'EUW' } }, 'me', { 103: 'Ahri', 238: 'Zed' });
     assert.deepEqual(players.map((p) => [p.gameName, p.team, p.champion, p.isSelf]), [['Me', 'mine', 'Ahri', true], ['Foe', 'enemy', 'Zed', false]]);
 });
+
+// A focused overlay took every key from League until the game was clicked.
+test('the overlay window is never activated, so the keyboard stays with League', () => {
+    const src = read('src', 'main', 'windows.js');
+    const opts = src.slice(src.indexOf('function createOverlayWindow'), src.indexOf('webPreferences', src.indexOf('function createOverlayWindow')));
+    assert.match(opts, /focusable: false/);
+    assert.doesNotMatch(read('src', 'main', 'overlay-manager.js'), /on\('blur'/, 'no focus race that hid and showed it again');
+});

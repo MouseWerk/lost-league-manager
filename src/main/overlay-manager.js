@@ -25,7 +25,6 @@ let pollTimer = null;
 let userHidden = false;   // hidden with the hotkey until the next game
 let gameInFront = false;  // League is the foreground window
 let tabHeld = false;      // Tab is down while League is in front
-let overlayFocused = false;
 let watcher = null;
 let hotkey = 'Ctrl+Shift+H';
 
@@ -55,7 +54,6 @@ function ensureOverlay() {
     const ow = state.overlayInjectionFailed ? null : state.owOverlayPackage || null;
     createOverlayWindow(ow, () => {
         creating = false;
-        trackOverlayFocus();
         sendToOverlay('overlay-phase', state.gameflowPhase || 'None');
         setHotkey(state.config.overlayHotkey || 'Ctrl+Shift+H');
         showIfInGame();
@@ -81,7 +79,7 @@ function shouldShow() {
     if (!state.config.overlayEnabled || !overlayAlive() || !inGame()) return false;
     if (userHidden && !tabHeld) return false;
     if (state.overlayViaOverwolf) return true; // drawn inside the game only
-    return gameInFront || overlayFocused;
+    return gameInFront;
 }
 
 // The show-or-hide keys (overlay settings); the watcher restarts with them.
@@ -158,6 +156,7 @@ function sendToOverlay(channel, data) {
 
 // One line of game-input-watch.ps1.
 function onWatchLine(line) {
+    if (!require('electron').app.isPackaged) console.log('[Overlay] watch:', String(line).trim());
     const [kind, value] = String(line).trim().split('|');
     if (kind === 'fg') {
         gameInFront = isGameInFront(line);
@@ -172,7 +171,7 @@ function onWatchLine(line) {
         tabHeld = down;
         sendToOverlay('overlay-tab', down);
     } else if (kind === 'hotkey') {
-        if (gameInFront || overlayFocused) toggleByHotkey();
+        if (gameInFront) toggleByHotkey();
         return;
     }
     applyVisibility();
@@ -217,14 +216,6 @@ function stopWatcher() {
     watcher = null;
     gameInFront = false;
     tabHeld = false;
-}
-
-// Clicking the overlay brings it to the front; it stays while it has focus.
-function trackOverlayFocus() {
-    const win = state.overlayWindow;
-    if (typeof win?.on !== 'function') return;
-    win.on('focus', () => { overlayFocused = true; applyVisibility(); });
-    win.on('blur', () => { overlayFocused = false; setTimeout(applyVisibility, 50); });
 }
 
 // ── Live Client data ────────────────────────────────────────────────────────
