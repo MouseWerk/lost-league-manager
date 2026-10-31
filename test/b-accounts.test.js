@@ -259,3 +259,16 @@ test('deleting the last account with a Riot ID forgets its games and rank histor
     assert.equal(matches.getStoredMatches('Shared#EUW').length, 0);
     assert.deepEqual(getRankHistory('Shared#EUW'), []);
 });
+
+test('export can be limited to the selected accounts', async () => {
+    writeJson('accounts.json', [
+        { username: 'one', password: encrypt('a-pw') },
+        { username: 'two', password: encrypt('b-pw') },
+        { username: 'three', password: encrypt('c-pw') },
+    ]);
+    chooseSave(backupPath);
+    const res = await invoke('export-accounts', PASS, ['TWO', 'three']);
+    assert.equal(res.count, 2);
+    const { data } = await encryption.decryptExport(fs.readFileSync(backupPath, 'utf8'), PASS);
+    assert.deepEqual(data.accounts.map((a) => a.username), ['two', 'three']);
+});

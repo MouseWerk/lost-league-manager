@@ -271,7 +271,8 @@ function register() {
         return { success: true };
     });
 
-    ipcMain.handle('export-accounts', async (event, passphrase) => {
+    // usernames: export only these (Select in the account list), else all.
+    ipcMain.handle('export-accounts', async (event, passphrase, usernames = null) => {
         if (vault.isVaultLocked()) return vault.lockedResult();
         // Not trimmed: the passphrase is used exactly as typed.
         if (typeof passphrase !== 'string' || passphrase.length < MIN_PASSPHRASE) {
@@ -285,7 +286,8 @@ function register() {
             });
             if (result.canceled || !result.filePath) return { success: false, canceled: true };
 
-            const accounts = loadAccounts();
+            const only = Array.isArray(usernames) ? new Set(usernames.filter((u) => typeof u === 'string').map((u) => u.toLowerCase())) : null;
+            const accounts = loadAccounts().filter((a) => !only || only.has(a.username.toLowerCase()));
             let unreadable = 0;
             const exportData = {
                 version: 1,

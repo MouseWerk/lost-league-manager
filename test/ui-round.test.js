@@ -98,3 +98,10 @@ test('an Overview row clears the list filters before it opens the account', () =
     const fn = app.slice(app.indexOf('A row opens that account'), app.indexOf('selectAccount(row.dataset.username)'));
     assert.match(fn, /currentRegion = "";[\s\S]*currentTag = "";[\s\S]*currentQuery = "";/);
 });
+
+// Several accounts at once: Select, then tag, refresh, export or delete them.
+test('the account list has a select mode with bulk actions', () => {
+    for (const id of ['selectModeBtn', 'bulkBar', 'bulkTagBtn', 'bulkRefreshBtn', 'bulkExportBtn', 'bulkDeleteBtn']) assert.match(html, new RegExp(`id="${id}"`), id);
+    assert.match(app, /if \(bulkMode\) return toggleBulkPick\(account\.username\);/);
+    assert.match(app, /exportAccountsFlow\(e\.currentTarget, \[\.\.\.bulkPicked\]\)/);
+});

@@ -776,7 +776,7 @@ function plural(n, word) {
 
 // Export asks for a passphrase twice (at least MIN_PASSPHRASE_LENGTH
 // characters, never trimmed); the main process encrypts the file with it.
-async function exportAccountsFlow(btn) {
+async function exportAccountsFlow(btn, usernames = null) {
   const values = await showFormDialog({
     title: "Export accounts",
     message:
@@ -792,7 +792,7 @@ async function exportAccountsFlow(btn) {
   btn.disabled = true;
   let res;
   try {
-    res = await window.electronAPI.exportAccounts(values.passphrase);
+    res = await window.electronAPI.exportAccounts(values.passphrase, usernames);
   } catch (err) {
     res = { success: false, message: err.message };
   } finally {
@@ -1021,6 +1021,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initTagSuggestions();
   initGamesDialog();
   initOverview();
+  initBulkActions();
   initChampBuild();
   initAccountDetail();
   initTooltips();
@@ -2177,6 +2178,7 @@ function renderAccounts() {
   if (countEl) countEl.textContent = allAccounts.length;
   renderRegionFilters();
   renderTagFilters();
+  if (bulkMode) updateBulkBar();
   renderAccountsSummary();
 
   const filtered = getFilteredSorted();
@@ -2445,6 +2447,110 @@ function goalRankOptions() {
 }
 
 // LP and games since midnight, as far as the app has seen them.
+// ── Several accounts at once ────────────────────────────────────────────────
+let bulkMode = false;
+const bulkPicked = new Set();
+
+function setBulkMode(on) {
+  bulkMode = on;
+  if (!on) bulkPicked.clear();
+  const btn = document.getElementById("selectModeBtn");
+  btn.setAttribute("aria-pressed", String(on));
+  btn.classList.toggle("active", on);
+  document.getElementById("accountsList").classList.toggle("is-selecting", on);
+  document.querySelectorAll("#accountsList .account-card").forEach((c) => c.classList.toggle("is-picked", bulkPicked.has(c.dataset.username)));
+  updateBulkBar();
+}
+
+function toggleBulkPick(username) {
+  if (bulkPicked.has(username)) bulkPicked.delete(username);
+  else bulkPicked.add(username);
+  findAccountCard(username)?.classList.toggle("is-picked", bulkPicked.has(username));
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  // Accounts deleted meanwhile drop out of the selection.
+  for (const u of [...bulkPicked]) if (!allAccounts.some((a) => a.username === u)) bulkPicked.delete(u);
+  document.getElementById("bulkBar").hidden = !bulkMode;
+  document.getElementById("bulkCount").textContent = bulkPicked.size ? `${plural(bulkPicked.size, "account")} selected` : "Click accounts to select them";
+  for (const id of ["bulkTagBtn", "bulkRefreshBtn", "bulkExportBtn", "bulkDeleteBtn"]) document.getElementById(id).disabled = !bulkPicked.size;
+}
+
+function pickedAccounts() {
+  return allAccounts.filter((a) => bulkPicked.has(a.username));
+}
+
+async function bulkAddTag() {
+  const values = await showFormDialog({
+    title: "Add a tag",
+    message: `For ${plural(bulkPicked.size, "account")}. Separate several tags with commas.`,
+    fields: [{ name: "tag", label: "Tag", type: "text" }],
+    confirmLabel: "Add tag",
+    onSubmit: (v) => (parseTags(v.tag).length ? null : "Enter a tag"),
+  });
+  if (!values) return;
+  const add = parseTags(values.tag);
+  let failed = 0;
+  for (const acc of pickedAccounts()) {
+    const res = await window.electronAPI.updateAccount({ username: acc.username, tags: [...parseTags(acc.tags), ...add].join(", ") }).catch(() => null);
+    if (!res || res.success === false) failed++;
+  }
+  await loadAccounts();
+  showToast(failed ? `${plural(failed, "account")} could not be tagged` : `Tag added to ${plural(bulkPicked.size, "account")}`, failed ? "error" : "success");
+}
+
+async function bulkRefresh() {
+  const accounts = pickedAccounts().filter((a) => a.riotId && a.region);
+  if (!accounts.length) return showToast("None of these accounts has a Riot ID and server", "info");
+  showToast(`Refreshing ${plural(accounts.length, "rank")}...`, "info");
+  let failed = 0;
+  // One after another: OP.GG and the Riot API limit how fast they answer.
+  for (const acc of accounts) {
+    const stats = await window.electronAPI.getStats(acc.region, acc.riotId, true).catch(() => null);
+    if (!stats || stats.error) { failed++; continue; }
+    cacheStats(acc, stats);
+    const card = findAccountCard(acc.username);
+    if (card) applyStatsToCard(card, stats);
+  }
+  showToast(failed ? `${plural(failed, "rank")} could not be refreshed` : "Ranks refreshed", failed ? "error" : "success");
+}
+
+async function bulkDelete() {
+  const accounts = pickedAccounts();
+  const ok = await showConfirm(
+    "Delete accounts",
+    `Delete ${plural(accounts.length, "account")}? This cannot be undone.`,
+    "danger",
+    "Delete",
+  );
+  if (!ok) return;
+  let failed = 0;
+  for (const acc of accounts) {
+    const res = await window.electronAPI.deleteAccount(acc.username).catch(() => null);
+    if (!res || res.success === false) failed++;
+    else {
+      delete statsCache[acc.username];
+      delete statsFailures[acc.username];
+    }
+  }
+  setBulkMode(false);
+  await loadAccounts();
+  showToast(failed ? `${plural(failed, "account")} could not be deleted` : "Accounts deleted", failed ? "error" : "success");
+}
+
+function initBulkActions() {
+  document.getElementById("selectModeBtn").addEventListener("click", () => setBulkMode(!bulkMode));
+  document.getElementById("bulkAllBtn").addEventListener("click", () => {
+    for (const a of getFilteredSorted()) bulkPicked.add(a.username);
+    setBulkMode(true);
+  });
+  document.getElementById("bulkTagBtn").addEventListener("click", bulkAddTag);
+  document.getElementById("bulkRefreshBtn").addEventListener("click", bulkRefresh);
+  document.getElementById("bulkExportBtn").addEventListener("click", (e) => exportAccountsFlow(e.currentTarget, [...bulkPicked]));
+  document.getElementById("bulkDeleteBtn").addEventListener("click", bulkDelete);
+}
+
 // ── Status warnings (decay, restriction, inactivity) ──────────────────────
 const WARNING_ICONS = { restriction: "fa-ban", decay: "fa-hourglass-half", inactive: "fa-moon" };
 
@@ -2875,6 +2981,7 @@ function createAccountCard(account) {
         <div class="summoner-icon-container">
             <img class="summoner-icon" alt="">
             <span class="level-badge" style="display:none"></span>
+            <span class="select-mark" aria-hidden="true"><i class="fas fa-check"></i></span>
         </div>
         <div class="text-content">
             <div class="card-title-row">
@@ -2918,12 +3025,14 @@ function createAccountCard(account) {
   card.setAttribute("aria-label", label);
   card.querySelector(".play-btn").setAttribute("aria-label", `Play as ${label}`);
 
+  card.classList.toggle("is-picked", bulkPicked.has(account.username));
   card.addEventListener("click", (e) => {
     if (e.target.closest("button")) return;
+    if (bulkMode) return toggleBulkPick(account.username);
     selectAccount(account.username);
   });
   card.addEventListener("dblclick", (e) => {
-    if (e.target.closest("button")) return;
+    if (e.target.closest("button") || bulkMode) return;
     launchAccount(account.username);
   });
   card.addEventListener("keydown", (e) => {
