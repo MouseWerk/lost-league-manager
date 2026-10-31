@@ -224,6 +224,7 @@ const {
   hasTag,
   statusWarnings,
   championStats,
+  matchupStats,
   weeklySummary,
   rankChart,
   scoreLabel,
@@ -2785,6 +2786,47 @@ function showGamesTab(tab) {
   });
   document.getElementById("gamesPane").hidden = tab !== "games";
   document.getElementById("championsPane").hidden = tab !== "champions";
+  document.getElementById("matchupsPane").hidden = tab !== "matchups";
+  if (tab === "matchups") loadMatchups();
+}
+
+// Matchups need both teams of a game; games saved from OP.GG get them when
+// opened, so the missing ones are loaded here (one after another).
+let _matchupLoad = 0;
+async function loadMatchups() {
+  if (!_games) return;
+  const run = ++_matchupLoad;
+  const missing = _games.matches.filter((m) => !m.players);
+  renderMatchups(missing.length ? `Loading both teams of ${plural(missing.length, "game")}...` : "");
+  for (const m of missing) {
+    const res = await window.electronAPI.getMatchDetail(_games.acc.region, _games.acc.riotId, m.id).catch(() => null);
+    if (run !== _matchupLoad || !_games) return;
+    if (res?.success && res.match?.players) m.players = res.match.players;
+  }
+  renderMatchups("");
+}
+
+function renderMatchups(note) {
+  const stats = matchupStats(_games.matches);
+  const known = _games.matches.filter((m) => m.players).length;
+  document.getElementById("matchupsNote").textContent =
+    note || (stats.length ? `Your lane opponents in ${plural(known, "game")} that list both teams.` : "No lane opponents known yet: the games need positions (Summoner's Rift).");
+  document.getElementById("matchupStatsTable").innerHTML = stats.length
+    ? `<div class="champion-stats-head"><span></span><span>Against</span><span>Games</span><span>Win rate</span><span>You played</span><span></span></div>` +
+      stats
+        .map(
+          (s) => `
+        <div class="champion-stats-row">
+            ${s.icon ? `<img src="${escapeHtml(s.icon)}" alt="">` : "<span></span>"}
+            <span class="champion-stats-name">${escapeHtml(s.opponent)}</span>
+            <span>${escapeHtml(s.games)}</span>
+            <span class="${s.winRate >= 50 ? "is-good" : "is-bad"}">${escapeHtml(s.winRate + "%")}</span>
+            <span class="matchup-as">${escapeHtml(s.as.join(", "))}</span>
+            <span></span>
+        </div>`,
+        )
+        .join("")
+    : "";
 }
 
 function renderGamesList() {

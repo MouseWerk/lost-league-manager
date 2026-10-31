@@ -161,3 +161,18 @@ test('hasTag matches a tag regardless of case', () => {
     assert.equal(lib.hasTag({ tags: 'Main' }, 'mai'), false);
     assert.equal(lib.hasTag({}, 'main'), false);
 });
+
+test('matchupStats: your record against each lane opponent', () => {
+    const p = (champion, team, position, isSelf = false) => ({ champion, team, position, isSelf, championIcon: `${champion}.png` });
+    const games = [
+        { win: true, players: [p('Ahri', 'blue', 'MIDDLE', true), p('Zed', 'red', 'MIDDLE'), p('Ornn', 'red', 'TOP')] },
+        { win: false, players: [p('Syndra', 'red', 'MIDDLE', true), p('Zed', 'blue', 'MIDDLE')] },
+        { win: true, players: [p('Ahri', 'blue', 'MIDDLE', true), p('Lux', 'red', 'MIDDLE')] },
+        { win: true, players: [p('Ahri', 'blue', '', true), p('Lux', 'red', '')] }, // ARAM: no positions
+        { win: true }, // not opened yet
+    ];
+    assert.deepEqual(lib.matchupStats(games).map((s) => [s.opponent, s.games, s.winRate, s.as.join('/')]), [
+        ['Zed', 2, 50, 'Ahri/Syndra'],
+        ['Lux', 1, 100, 'Ahri'],
+    ]);
+});
