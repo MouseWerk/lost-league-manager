@@ -348,6 +348,27 @@
       .sort((a, b) => b.games - a.games || b.winRate - a.winRate);
   }
 
+  // Your record against each lane opponent (the enemy in your position) over
+  // games that know both teams. Most played first.
+  function matchupStats(matches) {
+    const by = new Map();
+    for (const m of matches || []) {
+      const players = Array.isArray(m && m.players) ? m.players : [];
+      const me = players.find((p) => p.isSelf);
+      if (!me || !me.position) continue;
+      const opp = players.find((p) => p.team !== me.team && p.position === me.position);
+      if (!opp || !opp.champion) continue;
+      const row = by.get(opp.champion) || { opponent: opp.champion, icon: opp.championIcon || null, games: 0, wins: 0, as: new Set() };
+      row.games += 1;
+      row.wins += m.win ? 1 : 0;
+      if (me.champion) row.as.add(me.champion);
+      by.set(opp.champion, row);
+    }
+    return [...by.values()]
+      .map((r) => ({ opponent: r.opponent, icon: r.icon, games: r.games, wins: r.wins, winRate: Math.round((r.wins / r.games) * 100), as: [...r.as] }))
+      .sort((a, b) => b.games - a.games || a.winRate - b.winRate);
+  }
+
   // ── Live view ──────────────────────────────────────────────────────────────
   // Lobby members carry gameName/tagLine since the Riot ID migration; the old
   // summoner name fields are often empty.
@@ -413,6 +434,7 @@
     tagCounts,
     statusWarnings,
     championStats,
+    matchupStats,
     weeklySummary,
     rankChart,
     scoreLabel,

@@ -442,6 +442,7 @@
 .champion-stats-row:nth-child(even) { background: var(--bg); }
 .champion-stats-row img { width: 32px; height: 32px; border-radius: var(--radius-xs); object-fit: cover; display: block; }
 .champion-stats-name { font-weight: 600; }
+.matchup-as { color: var(--muted); grid-column: span 2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .champion-stats-row .is-good { color: var(--success); }
 .champion-stats-row .is-bad { color: var(--danger); }
 
