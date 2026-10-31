@@ -47,6 +47,43 @@ const OPGG_ICON_SVG = `<svg viewBox="0 0 16 16" width="1em" height="1em" aria-hi
 // Keyed by exact package.json version string; a version with no entry here
 // (or one the user has already seen) shows nothing.
 const PATCH_NOTES = {
+  "1.10.0": [
+    {
+      icon: "fas fa-user-plus",
+      title: "New accounts found",
+      body: "Signed in with an account that is not saved? The app offers to add it with its Riot ID and server filled in, and follows Riot ID changes on its own.",
+    },
+    {
+      icon: "fas fa-list-check",
+      title: "Several accounts at once",
+      body: "Click Select to tag, refresh, export or delete several accounts together.",
+    },
+    {
+      icon: "fas fa-stopwatch",
+      title: "Today's session",
+      body: "The Live view shows today's games, record, LP and streak, and suggests a break after two losses in a row.",
+    },
+    {
+      icon: "fas fa-trophy",
+      title: "Season review",
+      body: "Peak rank, the season's rank curve, most played champions and the longest win streak for each account.",
+    },
+    {
+      icon: "fas fa-people-arrows",
+      title: "Matchups and duo",
+      body: "Your record against each lane opponent, OP.GG matchup tips in champion select, and how well you go with your duo.",
+    },
+    {
+      icon: "fas fa-gem",
+      title: "Blue Essence and RP",
+      body: "Each account shows its Blue Essence and RP from its last sign-in.",
+    },
+    {
+      icon: "fab fa-discord",
+      title: "Richer Discord status",
+      body: "Your rank, and in a game your champion and queue. Never your account name.",
+    },
+  ],
   "1.9.0": [
     {
       icon: "fas fa-chart-line",

@@ -44,8 +44,13 @@
   accounts you have not played for a while.
 - **Overview.** The week of all your accounts: ranked games, win rate, LP, a 30-day rank chart and
   each account's goal.
+- **Season review.** Peak rank, the season's rank curve, most played champions and the longest win
+  streak for each account; your record against each lane opponent.
+- **Stays up to date.** Offers to add the account signed into the client, follows Riot ID changes,
+  and shows each account's Blue Essence and RP from its last sign-in.
 - **Find and sort.** Search by name, Riot ID or tag, filter by server or tag (Main, Duo, Smurf, ...),
   sort by rank, name, server, recently used or last played, or drag accounts into your own order.
+  Select several accounts to tag, refresh, export or delete them together.
 - **Safe storage.** Passwords are encrypted on your PC. An optional vault password locks the app,
   and backups are protected with a password you choose.
 
@@ -54,13 +59,16 @@
 - **Lobby check.** The ranks of your party, of your champion select where the game shows names,
   and of all ten players once the game starts, with one click to OP.GG multi-search. Ranked
   champion select keeps names hidden, as the game does.
+- **Today's session.** Games, record, LP and streak since midnight, with a break hint after two
+  losses in a row.
 - **Runes and items.** The OP.GG runes, items and skill order for your champion in champion
-  select, imported into the client with one click or automatically when you lock in.
+  select, imported into the client with one click or automatically when you lock in, plus the
+  matchup against an enemy pick and how well you go with your duo.
 - **In-game overlay (beta).** On the loading screen and while you hold Tab: both teams with rank,
   win rate and tags such as One-trick or New on champ. In the game: your score, team gold and
   objectives, timers for taken objectives, and your build. Off until you switch it on.
-- **Auto-accept**, a random owned skin in champion select, appear offline, dodge, and a
-  notification when a match is found.
+- **Auto-accept**, a random owned skin in champion select, appear offline, dodge, a notification
+  when a match is found, and a Discord status with your rank and champion (never your name).
 
 ### Stat viewer and tools
 - **Champion stats** at any level from Riot's data, including the exact attack speed growth.
