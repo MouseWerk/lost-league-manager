@@ -107,7 +107,7 @@ function createOverlayWindow(owOverlay, onReady = null) {
         });
         state.overlayWindow.loadFile(path.join(__dirname, '../renderer/overlay.html'));
 
-        state.overlayWindow.webContents.on('did-finish-load', () => {
+        const sendInit = () => {
             if (!state.overlayWindow || state.overlayWindow.isDestroyed()) return;
             const championData = require('./services/champion-data');
             const itemData = require('./services/item-data');
@@ -128,6 +128,12 @@ function createOverlayWindow(owOverlay, onReady = null) {
                 locked:  state.config.overlayLocked  || false,
                 csGoal:  state.config.overlayCsGoal  || 8,
             });
+        };
+        state.overlayWindow.webContents.on('did-finish-load', () => {
+            sendInit();
+            // Started during a game: champion keys and item names may still be
+            // loading; send them again once they are there.
+            require('./services/item-data').whenReady().then(sendInit).catch(() => {});
         });
     };
 

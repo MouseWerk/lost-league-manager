@@ -29,7 +29,9 @@ async function currentPick(session) {
     const pick = pickFromSession(session || await lcu.request('GET', '/lol-champ-select/v1/session'));
     if (!pick?.championId) return pick;
     const flow = await lcu.request('GET', '/lol-gameflow/v1/session');
-    return { ...pick, mode: flow?.gameData?.queue?.gameMode === 'ARAM' ? 'aram' : 'ranked' };
+    // OP.GG builds exist for Summoner's Rift and ARAM only (not Arena, URF, ...).
+    const gameMode = flow?.gameData?.queue?.gameMode;
+    return { ...pick, mode: gameMode === 'ARAM' ? 'aram' : gameMode === 'CLASSIC' || !gameMode ? 'ranked' : null };
 }
 
 function championInfo(championId) {
@@ -39,6 +41,7 @@ function championInfo(championId) {
 }
 
 async function buildForPick(pick, position) {
+    if (!pick.mode) throw new Error('No OP.GG builds for this game mode');
     const champ = championInfo(pick.championId);
     if (!champ.key) throw new Error('Unknown champion');
     const pos = opgg.BUILD_POSITIONS.includes(position) ? position : pick.position;
@@ -89,6 +92,7 @@ async function autoImportOnLock(session) {
     if (!quick?.locked || importedFor === quick.championId) return null;
     importedFor = quick.championId;
     const pick = await currentPick(session);
+    if (!pick.mode) return null; // Arena, URF, ...: nothing to import, nothing to say
     await championData.whenReady();
     try {
         const { champ, build } = await buildForPick(pick, null);

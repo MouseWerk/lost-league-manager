@@ -316,3 +316,23 @@ test('a champion is found by its Data Dragon key or its display name', (t) => {
     assert.equal(championIdOf("Kai'Sa"), 145);
     assert.equal(championIdOf('Nobody'), null);
 });
+
+test('after an Elder Dragon kill the timer is for the Elder Dragon', () => {
+    const events = [{ EventName: 'DragonKill', EventTime: 1500, DragonType: 'Fire' }, { EventName: 'DragonKill', EventTime: 2100, DragonType: 'Elder' }];
+    assert.deepEqual(stats.objectiveTimers(events, 2200), [{ name: 'Elder Dragon', at: 2460 }]);
+});
+
+test('the overlay window ignores impossible sizes', () => {
+    const { ipcMain } = require('electron');
+    const sizes = [];
+    state.overlayWindow = { isDestroyed: () => false, setSize: (w, h) => sizes.push([w, h]) };
+    const handler = ipcMain.listeners?.('overlay-resize')?.[0];
+    if (handler) {
+        handler({}, NaN, 10);
+        handler({}, 360, 200);
+        assert.deepEqual(sizes, [[360, 200]]);
+    } else {
+        assert.match(read('src', 'main', 'ipc', 'overlay-handlers.js'), /Number\.isFinite\(w\) \|\| !Number\.isFinite\(h\)/);
+    }
+    state.overlayWindow = null;
+});

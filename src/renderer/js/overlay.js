@@ -256,6 +256,7 @@ function resetAll() {
     allPlayers = [];
     gameEvents = [];
     myName = null;
+    myRiotId = null;
     rankedData = {};
     rankedFetched = false;
     rankedLoading = false;
@@ -290,6 +291,7 @@ function showPanel(name) {
     if (openPanel === 'players') {
         if (!rankedFetched && allPlayers.length) triggerRankedFetch();
         renderRankedPanel();
+        // (Opening the panel by hand still looks the ranks up.)
     }
     if (openPanel === 'build') {
         if (!buildFetched && myChampKey) triggerBuildFetch();
@@ -465,6 +467,7 @@ window.overlayAPI.onPhase((p) => {
     phase = p;
     if (p === 'GameStart' && was !== 'GameStart') {
         loadingPlayers = [];
+        if (!ovShowRankedToggle.checked) return; // players switched off
         if (openPanel !== 'players') showPanel('players');
         renderLoadingPanel();
         loadLoadingScreen();
@@ -477,6 +480,7 @@ window.overlayAPI.onPhase((p) => {
 // Holding Tab in the game shows the players (as Porofessor does); letting go
 // goes back to what was open.
 window.overlayAPI.onTab((down) => {
+    if (!ovShowRankedToggle.checked) return; // players switched off
     if (down) {
         if (tabPeek !== null) return;
         tabPeek = openPanel || '';
@@ -502,7 +506,10 @@ function renderRankedPanel() {
         + (rankedLoading ? '<p class="ov-msg">Looking up ranks...</p>' : '');
 }
 
+// The full Riot ID when the game gives one (two players can share a name).
+let myRiotId = null;
 function isMe(p) {
+    if (myRiotId && p.riotId) return p.riotId === myRiotId;
     return !!myName && (p.summonerName === myName || p.riotIdGameName === myName);
 }
 
@@ -745,6 +752,7 @@ function onLiveData(key, value) {
         if (openPanel === 'game') renderGamePanel();
     } else if (key === 'active_player') {
         myName = value.riotIdGameName || value.summonerName || myName;
+        myRiotId = value.riotId || myRiotId;
         level = value.level ?? level;
         gold = Math.floor(value.currentGold ?? gold);
     } else if (key === 'all_players' && Array.isArray(value)) {
@@ -753,6 +761,11 @@ function onLiveData(key, value) {
         if (me) {
             if (me.isDead === true && !isDead) onDeath();
             if (me.isDead === false && isDead) onRespawn();
+            // The game's respawn time, not the estimate.
+            if (isDead && typeof me.respawnTimer === 'number' && me.respawnTimer > 0) {
+                respawnAt = Date.now() + me.respawnTimer * 1000;
+                respawnTotal = Math.max(respawnTotal, me.respawnTimer);
+            }
             kills = me.scores?.kills ?? kills;
             deaths = me.scores?.deaths ?? deaths;
             assists = me.scores?.assists ?? assists;
@@ -771,7 +784,7 @@ function onLiveData(key, value) {
             }
             if (!buildFetched && myChampKey && openPanel === 'build') triggerBuildFetch();
         }
-        if (!rankedFetched && value.length) triggerRankedFetch();
+        if (!rankedFetched && value.length && ovShowRankedToggle.checked) triggerRankedFetch();
         if (openPanel === 'players') renderRankedPanel();
         if (openPanel === 'build') renderBuildPanel();
         if (openPanel === 'game') renderGamePanel();
