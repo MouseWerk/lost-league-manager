@@ -1,7 +1,8 @@
 const { ipcMain, shell } = require('electron');
 const lcu = require('../lcu');
 const { liveClientGet } = require('../services/live-client');
-const { soloRankForPlayer } = require('./overlay-handlers');
+const { soloRankForPlayer, championRecord } = require('./overlay-handlers');
+const championData = require('../services/champion-data');
 const { getClientRegion } = require('./stats');
 const { opggMultisearchUrl } = require('./client-controls');
 
@@ -54,6 +55,32 @@ function playersFromLiveGame(list, me) {
     return players.map(({ side, ...p }) => ({ ...p, team: !mySide || side === mySide ? 'mine' : 'enemy' }));
 }
 
+// Loading screen: the client's game session lists both teams (names are
+// visible from here on). `names` maps puuid -> { gameName, tagLine }.
+function playersFromGameflow(session, names, selfPuuid, idToKey = {}) {
+    const data = session?.gameData || {};
+    const one = Array.isArray(data.teamOne) ? data.teamOne : [];
+    const two = Array.isArray(data.teamTwo) ? data.teamTwo : [];
+    const mineIsOne = !selfPuuid || one.some((p) => p.puuid === selfPuuid) || !two.some((p) => p.puuid === selfPuuid);
+    const picks = {};
+    for (const s of Array.isArray(data.playerChampionSelections) ? data.playerChampionSelections : []) {
+        if (s.puuid) picks[s.puuid] = s.championId;
+    }
+    const row = (p, mine) => {
+        const n = (p.gameName ? p : names?.[p.puuid]) || {};
+        const championId = p.championId || picks[p.puuid] || 0;
+        return {
+            gameName: n.gameName || p.summonerName || '',
+            tagLine: n.tagLine || '',
+            team: mine ? 'mine' : 'enemy',
+            champion: idToKey[championId] || '',
+            position: String(p.selectedPosition || '').toUpperCase(),
+            isSelf: !!selfPuuid && p.puuid === selfPuuid,
+        };
+    };
+    return [...one.map((p) => row(p, mineIsOne)), ...two.map((p) => row(p, !mineIsOne))].filter((p) => p.gameName);
+}
+
 async function namesForPuuids(puuids) {
     const out = {};
     await Promise.allSettled(puuids.map(async (puuid) => {
@@ -72,6 +99,13 @@ async function collectPlayers(phase) {
         const session = await lcu.request('GET', '/lol-champ-select/v1/session');
         const visible = (session?.myTeam || []).filter(m => m.puuid && m.nameVisibilityType !== 'HIDDEN' && !m.gameName).map(m => m.puuid);
         return playersFromChampSelect(session, await namesForPuuids(visible), me?.puuid);
+    }
+    if (phase === 'GameStart') {
+        const session = await lcu.request('GET', '/lol-gameflow/v1/session');
+        const all = [...(session?.gameData?.teamOne || []), ...(session?.gameData?.teamTwo || [])];
+        const missing = all.filter((p) => p.puuid && !p.gameName).map((p) => p.puuid);
+        const players = playersFromGameflow(session, await namesForPuuids(missing), me?.puuid, championData.getIdToNameMap());
+        if (players.length) return players;
     }
     if (phase === 'InProgress' || phase === 'GameStart') {
         try {
@@ -97,6 +131,22 @@ function register() {
         return { connected: true, phase, region, players };
     });
 
+    // The overlay on the loading screen: both teams with rank and how each
+    // plays the champion they picked (Porofessor-style tags come from this).
+    ipcMain.handle('overlay-get-loading', async () => {
+        if (!lcu.connected) return { players: [] };
+        const phase = await lcu.request('GET', '/lol-gameflow/v1/gameflow-phase');
+        if (phase !== 'GameStart' && phase !== 'InProgress') return { phase, players: [] };
+        await championData.whenReady();
+        const players = await collectPlayers(phase);
+        await Promise.allSettled(players.map(async (p) => {
+            const who = { gameName: p.gameName, tagLine: p.tagLine };
+            const [rank, champ] = await Promise.all([soloRankForPlayer(who), championRecord(who, p.champion)]);
+            Object.assign(p, rank, champ);
+        }));
+        return { phase, players };
+    });
+
     ipcMain.handle('open-opgg-multisearch', async (event, region, riotIds) => {
         const url = opggMultisearchUrl(region, riotIds);
         if (!url) return { success: false };
@@ -105,4 +155,4 @@ function register() {
     });
 }
 
-module.exports = { register, playersFromLobby, playersFromChampSelect, playersFromLiveGame };
+module.exports = { register, playersFromLobby, playersFromChampSelect, playersFromLiveGame, playersFromGameflow };

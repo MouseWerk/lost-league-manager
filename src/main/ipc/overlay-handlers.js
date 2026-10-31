@@ -46,6 +46,31 @@ function formatLcuRanked(q) {
 }
 
 const EMPTY_RANK = { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
+
+// How a player does on the champion they play this game, from OP.GG's
+// season numbers: { champGames, champWins, mainChampion, poolSize, games }.
+// {} when OP.GG has nothing or the server is not covered.
+async function championRecord(p, championName) {
+    if (!p.gameName || !p.tagLine || !championName) return {};
+    const region = await getClientRegion();
+    if (!region || !ONLINE_REGION.test(region) || region === 'cn') return {};
+    try {
+        const profile = await opgg.getProfile(p.gameName, p.tagLine, region);
+        const pool = Array.isArray(profile.championPool) ? profile.championPool : [];
+        const want = String(championName).toLowerCase().replace(/[^a-z]/g, '');
+        const champ = pool.find((c) => String(c.name).toLowerCase().replace(/[^a-z]/g, '') === want);
+        const m = /(\d+)W\s+(\d+)L/.exec(profile.winLose || '');
+        return {
+            champGames: champ ? champ.games : 0,
+            champWins: champ ? champ.wins : 0,
+            mainChampion: pool[0]?.name || '',
+            poolSize: pool.length,
+            games: m ? Number(m[1]) + Number(m[2]) : null,
+        };
+    } catch {
+        return {};
+    }
+}
 // Marks a lookup that couldn't be resolved (as opposed to a resolved-but-
 // actually-unranked player) so callers know it's worth retrying.
 const FAILED_RANK = { ...EMPTY_RANK, failed: true };
@@ -207,7 +232,8 @@ function register() {
             // Key by full Riot ID (name#tag) so two players sharing a game name but
             // different taglines don't clobber each other's cached ranked data.
             const key = p.tagLine ? `${name}#${p.tagLine}` : name;
-            results[key] = await soloRankForPlayer(p);
+            const [rank, champ] = await Promise.all([soloRankForPlayer(p), championRecord(p, p.championName)]);
+            results[key] = { ...rank, ...champ };
         }));
 
         return results;
@@ -336,4 +362,4 @@ function register() {
     });
 }
 
-module.exports = { register, soloRankForPlayer, formatLcuRanked, cleanOverlaySettings, OVERLAY_HOTKEYS };
+module.exports = { register, soloRankForPlayer, championRecord, formatLcuRanked, cleanOverlaySettings, OVERLAY_HOTKEYS };

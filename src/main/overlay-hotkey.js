@@ -1,7 +1,9 @@
-const { globalShortcut } = require('electron');
 const state = require('./state');
 
-let _current = null;
+// The overlay's show-or-hide keys. They used to be a global shortcut
+// (RegisterHotKey), which did not reach the overlay while League had the
+// keyboard; overlay-manager.js now reads them with the game input watcher,
+// which also leaves the keys to the game.
 
 function toggleOverlayVisibility() {
     if (!state.overlayWindow || state.overlayWindow.isDestroyed()) return;
@@ -9,21 +11,7 @@ function toggleOverlayVisibility() {
 }
 
 function registerOverlayHotkey(hotkey) {
-    if (_current) {
-        try { globalShortcut.unregister(_current); } catch {}
-        _current = null;
-    }
-    // The overlay is disabled and its window never created; registering
-    // anyway swallowed Ctrl+Shift+H system-wide for nothing. Call this again
-    // after createOverlayWindow if the overlay comes back.
-    if (!hotkey || !state.overlayWindow || state.overlayWindow.isDestroyed()) return;
-    try {
-        const ok = globalShortcut.register(hotkey, toggleOverlayVisibility);
-        if (ok) _current = hotkey;
-        else console.warn('[Overlay] Hotkey unavailable:', hotkey);
-    } catch (e) {
-        console.error('[Overlay] Hotkey register failed:', e.message);
-    }
+    if (hotkey) require('./overlay-manager').setHotkey(hotkey);
 }
 
 module.exports = { registerOverlayHotkey, toggleOverlayVisibility };

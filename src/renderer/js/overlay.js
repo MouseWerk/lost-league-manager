@@ -23,6 +23,9 @@ let allPlayers = [];
 let openPanel = null; // 'game' | 'players' | 'build' | 'settings' | null
 let gameEvents = [];  // the game's event feed (kills of towers, dragons, ...)
 let csGoal = 8;       // CS per minute the player aims for (overlay settings)
+let phase = 'None';   // the client's gameflow phase
+let loadingPlayers = []; // both teams on the loading screen (overlay-get-loading)
+let tabPeek = null;   // the panel to go back to when Tab is let go
 let overlayLocked = false;
 
 // Ranked data from the main process: { [riotIdKey]: { tier, lp, ratio, failed? } }
@@ -80,7 +83,7 @@ const ovDeadTip = $('ovDeadTip');
 const ovGameToggle = $('ovGameToggle');
 const ovGame = $('ovGame');
 const ovGameContent = $('ovGameContent');
-const ovCsGoalSelect = $('ovCsGoalSelect');
+const ovCsGoalSeg = $('ovCsGoalSeg');
 const ovToggle = $('ovToggle');
 const ovBuildToggle = $('ovBuildToggle');
 const ovSettingsBtn = $('ovSettingsBtn');
@@ -91,7 +94,7 @@ const ovBuildsContent = $('ovBuildsContent');
 const ovSettingsPanel = $('ovSettingsPanel');
 const ovOpacitySlider = $('ovOpacitySlider');
 const ovOpacityVal = $('ovOpacityVal');
-const ovHotkeySelect = $('ovHotkeySelect');
+const ovHotkeySeg = $('ovHotkeySeg');
 const ovLockToggle = $('ovLockToggle');
 const ovShowRankedToggle = $('ovShowRankedToggle');
 const ovShowBuildsToggle = $('ovShowBuildsToggle');
@@ -190,7 +193,11 @@ new ResizeObserver(() => {
 // ── Timer ─────────────────────────────────────────────────────────────────────
 function startTimer() {
     if (timerTick) return;
-    timerTick = setInterval(() => { gameTime++; ovTimer.textContent = formatTime(gameTime); }, 1000);
+    timerTick = setInterval(() => {
+        gameTime++;
+        ovTimer.textContent = formatTime(gameTime);
+        if (openPanel === 'game') renderGamePanel();
+    }, 1000);
 }
 function stopTimer() { if (timerTick) { clearInterval(timerTick); timerTick = null; } }
 
@@ -270,7 +277,7 @@ function resetAll() {
 
 // ── Panels: one open at a time ────────────────────────────────────────────────
 function showPanel(name) {
-    openPanel = openPanel === name ? null : name;
+    openPanel = name === null || openPanel === name ? null : name;
     ovGame.hidden = openPanel !== 'game';
     ovRanked.hidden = openPanel !== 'players';
     ovBuilds.hidden = openPanel !== 'build';
@@ -308,6 +315,12 @@ function diffCell(mine, theirs, fmt = String) {
 
 function statRow(name, mine, theirs, fmt = String) {
     return `<span class="ov-stat-name">${escHtml(name)}</span><span class="ov-stat-val">${escHtml(fmt(mine))}</span><span class="ov-stat-val">${escHtml(fmt(theirs))}</span>${diffCell(mine, theirs, fmt)}`;
+}
+
+function timersHtml() {
+    const timers = Stats.objectiveTimers(gameEvents, gameTime);
+    if (!timers.length) return '';
+    return `<div class="ov-divider"></div><p class="ov-label">Back in</p><div class="ov-timers">${timers.map((t) => `<span>${escHtml(t.name)}</span><span>${escHtml(formatTime(t.at - gameTime))}</span>`).join('')}</div>`;
 }
 
 function renderGamePanel() {
@@ -352,6 +365,7 @@ function renderGamePanel() {
             <span class="ov-stat-name">CS per minute</span><span class="ov-stat-val">${escHtml(csm.toFixed(1))}</span><span class="ov-stat-val">of ${escHtml(csGoal)}</span><span></span>
         </div>
         <div class="ov-goal-bar"><span style="width:${escHtml(goalPct)}%"></span></div>
+        ${timersHtml()}
         ${vsLane ? '<div class="ov-divider"></div>' + vsLane : ''}`;
 }
 
@@ -412,7 +426,70 @@ function renderBuildPanel() {
 }
 
 // ── Players panel ─────────────────────────────────────────────────────────────
+function loadingRow(p) {
+    const tier = tierName(p.tier);
+    const lp = p.lp ? String(p.lp).replace(/\s*LP$/i, '') : '';
+    const rank = tier
+        ? `<span class="ov-rank tier-${tier}"><img src="assets/ranks/${tier}.png" alt="">${escHtml(tierAbbr(p.tier))}${lp ? ` ${escHtml(lp)}` : ''}</span>`
+        : `<span class="ov-rank">${p.failed ? '?' : 'Unranked'}</span>`;
+    return `<div class="ov-player${p.isSelf ? ' is-me' : ''}">
+        <span class="ov-player-champ"><img class="ov-player-icon" src="${escHtml(champIconUrlFromKey(p.champion))}" alt="" data-fallback="logo" data-tip="${escHtml(p.champion || '')}"></span>
+        <span class="ov-player-main">
+            <span class="ov-player-name">${escHtml(p.gameName)}</span>
+            ${tagsHtml(p, p.champion)}
+        </span>
+        <span class="ov-player-side">${rank}<span class="ov-sub"><span class="ov-wr">${escHtml(p.ratio || '')}</span></span></span>
+    </div>`;
+}
+
+function renderLoadingPanel() {
+    const mine = loadingPlayers.filter((p) => p.team === 'mine');
+    const theirs = loadingPlayers.filter((p) => p.team !== 'mine');
+    const block = (title, list) => (list.length ? `<div class="ov-team"><p class="ov-label">${escHtml(title)}</p>${list.map(loadingRow).join('')}</div>` : '');
+    ovRankedContent.innerHTML = loadingPlayers.length
+        ? block('Your team', mine) + block('Enemies', theirs)
+        : '<p class="ov-msg">Looking up the players...</p>';
+}
+
+async function loadLoadingScreen() {
+    const res = await window.overlayAPI.fetchLoading().catch(() => null);
+    if (phase !== 'GameStart') return;
+    loadingPlayers = res?.players || [];
+    if (openPanel === 'players') renderLoadingPanel();
+    // The client may not list everyone yet; ask again shortly.
+    if (!loadingPlayers.length) setTimeout(() => { if (phase === 'GameStart') loadLoadingScreen(); }, 3000);
+}
+
+window.overlayAPI.onPhase((p) => {
+    const was = phase;
+    phase = p;
+    if (p === 'GameStart' && was !== 'GameStart') {
+        loadingPlayers = [];
+        if (openPanel !== 'players') showPanel('players');
+        renderLoadingPanel();
+        loadLoadingScreen();
+    } else if (p === 'InProgress' && was === 'GameStart') {
+        loadingPlayers = [];
+        if (openPanel === 'players') showPanel('players'); // close the loading list
+    }
+});
+
+// Holding Tab in the game shows the players (as Porofessor does); letting go
+// goes back to what was open.
+window.overlayAPI.onTab((down) => {
+    if (down) {
+        if (tabPeek !== null) return;
+        tabPeek = openPanel || '';
+        if (openPanel !== 'players') showPanel('players');
+    } else if (tabPeek !== null) {
+        const back = tabPeek;
+        tabPeek = null;
+        if (back !== 'players') showPanel(back || null);
+    }
+});
+
 function renderRankedPanel() {
+    if (phase === 'GameStart' || (!allPlayers.length && loadingPlayers.length)) { renderLoadingPanel(); return; }
     if (!allPlayers.length) {
         ovRankedContent.innerHTML = '<p class="ov-msg">Waiting for the game...</p>';
         return;
@@ -456,6 +533,7 @@ function playerRow(p) {
         </span>
         <span class="ov-player-main">
             <span class="ov-player-name">${escHtml(name)}${isOpp ? '<span class="ov-vs">vs you</span>' : ''}</span>
+            ${tagsHtml(rd, p.championName)}
             <span class="ov-player-items">${items}</span>
         </span>
         <span class="ov-player-side">
@@ -463,6 +541,13 @@ function playerRow(p) {
             <span class="ov-sub"><span class="ov-wr">${escHtml(rd?.ratio || '')}</span><span class="ov-pkda">${escHtml([k, d, a].join('/'))}</span></span>
         </span>
     </div>`;
+}
+
+function tagsHtml(rd, championName) {
+    const tags = Stats.playerTags(rd, championName);
+    const rec = rd && rd.champGames ? `${rd.champGames} games, ${Math.round((rd.champWins / rd.champGames) * 100)}% on ${championName || 'champ'}` : '';
+    if (!tags.length && !rec) return '';
+    return `<span class="ov-tags">${tags.map((t) => `<span class="ov-tag is-${escHtml(t.tone)}">${escHtml(t.text)}</span>`).join('')}${rec ? `<span class="ov-champ-rec">${escHtml(rec)}</span>` : ''}</span>`;
 }
 
 function triggerRankedFetch(retryPlayers) {
@@ -476,6 +561,7 @@ function triggerRankedFetch(retryPlayers) {
         gameName: p.riotIdGameName || null,
         tagLine: p.riotIdTagLine || null,
         summonerName: p.summonerName || null,
+        championName: p.championName || null,
     }));
     window.overlayAPI.fetchRanked(playerList)
         .then((data) => {
@@ -560,11 +646,20 @@ ovOpacitySlider.addEventListener('input', () => {
 ovOpacitySlider.addEventListener('change', () => {
     window.overlayAPI.setOpacity(parseInt(ovOpacitySlider.value, 10) / 100);
 });
-ovHotkeySelect.addEventListener('change', () => {
-    window.overlayAPI.saveSettings({ hotkey: ovHotkeySelect.value });
+function setSeg(seg, value) {
+    seg.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === String(value))));
+}
+ovHotkeySeg.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    setSeg(ovHotkeySeg, b.dataset.value);
+    window.overlayAPI.saveSettings({ hotkey: b.dataset.value });
 });
-ovCsGoalSelect.addEventListener('change', () => {
-    csGoal = parseInt(ovCsGoalSelect.value, 10) || 8;
+ovCsGoalSeg.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    csGoal = parseInt(b.dataset.value, 10) || 8;
+    setSeg(ovCsGoalSeg, csGoal);
     window.overlayAPI.saveSettings({ csGoal });
     if (openPanel === 'game') renderGamePanel();
 });
@@ -693,12 +788,10 @@ window.overlayAPI.onInit((initData) => {
     applyOpacity(opacity);
     ovOpacitySlider.value = Math.round(opacity * 100);
     ovOpacityVal.textContent = `${Math.round(opacity * 100)}%`;
-    if (initData?.hotkey && [...ovHotkeySelect.options].some((o) => o.value === initData.hotkey)) {
-        ovHotkeySelect.value = initData.hotkey;
-    }
+    setSeg(ovHotkeySeg, initData?.hotkey || 'Ctrl+Shift+H');
     setLocked(initData?.locked);
     if ([6, 7, 8, 9, 10].includes(initData?.csGoal)) csGoal = initData.csGoal;
-    ovCsGoalSelect.value = String(csGoal);
+    setSeg(ovCsGoalSeg, csGoal);
     const showRanked = initData?.showRanked !== false;
     const showBuilds = initData?.showBuilds !== false;
     ovShowRankedToggle.checked = showRanked;

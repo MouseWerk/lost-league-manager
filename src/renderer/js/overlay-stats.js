@@ -67,7 +67,62 @@
     return (players || []).find((p) => p.team !== me.team && p.position === me.position) || null;
   }
 
-  const api = { itemGold, kills, objectives, killParticipation, laneOpponent, teamOf };
+  // Short labels for a player, as Porofessor shows them, from their solo
+  // record (wins, losses / winLose) and season games on the champion they
+  // play (overlay-handlers.js championRecord). Most telling first.
+  function playerTags(rec, championName) {
+    const tags = [];
+    if (!rec) return tags;
+    const m = /(\d+)W\s+(\d+)L/.exec(rec.winLose || "");
+    const wins = m ? Number(m[1]) : 0;
+    const losses = m ? Number(m[2]) : 0;
+    const games = rec.games ?? (m ? wins + losses : null);
+    const champGames = rec.champGames;
+    if (typeof champGames === "number" && games) {
+      if (champGames >= 20 && champGames / games >= 0.5) tags.push({ text: "One-trick", tone: "info" });
+      else if (championName && rec.mainChampion && rec.mainChampion === championName && champGames >= 10) tags.push({ text: "Main", tone: "info" });
+      if (champGames === 0 && rec.poolSize >= 10 && games >= 30) tags.push({ text: "New on champ", tone: "good" });
+      if (champGames >= 10) {
+        const wr = Math.round((rec.champWins / champGames) * 100);
+        if (wr >= 60) tags.push({ text: `${wr}% on champ`, tone: "bad" });
+      }
+    }
+    if (games !== null && games !== undefined) {
+      if (games > 0 && games < 15) tags.push({ text: "Few games", tone: "neutral" });
+      if (games >= 20) {
+        const wr = Math.round((wins / games) * 100);
+        if (wr >= 60) tags.push({ text: "High win rate", tone: "bad" });
+        else if (wr <= 43) tags.push({ text: "Low win rate", tone: "good" });
+      }
+    }
+    return tags;
+  }
+
+  // When objectives come back after being taken (what the kill feed and the
+  // game's own timers show): next dragon, baron, and each inhibitor.
+  // Seconds of game time; only future ones are returned.
+  const RESPAWN = { DragonKill: 300, BaronKill: 360, InhibKilled: 300 };
+  function objectiveTimers(events, gameTime) {
+    const out = [];
+    let dragon = null;
+    let baron = null;
+    const inhibs = {};
+    for (const e of events || []) {
+      if (e.EventName === "DragonKill" && !/Elder/i.test(e.DragonType || "")) dragon = Math.max(dragon || 0, e.EventTime + RESPAWN.DragonKill);
+      if (e.EventName === "BaronKill") baron = Math.max(baron || 0, e.EventTime + RESPAWN.BaronKill);
+      if (e.EventName === "InhibKilled") inhibs[e.InhibKilled] = e.EventTime + RESPAWN.InhibKilled;
+    }
+    if (dragon && dragon > gameTime) out.push({ name: "Dragon", at: dragon });
+    if (baron && baron > gameTime) out.push({ name: "Baron", at: baron });
+    for (const [id, at] of Object.entries(inhibs)) {
+      if (at <= gameTime) continue;
+      const side = /_T1_|_T100_/.test(id) ? "Blue" : "Red";
+      out.push({ name: `${side} inhibitor`, at });
+    }
+    return out.sort((a, b) => a.at - b.at);
+  }
+
+  const api = { itemGold, kills, objectives, killParticipation, laneOpponent, teamOf, playerTags, objectiveTimers };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.OverlayStats = api;
 })(this);
