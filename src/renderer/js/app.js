@@ -49,6 +49,43 @@ const OPGG_ICON_SVG = `<svg viewBox="0 0 16 16" width="1em" height="1em" aria-hi
 // Keyed by exact package.json version string; a version with no entry here
 // (or one the user has already seen) shows nothing.
 const PATCH_NOTES = {
+  "1.9.0": [
+    {
+      icon: "fas fa-chart-line",
+      title: "Overview",
+      body: "A new page with the week of all your accounts: games, win rate, LP, a 30-day rank chart and each account's goal and warnings.",
+    },
+    {
+      icon: "fas fa-list",
+      title: "Games and champions",
+      body: "Click a game in the account panel to see both teams, items, CS and damage, plus a table of your champions with win rate and KDA.",
+    },
+    {
+      icon: "fas fa-hourglass-half",
+      title: "Decay and restriction warnings",
+      body: "Accounts warn before ranked decay, show a ranked restriction with the games left, and mark accounts you have not played for a while.",
+    },
+    {
+      icon: "fas fa-tag",
+      title: "Tags",
+      body: "Tag accounts as Main, Duo, Smurf or anything else in Edit, then filter the list by tag.",
+    },
+    {
+      icon: "fas fa-book-open",
+      title: "Runes and items in champion select",
+      body: "The Live view shows the OP.GG runes and items for your champion and imports them into the client with one click, or automatically when you lock in.",
+    },
+    {
+      icon: "fas fa-window-maximize",
+      title: "In-game overlay",
+      body: "Switch it on in Settings > Game overlay: your score, all ten ranks and your build over the game.",
+    },
+    {
+      icon: "fas fa-up-right-and-down-left-from-center",
+      title: "Roomy layout",
+      body: "Prefer the larger buttons of 1.7? Choose Roomy in Settings > Appearance.",
+    },
+  ],
   "1.8.0": [
     {
       icon: "fas fa-palette",
