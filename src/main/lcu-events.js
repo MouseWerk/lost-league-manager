@@ -119,6 +119,7 @@ function applyGameflowPhase(phase, { fromEvent = false } = {}) {
     send(state.mainWindow, 'lcu-gameflow', phase);
     require('./overlay-manager').onGameflowPhase(phase);
     discordRpc.setGameflowPhase(phase);
+    discordContext(phase).catch(() => {});
 
     // Queue-pop toast notification (only for a live change, not on connect)
     if (fromEvent && phase === 'ReadyCheck' && state.config.toastOnQueuePop !== false) {
@@ -163,6 +164,53 @@ function applyGameflowPhase(phase, { fromEvent = false } = {}) {
             .then(() => require('./windows').broadcastAccountsUpdate())
             .catch((e) => console.log('[LCU] Status after game skipped:', e.message));
     }
+}
+
+let discordChampion = 0;
+function discordChampionChanged(session) {
+    const me = (session?.myTeam || []).find((m) => m.cellId === session?.localPlayerCellId);
+    const id = me?.championId || 0;
+    if (id === discordChampion) return;
+    discordChampion = id;
+    discordContext('ChampSelect').catch(() => {});
+}
+
+// Rank and game for the Discord status (no names): the solo rank, and in
+// champion select and in game the champion and queue.
+const GAME_CONTEXT_PHASES = new Set(['ChampSelect', 'GameStart', 'InProgress', 'Reconnect']);
+async function discordContext(phase) {
+    if (state.config.discordRpcEnabled === false || state.config.discordShowDetails === false) return;
+    const [ranked, me] = await Promise.all([
+        lcu.request('GET', '/lol-ranked/v1/current-ranked-stats'),
+        lcu.request('GET', '/lol-summoner/v1/current-summoner'),
+    ]);
+    const solo = ranked?.queueMap?.RANKED_SOLO_5x5;
+    const tier = String(solo?.tier || '').toLowerCase();
+    const apex = ['master', 'grandmaster', 'challenger'].includes(tier);
+    const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1).toLowerCase() : '');
+    const rank = tier && tier !== 'none' && tier !== 'unranked'
+        ? `${cap(tier)}${apex ? '' : ` ${solo.division || ''}`.trimEnd()} ${solo.leaguePoints ?? 0} LP`
+        : '';
+    const out = { rank, tier: rank ? tier : '' };
+    if (GAME_CONTEXT_PHASES.has(phase)) {
+        const session = await lcu.request('GET', '/lol-gameflow/v1/session');
+        out.queue = session?.gameData?.queue?.description || session?.gameData?.queue?.shortName || '';
+        let championId = 0;
+        if (phase === 'ChampSelect') {
+            championId = await lcu.request('GET', '/lol-champ-select/v1/current-champion') || 0;
+        } else {
+            const mine = (session?.gameData?.playerChampionSelections || []).find((s) => me?.puuid && s.puuid === me.puuid);
+            championId = mine?.championId || 0;
+        }
+        if (championId) {
+            const championData = require('./services/champion-data');
+            const key = championData.getIdToNameMap()[championId];
+            const entry = key ? championData.getChampionList().find((c) => c.key === key) : null;
+            out.champion = entry?.name || key || '';
+            out.championIcon = key ? championData.getIdToImageMap()[key] || null : null;
+        }
+    }
+    discordRpc.setContext(out);
 }
 
 async function onConnect() {
@@ -264,6 +312,7 @@ async function onEvent(event) {
                 // Auto champ lock is intentionally not implemented: instant-locking
                 // through the LCU API is not permitted under the Riot ToS.
                 if (state.currentAccount?.autoSkinRandom) await rollRandomSkin(event.data);
+                discordChampionChanged(event.data);
                 const imported = await require('./ipc/champ-build').autoImportOnLock(event.data);
                 if (imported) send(state.mainWindow, 'build-imported', imported);
             } else if (event.eventType === 'Delete') {

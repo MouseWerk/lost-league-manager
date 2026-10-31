@@ -45,6 +45,7 @@ const state = {
         checkUpdatesOnStartup: true,
         toastOnQueuePop: true,
         discordRpcEnabled: true,
+        discordShowDetails: true, // rank, champion and queue in the Discord status
         // The Riot API key is not kept here: it is stored encrypted as
         // riotApiKeyEnc and read through services/secrets.js. The vault keeps
         // vaultKdf/vaultSalt/vaultHash (scrypt); vaultPasswordHash is the
