@@ -135,6 +135,18 @@ function parseRecord(winLose) {
     return m ? { wins: Number(m[1]), losses: Number(m[2]) } : null;
 }
 
+// A Riot ID changed: its history moves to the new one (merged by time when
+// both exist).
+function renameRankHistory(oldId, newId) {
+    const from = riotIdKey(oldId);
+    const to = riotIdKey(newId);
+    const all = loadRankHistory();
+    if (!from || !to || from === to || !all[from]) return;
+    all[to] = [...(all[to] || []), ...all[from]].sort((a, b) => a.ts - b.ts);
+    delete all[from];
+    saveRankHistory(all);
+}
+
 // Called when the last account with this Riot ID is deleted.
 function forgetRankHistory(riotId) {
     const key = riotIdKey(riotId);
@@ -144,4 +156,4 @@ function forgetRankHistory(riotId) {
     saveRankHistory(all);
 }
 
-module.exports = { recordRankSnapshot, getRankHistory, getRankHistories, forgetRankHistory, rankScore, parseRecord };
+module.exports = { recordRankSnapshot, getRankHistory, getRankHistories, forgetRankHistory, renameRankHistory, rankScore, parseRecord };

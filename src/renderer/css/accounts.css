@@ -176,6 +176,13 @@
 .status-badges { display: inline-flex; gap: 6px; }
 .status-badges:empty { display: none; }
 .profile-status { display: flex; flex-direction: column; gap: 4px; padding: 0 2px; }
+.profile-wallet { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 0 2px; font-size: 13px; color: var(--muted); }
+.profile-wallet b { font-family: var(--font-display); color: var(--ink); font-weight: 600; }
+.profile-wallet-when { font-size: 12px; color: var(--subtle); }
+.notice-banner { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 10px 12px 10px 14px; border-radius: var(--radius-lg); background: var(--surface); font-size: 14px; flex-shrink: 0; }
+.notice-banner[hidden] { display: none; }
+.notice-banner > i { color: var(--muted); }
+.notice-banner-text { flex: 1; min-width: 0; }
 .profile-status-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--warning); }
 .profile-status-row i { width: 14px; text-align: center; font-size: 12px; }
 .profile-status-row.is-urgent { color: var(--danger); font-weight: 600; }

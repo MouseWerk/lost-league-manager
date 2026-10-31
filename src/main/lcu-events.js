@@ -178,6 +178,8 @@ async function onConnect() {
         await setAppearOffline();
         await linkRiotIdFromClient(username, conn);
         if (conn !== connectionSeq) return;
+        await syncWithClient(username, conn);
+        if (conn !== connectionSeq) return;
         await accountStatus.captureStatus(username);
         if (username) require('./windows').broadcastAccountsUpdate();
     })().catch(e => console.log('[LCU] Account detection skipped:', e.message));
@@ -289,6 +291,46 @@ function registerLcuEvents() {
     lcu.onEvent(onEvent);
 }
 
+// What the client says about the signed-in player, against the saved
+// account: keeps its PUUID, follows a Riot ID change, and offers to add an
+// account that is not saved here. Nothing while the vault is locked.
+async function syncWithClient(username, conn = connectionSeq) {
+    if (isVaultLocked()) return;
+    const me = await lcu.request('GET', '/lol-summoner/v1/current-summoner');
+    if (conn !== connectionSeq || !me?.gameName) return;
+    const clientId = `${me.gameName}#${me.tagLine || ''}`;
+    const { loadAccounts, saveAccounts } = require('./services/storage');
+    if (!username) {
+        const session = await lcu.request('GET', '/lol-login/v1/session');
+        if (conn !== connectionSeq || !session?.username) return;
+        const rl = await lcu.request('GET', '/riotclient/region-locale');
+        const { LCU_REGION_TO_APP } = require('./ipc/stats');
+        send(state.mainWindow, 'unknown-account-signed-in', {
+            username: session.username,
+            riotId: clientId,
+            region: LCU_REGION_TO_APP[(rl?.region || rl?.webRegion || '').toLowerCase()] || '',
+            profileIconId: me.profileIconId || null,
+            level: me.summonerLevel || null,
+        });
+        return;
+    }
+    const accounts = loadAccounts();
+    const acc = accounts.find((a) => sameUsername(a.username, username));
+    if (!acc) return;
+    if (me.puuid && acc.puuid !== me.puuid) {
+        acc.puuid = me.puuid;
+        saveAccounts(accounts);
+    }
+    const old = String(acc.riotId || '');
+    if (old && old.toLowerCase() !== clientId.toLowerCase()) {
+        const changed = require('./services/riot-id-rename').renameAccountRiotId(old, clientId);
+        if (changed.length) {
+            console.log(`[LCU] Riot ID changed: ${old} -> ${clientId}`);
+            require('./ipc/stats').notifyRename(changed, old, clientId);
+        }
+    }
+}
+
 // After the vault is unlocked: match the signed-in account, link its Riot ID
 // and read its status, which were skipped while it was locked.
 async function onVaultUnlocked() {
@@ -298,8 +340,10 @@ async function onVaultUnlocked() {
     if (conn !== connectionSeq || !username) return;
     await linkRiotIdFromClient(username, conn);
     if (conn !== connectionSeq) return;
+    await syncWithClient(username, conn);
+    if (conn !== connectionSeq) return;
     await accountStatus.captureStatus(username);
     require('./windows').broadcastAccountsUpdate();
 }
 
-module.exports = { registerLcuEvents, linkRiotIdFromClient, onVaultUnlocked };
+module.exports = { registerLcuEvents, linkRiotIdFromClient, onVaultUnlocked, syncWithClient };

@@ -65,19 +65,34 @@ function parseRestriction(data) {
     return games ? { gamesLeft: games } : null;
 }
 
+// Blue Essence and RP from the client's wallet. Newer clients answer
+// /lol-inventory/v1/wallet/<currency> with { <currency>: n }, older ones
+// /lol-store/v1/wallet with { ip, rp }. null when neither answered.
+function parseWallet(rpRes, beRes, storeRes) {
+    const pick = (res, key) => (res && typeof res === 'object' && isCount(res[key]) ? res[key] : null);
+    const rp = pick(rpRes, 'RP') ?? pick(storeRes, 'rp');
+    const be = pick(beRes, 'lol_blue_essence') ?? pick(storeRes, 'ip');
+    return rp === null && be === null ? null : { rp, be };
+}
+
 // Reads decay and restriction for the signed-in account. Endpoints that are
 // missing return null and leave the old value untouched.
 async function captureStatus(username) {
     if (!username) return;
-    const [ranked, restriction] = await Promise.all([
+    const [ranked, restriction, rpRes, beRes] = await Promise.all([
         lcu.request('GET', '/lol-ranked/v1/current-ranked-stats'),
         lcu.request('GET', '/lol-player-behavior/v1/ranked-restriction'),
+        lcu.request('GET', '/lol-inventory/v1/wallet/RP'),
+        lcu.request('GET', '/lol-inventory/v1/wallet/lol_blue_essence'),
     ]);
-    if (ranked === null && restriction === null) return;
+    const storeRes = rpRes === null && beRes === null ? await lcu.request('GET', '/lol-store/v1/wallet') : null;
+    const wallet = parseWallet(rpRes, beRes, storeRes);
+    if (ranked === null && restriction === null && !wallet) return;
     const now = Date.now();
     update(username, (rec) => {
         if (ranked !== null) rec.decay = (() => { const d = parseDecay(ranked); return d ? { ...d, checkedAt: now } : null; })();
         if (restriction !== null) rec.restriction = (() => { const r = parseRestriction(restriction); return r ? { ...r, checkedAt: now } : null; })();
+        if (wallet) rec.wallet = { ...wallet, checkedAt: now };
         return rec;
     });
 }
@@ -109,4 +124,4 @@ function forgetStatus(username) {
     saveStatus(data);
 }
 
-module.exports = { parseDecay, parseRestriction, captureStatus, recordLastPlayed, getStatusMap, statusFor, forgetStatus };
+module.exports = { parseDecay, parseRestriction, parseWallet, captureStatus, recordLastPlayed, getStatusMap, statusFor, forgetStatus };

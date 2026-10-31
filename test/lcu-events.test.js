@@ -151,7 +151,10 @@ test('Riot ID linking patches the current file, not the list loaded before its w
         accounts: [{ username: 'a', password: 'x' }],
         routes: {
             'GET /lol-login/v1/session': { username: 'a' },
-            'GET /lol-summoner/v1/current-summoner': () => new Promise(r => { answerSummoner = r; }),
+            // The first request waits; later ones (the sync after linking) answer at once.
+            'GET /lol-summoner/v1/current-summoner': () => (answerSummoner
+                ? { gameName: 'Ay', tagLine: 'NA1' }
+                : new Promise(r => { answerSummoner = r; })),
             'GET /riotclient/region-locale': { region: 'NA1' },
         },
     });

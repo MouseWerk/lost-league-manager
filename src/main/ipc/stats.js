@@ -131,6 +131,7 @@ function saveCachedStats(riotId, region, result) {
             if (norm(a.riotId) !== id) continue;
             if (norm(a.region) && norm(a.region) !== r) continue;
             a._cachedStats = { ...result, region: r, ts: Date.now() };
+            if (result.puuid && !a.puuid) a.puuid = result.puuid;
             changed = true;
         }
         if (changed) saveAccounts(accs);
@@ -194,6 +195,36 @@ async function lookupOnline(name, tag, region) {
     }
 }
 
+// The account's new Riot ID when its name changed, or null. Needs a Riot API
+// key and a PUUID saved earlier (from the client or a Riot API lookup).
+async function followRename(riotId, region) {
+    if (!riotApi.getApiKey() || norm(region) === 'cn') return null;
+    const acc = loadAccounts().find((a) => norm(a.riotId) === norm(riotId) && a.puuid);
+    if (!acc) return null;
+    try {
+        const now = await riotApi.getAccountByPuuid(acc.puuid, region);
+        if (!now?.gameName || !now?.tagLine) return null;
+        const newId = `${now.gameName}#${now.tagLine}`;
+        if (norm(newId) === norm(riotId)) return null;
+        const changed = require('../services/riot-id-rename').renameAccountRiotId(riotId, newId);
+        if (!changed.length) return null;
+        console.log(`[Stats] Riot ID changed: ${riotId} -> ${newId}`);
+        notifyRename(changed, riotId, newId);
+        return newId;
+    } catch (e) {
+        console.log('[Stats] Rename lookup failed:', e.message);
+        return null;
+    }
+}
+
+function notifyRename(usernames, oldId, newId) {
+    const { broadcastAccountsUpdate } = require('../windows');
+    const state = require('../state');
+    broadcastAccountsUpdate();
+    const win = state.mainWindow;
+    if (win && !win.isDestroyed()) win.webContents.send('riot-id-changed', { usernames, oldId, newId });
+}
+
 async function getStats(region, riotId, force) {
     const parsed = opgg.parseRiotIdInput(riotId);
     if (!parsed) return { tier: 'N/A' };
@@ -234,6 +265,9 @@ async function getStats(region, riotId, force) {
         return result;
     } catch (e) {
         console.error('[Stats] lookup error:', e.message);
+        // Renamed? The PUUID stays; with a Riot API key it gives the new Riot ID.
+        const renamed = /not found/i.test(e.message) ? await followRename(riotId, region) : null;
+        if (renamed) return getStats(region, renamed, force);
         // Stale data beats no data — show the last known stats with the error.
         if (cached) return { ...cached, source: 'cache', stale: true, error: e.message };
         return { tier: 'N/A', lp: '', winLose: '', ratio: '', iconSrc: defaultIcon(), level: '', error: e.message };
@@ -379,4 +413,4 @@ function register() {
     });
 }
 
-module.exports = { register, LCU_REGION_TO_APP, getClientRegion };
+module.exports = { register, LCU_REGION_TO_APP, getClientRegion, notifyRename, followRename };

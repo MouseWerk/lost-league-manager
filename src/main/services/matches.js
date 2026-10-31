@@ -190,6 +190,17 @@ function mergeMatches(riotId, matches) {
     return list;
 }
 
+function renameMatches(oldId, newId) {
+    const from = storeKey(oldId);
+    const to = storeKey(newId);
+    const data = loadStore();
+    if (!from || !to || from === to || !data[from]) return;
+    const list = data[from];
+    delete data[from];
+    saveStore(data);
+    mergeMatches(newId, list);
+}
+
 function forgetMatches(riotId) {
     const key = storeKey(riotId);
     const data = loadStore();
@@ -202,4 +213,4 @@ function getStoredMatches(riotId) {
     return loadStore()[storeKey(riotId)] || [];
 }
 
-module.exports = { fromRiotMatch, fromOpggGame, fromOpggDetail, mergeMatches, getStoredMatches, forgetMatches, MAX_STORED, RIOT_QUEUES, OPGG_QUEUES };
+module.exports = { fromRiotMatch, fromOpggGame, fromOpggDetail, mergeMatches, getStoredMatches, forgetMatches, renameMatches, MAX_STORED, RIOT_QUEUES, OPGG_QUEUES };

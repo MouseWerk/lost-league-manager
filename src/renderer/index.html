@@ -65,6 +65,13 @@
                                 <span id="accountCount" class="account-count" hidden></span>
                             </div>
                         </div>
+                        <!-- The client is signed in with an account that is not saved here. -->
+                        <div id="unknownAccountBanner" class="notice-banner" role="status" hidden>
+                            <i class="fas fa-user-plus" aria-hidden="true"></i>
+                            <span id="unknownAccountText" class="notice-banner-text"></span>
+                            <button id="unknownAccountAdd" type="button" class="primary-btn">Add account</button>
+                            <button id="unknownAccountDismiss" type="button" class="secondary-btn">Not now</button>
+                        </div>
                         <!-- Find, sort, add: one row above the list, next to what it acts on. -->
                         <div class="accounts-toolbar">
                             <div class="search-box">
@@ -133,6 +140,12 @@
 
                             <div id="profileStatusWrap" class="profile-status" hidden>
                                 <div id="profileStatusList"></div>
+                            </div>
+
+                            <div id="profileWalletWrap" class="profile-wallet" hidden>
+                                <span><i class="fas fa-gem" aria-hidden="true"></i> <b id="profileWalletBe"></b> Blue Essence</span>
+                                <span><b id="profileWalletRp"></b> RP</span>
+                                <span id="profileWalletWhen" class="profile-wallet-when"></span>
                             </div>
 
                             <div id="profileTodayWrap" class="profile-today" hidden>
