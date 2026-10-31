@@ -131,18 +131,21 @@ function createOverlayWindow(owOverlay, onReady = null) {
         });
     };
 
-    const done = (rawWin) => {
+    // viaOverwolf: an Overwolf overlay window is drawn only inside the game
+    // it was injected into; the fallback is a plain window on top of it.
+    const done = (rawWin, viaOverwolf) => {
         finish(rawWin);
+        state.overlayViaOverwolf = viaOverwolf;
         if (onReady) onReady();
     };
     const fallback = () => {
         const fb = new BrowserWindow(opts);
         fb.setAlwaysOnTop(true, 'screen-saver');
-        done(fb);
+        done(fb, false);
     };
     if (owOverlay) {
         owOverlay.createWindow(opts)
-            .then(done)
+            .then((w) => done(w, true))
             .catch(e => {
                 console.error('[Overlay] createWindow failed, using BrowserWindow fallback:', e.message);
                 fallback();

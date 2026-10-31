@@ -22,10 +22,43 @@ function ensureOverlay() {
     if (!state.config.overlayEnabled || overlayAlive() || creating) return;
     creating = true;
     const { createOverlayWindow } = require('./windows');
-    createOverlayWindow(state.owOverlayPackage || null, () => {
+    // After Overwolf could not inject into the game, a plain window it is.
+    const ow = state.overlayInjectionFailed ? null : state.owOverlayPackage || null;
+    createOverlayWindow(ow, () => {
         creating = false;
         require('./overlay-hotkey').registerOverlayHotkey(state.config.overlayHotkey || 'Ctrl+Shift+H');
+        showIfInGame();
     });
+}
+
+// Shows the overlay in a running game, any mode (practice tool included).
+// A game that was already running when the app started never sends
+// Overwolf's game-launched, so injection is asked for here as well.
+function showIfInGame() {
+    if (!state.config.overlayEnabled || !overlayAlive() || state.gameflowPhase !== 'InProgress') return;
+    const ow = state.owOverlayPackage;
+    if (state.overlayViaOverwolf && ow && typeof ow.requestGameInjection === 'function') {
+        Promise.resolve()
+            .then(() => ow.requestGameInjection(state.LOL_GEP_GAME_ID))
+            .catch((e) => {
+                console.warn('[Overlay] requestGameInjection failed:', e?.message || e);
+                useWindowFallback();
+            });
+    }
+    state.overlayWindow.show();
+}
+
+// Overwolf did not get into the game (its game service is missing or does
+// not see the game): its window would stay invisible. Open the overlay as a
+// plain always-on-top window instead (borderless or windowed game).
+function useWindowFallback() {
+    if (state.overlayInjectionFailed || !state.config.overlayEnabled) return;
+    state.overlayInjectionFailed = true;
+    console.log('[Overlay] Using a plain window instead of Overwolf injection');
+    if (overlayAlive()) state.overlayWindow.destroy();
+    state.overlayWindow = null;
+    creating = false;
+    ensureOverlay();
 }
 
 // Switched off: the window and hotkey go away.
@@ -33,6 +66,7 @@ function destroyOverlay() {
     stopPolling();
     if (overlayAlive()) state.overlayWindow.destroy();
     state.overlayWindow = null;
+    creating = false;
     require('./overlay-hotkey').registerOverlayHotkey(null);
 }
 
@@ -79,8 +113,14 @@ function stopPolling() {
 
 // From the gameflow phase (lcu-events.js): read live data only in a game.
 function onGameflowPhase(phase) {
-    if (phase === 'InProgress') startPolling();
-    else stopPolling();
+    state.gameflowPhase = phase;
+    if (phase === 'InProgress') {
+        ensureOverlay();
+        showIfInGame();
+        startPolling();
+    } else {
+        stopPolling();
+    }
 }
 
-module.exports = { ensureOverlay, destroyOverlay, liveDataToGepUpdates, markGepLive, onGameflowPhase, pollOnce, stopPolling };
+module.exports = { ensureOverlay, showIfInGame, useWindowFallback, destroyOverlay, liveDataToGepUpdates, markGepLive, onGameflowPhase, pollOnce, stopPolling };

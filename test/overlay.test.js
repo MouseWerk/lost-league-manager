@@ -49,6 +49,47 @@ test('the overlay window is only created while it is switched on, and once', (t)
     state.config.overlayEnabled = false;
 });
 
+test('a game already running when the overlay is ready shows it, in any mode', async (t) => {
+    const shown = [];
+    const injected = [];
+    state.config.overlayEnabled = true;
+    state.owOverlayPackage = { requestGameInjection: (id) => { injected.push(id); return Promise.resolve(); } };
+    state.overlayViaOverwolf = true;
+    state.overlayWindow = { isDestroyed: () => false, show: () => shown.push(1), webContents: { send() {} } };
+    t.mock.method(windows, 'createOverlayWindow', () => {});
+    manager.onGameflowPhase('Lobby');
+    manager.showIfInGame();
+    assert.equal(shown.length, 0, 'not outside a game');
+    manager.onGameflowPhase('InProgress');
+    assert.equal(shown.length, 1);
+    await new Promise((r) => setImmediate(r));
+    assert.deepEqual(injected, [state.LOL_GEP_GAME_ID]);
+    manager.stopPolling();
+    state.overlayWindow = null;
+    state.owOverlayPackage = null;
+    state.config.overlayEnabled = false;
+});
+
+test('when Overwolf cannot inject into the game, the overlay becomes a plain window', async (t) => {
+    let destroyed = 0;
+    state.config.overlayEnabled = true;
+    state.overlayInjectionFailed = false;
+    state.overlayViaOverwolf = true;
+    state.owOverlayPackage = { requestGameInjection: () => Promise.reject(new Error('game 5426 not running')) };
+    state.overlayWindow = { isDestroyed: () => false, show() {}, destroy: () => { destroyed++; }, webContents: { send() {} } };
+    const create = t.mock.method(windows, 'createOverlayWindow', () => {});
+    manager.onGameflowPhase('InProgress');
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(destroyed, 1);
+    assert.equal(create.mock.callCount(), 1);
+    assert.equal(create.mock.calls[0].arguments[0], null, 'no Overwolf package: a plain window');
+    manager.stopPolling();
+    state.overlayWindow = null;
+    state.owOverlayPackage = null;
+    state.overlayInjectionFailed = false;
+    state.config.overlayEnabled = false;
+});
+
 test('overlay settings from its page: only known hotkeys and real booleans', () => {
     assert.deepEqual(cleanOverlaySettings({ hotkey: 'F9', locked: true, showRanked: 'yes', extra: 1 }), { hotkey: 'F9', locked: true });
     assert.deepEqual(cleanOverlaySettings({ hotkey: 'Ctrl+Alt+Delete' }), {});
