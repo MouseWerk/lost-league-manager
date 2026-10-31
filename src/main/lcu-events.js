@@ -201,6 +201,7 @@ function onDisconnect() {
     send(state.mainWindow, 'lcu-disconnected');
     send(state.mainWindow, 'active-account-detected', null);
     discordRpc.setIdle();
+    require('./overlay-manager').onGameflowPhase('None');
 }
 
 async function rollRandomSkin(session) {

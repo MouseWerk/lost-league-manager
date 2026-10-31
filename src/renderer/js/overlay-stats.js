@@ -1,6 +1,7 @@
 // Game numbers for the overlay's Game and Players panels, from Live Client
 // data (all_players, events). Only what the scoreboard (Tab) and the kill
-// feed show in the game; no timers. Loaded before overlay.js; tests require it.
+// feed show in the game, and when taken objectives come back; nothing about
+// enemy cooldowns (Riot policy). Loaded before overlay.js; tests require it.
 (function (root) {
   "use strict";
 
@@ -101,18 +102,24 @@
   // When objectives come back after being taken (what the kill feed and the
   // game's own timers show): next dragon, baron, and each inhibitor.
   // Seconds of game time; only future ones are returned.
-  const RESPAWN = { DragonKill: 300, BaronKill: 360, InhibKilled: 300 };
+  const RESPAWN = { DragonKill: 300, ElderKill: 360, BaronKill: 360, InhibKilled: 300 };
   function objectiveTimers(events, gameTime) {
     const out = [];
     let dragon = null;
+    let elder = null;
     let baron = null;
     const inhibs = {};
     for (const e of events || []) {
-      if (e.EventName === "DragonKill" && !/Elder/i.test(e.DragonType || "")) dragon = Math.max(dragon || 0, e.EventTime + RESPAWN.DragonKill);
+      if (e.EventName === "DragonKill") {
+        if (/Elder/i.test(e.DragonType || "")) elder = Math.max(elder || 0, e.EventTime + RESPAWN.ElderKill);
+        else dragon = Math.max(dragon || 0, e.EventTime + RESPAWN.DragonKill);
+      }
       if (e.EventName === "BaronKill") baron = Math.max(baron || 0, e.EventTime + RESPAWN.BaronKill);
       if (e.EventName === "InhibKilled") inhibs[e.InhibKilled] = e.EventTime + RESPAWN.InhibKilled;
     }
-    if (dragon && dragon > gameTime) out.push({ name: "Dragon", at: dragon });
+    // After an Elder kill the next spawn is Elder again.
+    if (elder && elder > gameTime && (!dragon || elder >= dragon)) out.push({ name: "Elder Dragon", at: elder });
+    else if (dragon && dragon > gameTime) out.push({ name: "Dragon", at: dragon });
     if (baron && baron > gameTime) out.push({ name: "Baron", at: baron });
     for (const [id, at] of Object.entries(inhibs)) {
       if (at <= gameTime) continue;

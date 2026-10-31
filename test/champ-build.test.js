@@ -164,3 +164,16 @@ test('the position comes from the assigned role', () => {
     assert.deepEqual(p, { championId: 1, position: 'support', locked: false });
     assert.equal(champBuild.pickFromSession(null), null);
 });
+
+test('no build in modes OP.GG has none for (Arena, URF)', async (t) => {
+    fakeLcu({ 'GET /lol-gameflow/v1/session': { gameData: { queue: { gameMode: 'CHERRY' } } } }, []);
+    const pick = await champBuild.currentPick({ localPlayerCellId: 0, myTeam: [{ cellId: 0, championId: 103 }], actions: [] });
+    assert.equal(pick.mode, null);
+    state.config.autoImportBuild = true;
+    champBuild.resetAutoImport();
+    const runes = t.mock.method(clientImport, 'importRunes', async () => ({ success: true }));
+    const locked = { localPlayerCellId: 0, myTeam: [{ cellId: 0, championId: 103 }], actions: [[{ actorCellId: 0, type: 'pick', completed: true, championId: 103 }]] };
+    assert.equal(await champBuild.autoImportOnLock(locked), null);
+    assert.equal(runes.mock.callCount(), 0);
+    state.config.autoImportBuild = false;
+});

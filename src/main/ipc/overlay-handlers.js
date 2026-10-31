@@ -175,6 +175,7 @@ function register() {
     });
 
     ipcMain.on('overlay-resize', (_, w, h) => {
+        if (!Number.isFinite(w) || !Number.isFinite(h) || w < 1 || h < 1 || w > 4000 || h > 4000) return;
         if (state.overlayWindow && !state.overlayWindow.isDestroyed()) {
             state.overlayWindow.setSize(Math.round(w), Math.round(h));
         }
