@@ -297,15 +297,17 @@
       out.push({ kind: "restriction", text: `Ranked restricted, ${plural(s.restriction.gamesLeft, "normal game")} left`, urgent: true });
     }
     const bank = DECAY_BANK_DAYS[String(tier || "").trim().toLowerCase().split(/\s+/)[0]];
+    // Only ranked games stop decay; normals, ARAM and practice do not.
+    const lastRanked = s.lastRankedPlayed;
     if (s.decay && typeof s.decay.days === "number" && s.decay.checkedAt) {
-      // The bank only drains while the account does not play.
-      const played = s.lastPlayed && s.lastPlayed > s.decay.checkedAt;
+      // The bank only drains while the account does not play ranked.
+      const played = lastRanked && lastRanked > s.decay.checkedAt;
       const left = played ? null : Math.max(0, s.decay.days - days(now - s.decay.checkedAt));
       if (left !== null && left <= 7) {
         out.push({ kind: "decay", text: left === 0 ? "Decaying now" : `Decays in ${plural(left, "day")}`, urgent: left <= 3 });
       }
-    } else if (bank && s.lastPlayed) {
-      const left = bank - days(now - s.lastPlayed);
+    } else if (bank && lastRanked) {
+      const left = bank - days(now - lastRanked);
       if (left <= 7) {
         out.push({ kind: "decay", text: left <= 0 ? "May be decaying" : `Decay in about ${plural(left, "day")}`, urgent: left <= 3 });
       }

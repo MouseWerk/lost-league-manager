@@ -305,3 +305,14 @@ test('a new show-or-hide key replaces the watch, and the old one closing does no
     state.overlayWindow = null;
     state.config.overlayEnabled = false;
 });
+
+test('a champion is found by its Data Dragon key or its display name', (t) => {
+    const championData = require('../src/main/services/champion-data');
+    t.mock.method(championData, 'getChampionIdByKey', (k) => ({ MonkeyKing: 62 })[k] ?? null);
+    t.mock.method(championData, 'getChampionMap', () => ({ wukong: 62, "kai'sa": 145 }));
+    const { championIdOf } = require('../src/main/ipc/overlay-handlers');
+    assert.equal(championIdOf('MonkeyKing'), 62);
+    assert.equal(championIdOf('Wukong'), 62);
+    assert.equal(championIdOf("Kai'Sa"), 145);
+    assert.equal(championIdOf('Nobody'), null);
+});

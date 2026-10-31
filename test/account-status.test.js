@@ -32,7 +32,11 @@ test('decay is read from the queue warnings, the queue that decays first wins', 
     ] };
     assert.deepEqual(status.parseDecay(ranked), { queue: 'RANKED_FLEX_SR', days: 4 });
     assert.equal(status.parseDecay({ queues: [{ queueType: 'RANKED_SOLO_5x5', tier: 'GOLD', warnings: null }] }), null);
-    assert.equal(status.parseDecay({ queues: [{ queueType: 'RANKED_SOLO_5x5', warnings: { daysUntilDecay: -1 } }] }), null);
+    assert.equal(status.parseDecay({ queues: [{ queueType: 'RANKED_SOLO_5x5', tier: 'DIAMOND', warnings: { daysUntilDecay: -1 } }] }), null);
+    // Below Diamond there is no decay, whatever the client sends.
+    assert.equal(status.parseDecay({ queues: [{ queueType: 'RANKED_SOLO_5x5', tier: 'EMERALD', warnings: { daysUntilDecay: 0 } }] }), null);
+    // Diamond reads daysUntilDecay, Master and above apexDaysUntilDecay.
+    assert.equal(status.parseDecay({ queues: [{ queueType: 'RANKED_SOLO_5x5', tier: 'DIAMOND', warnings: { daysUntilDecay: 12, apexDaysUntilDecay: 0 } }] }).days, 12);
     assert.equal(status.parseDecay(null), null);
 });
 
@@ -44,7 +48,7 @@ test('a ranked restriction counts the games still to play', () => {
 
 test('capturing keeps the old value when an endpoint is missing', async () => {
     reset();
-    fakeLcu({ 'GET /lol-ranked/v1/current-ranked-stats': { queues: [{ queueType: 'RANKED_SOLO_5x5', warnings: { daysUntilDecay: 6 } }] } });
+    fakeLcu({ 'GET /lol-ranked/v1/current-ranked-stats': { queues: [{ queueType: 'RANKED_SOLO_5x5', tier: 'DIAMOND', warnings: { daysUntilDecay: 6 } }] } });
     await status.captureStatus('Main');
     const first = status.statusFor(status.getStatusMap(), 'main');
     assert.equal(first.decay.days, 6);
@@ -65,14 +69,20 @@ test('the end of a game records last played and reads decay again for the signed
     reset();
     fx.writeAccounts([{ username: 'main', password: 'x' }]);
     state.mainWindow = fx.fakeWindow();
-    fakeLcu({ 'GET /lol-ranked/v1/current-ranked-stats': { queues: [{ queueType: 'RANKED_SOLO_5x5', warnings: { daysUntilDecay: 28 } }] } });
+    fakeLcu({
+        'GET /lol-ranked/v1/current-ranked-stats': { queues: [{ queueType: 'RANKED_SOLO_5x5', tier: 'DIAMOND', warnings: { daysUntilDecay: 28 } }] },
+        'GET /lol-gameflow/v1/session': { gameData: { queue: { type: 'RANKED_SOLO_5x5' } } },
+    });
     registerLcuEvents();
     state.currentAccount = { username: 'main' };
     const before = Date.now();
     await Promise.all(lcu.handlers.map(h => h({ uri: '/lol-gameflow/v1/gameflow-phase', eventType: 'Update', data: 'EndOfGame' })));
     await fx.waitFor(() => status.statusFor(status.getStatusMap(), 'main')?.decay);
     const rec = status.statusFor(status.getStatusMap(), 'main');
-    assert.ok(rec.lastPlayed >= before);
+    await fx.waitFor(() => status.statusFor(status.getStatusMap(), 'main')?.lastRankedPlayed);
+    const after = status.statusFor(status.getStatusMap(), 'main');
+    assert.ok(after.lastPlayed >= before);
+    assert.ok(after.lastRankedPlayed >= before, 'a ranked game');
     assert.equal(rec.decay.days, 28);
 });
 
@@ -97,14 +107,16 @@ test('warnings: restriction, decay from the client, and inactivity', () => {
     assert.equal(w[1].urgent, true);
 });
 
-test('warnings: a game after the decay check hides the old count', () => {
+test('warnings: a ranked game after the decay check hides the old count, other games do not', () => {
     const now = 100 * DAY;
-    assert.deepEqual(statusWarnings({ decay: { days: 1, checkedAt: now - 3 * DAY }, lastPlayed: now - DAY }, 'Diamond I', now), []);
+    const decay = { days: 4, checkedAt: now - 3 * DAY };
+    assert.deepEqual(statusWarnings({ decay, lastPlayed: now - DAY, lastRankedPlayed: now - DAY }, 'Diamond I', now), []);
+    assert.deepEqual(statusWarnings({ decay, lastPlayed: now - DAY }, 'Diamond I', now).map(x => x.text), ['Decays in 1 day'], 'an ARAM does not stop decay');
 });
 
 test('warnings: decay is only estimated for Diamond and above, and says "about"', () => {
     const now = 100 * DAY;
-    const s = { lastPlayed: now - 24 * DAY };
+    const s = { lastPlayed: now - DAY, lastRankedPlayed: now - 24 * DAY };
     assert.deepEqual(statusWarnings(s, 'Diamond IV', now).map(x => x.text), ['Decay in about 4 days']);
     assert.deepEqual(statusWarnings(s, 'Master', now).map(x => x.text), ['May be decaying']);
     assert.deepEqual(statusWarnings(s, 'Emerald I', now), []);

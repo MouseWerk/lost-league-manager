@@ -33,7 +33,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     changeLanguage: (locale) => ipcRenderer.invoke('change-language', locale),
     dodgeQueue: () => ipcRenderer.invoke('dodge-queue'),
-    getLobbyMembers: () => ipcRenderer.invoke('get-lobby-members'),
 
     fixClient: () => ipcRenderer.invoke('fix-client'),
     repairClient: () => ipcRenderer.invoke('repair-client'),
@@ -55,8 +54,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onLcuConnected:    (cb) => ipcRenderer.on('lcu-connected',    () => cb()),
     onLcuDisconnected: (cb) => ipcRenderer.on('lcu-disconnected', () => cb()),
     onLcuGameflow:     (cb) => ipcRenderer.on('lcu-gameflow',  (_, phase) => cb(phase)),
-    setProfileBackground: (championName, skinId) => ipcRenderer.invoke('set-profile-background', { championName, skinId }),
-    setStatusMessage: (message) => ipcRenderer.invoke('set-status-message', message),
 
     onChampSelectUpdate: (callback) => ipcRenderer.on('champ-select-update', (event, data) => callback(data)),
     onChampSelectEnd: (callback) => ipcRenderer.on('champ-select-end', () => callback()),

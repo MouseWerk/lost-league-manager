@@ -173,6 +173,8 @@
 .active-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
 .account-warning-badge { color: var(--warning); font-size: 12px; flex-shrink: 0; }
 .account-info-badge { color: var(--subtle); font-size: 12px; flex-shrink: 0; }
+.status-badges { display: inline-flex; gap: 6px; }
+.status-badges:empty { display: none; }
 .profile-status { display: flex; flex-direction: column; gap: 4px; padding: 0 2px; }
 .profile-status-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--warning); }
 .profile-status-row i { width: 14px; text-align: center; font-size: 12px; }

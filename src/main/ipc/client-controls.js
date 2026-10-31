@@ -161,60 +161,6 @@ function register() {
         return { success: true };
     });
 
-    ipcMain.handle('get-lobby-members', async () => {
-        try {
-            const session = await lcu.request('GET', '/lol-champ-select/v1/session');
-            if (!session) return { success: false, message: 'No champ select session' };
-
-            const names = [];
-            for (const m of session.myTeam) {
-                if (m.summonerId && m.summonerId > 0) {
-                    try {
-                        const summ = await lcu.request('GET', `/lol-summoner/v1/summoners/${m.summonerId}`);
-                        if (summ?.gameName) names.push(`${summ.gameName}#${summ.tagLine}`);
-                    } catch { /* skip failed lookup */ }
-                }
-            }
-            return { success: true, names };
-        } catch (e) {
-            return { success: false, message: e.message };
-        }
-    });
-
-    ipcMain.handle('set-profile-background', async (event, { championName, skinId }) => {
-        try {
-            const me = await lcu.request('GET', '/lol-summoner/v1/current-summoner');
-            if (!me) return { success: false, message: 'Not logged in' };
-
-            if (!skinId) {
-                const { getChampionMap } = require('../services/champion-data');
-                const champId = getChampionMap()[championName?.toLowerCase()];
-                if (!champId) return { success: false, message: 'Champion not found' };
-                skinId = champId * 1000;
-            }
-
-            // lcu.request() returns null on failure instead of throwing.
-            const result = await lcu.request('POST', '/lol-summoner/v1/current-summoner/summoner-profile', {
-                key:   'backgroundSkinId',
-                value: parseInt(skinId),
-            });
-            if (result === null) return { success: false, message: 'The League client did not accept the background' };
-            return { success: true };
-        } catch (e) {
-            return { success: false, message: e.message };
-        }
-    });
-
-    ipcMain.handle('set-status-message', async (event, message) => {
-        try {
-            const result = await lcu.request('PUT', '/lol-chat/v1/me', { statusMessage: message });
-            if (result === null) return { success: false, message: 'Could not set the status. Is the League client running and signed in?' };
-            return { success: true };
-        } catch (e) {
-            return { success: false, message: e.message };
-        }
-    });
-
     ipcMain.handle('open-file-dialog', async (event, options) => {
         return dialog.showOpenDialog(state.mainWindow, options);
     });

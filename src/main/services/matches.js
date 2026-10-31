@@ -164,6 +164,14 @@ function saveStore(data) {
 
 // Adds games (newest data wins, players are kept once known) and returns the
 // stored list, newest first, at most MAX_STORED.
+// The Riot API and OP.GG name one game differently; the same start time
+// (within a few minutes) on the same champion is the same game.
+const SAME_GAME_MS = 3 * 60 * 1000;
+function sameGame(a, b) {
+    return a.id === b.id
+        || (!!a.createdAt && !!b.createdAt && !!a.champion && a.champion === b.champion && Math.abs(a.createdAt - b.createdAt) <= SAME_GAME_MS);
+}
+
 function mergeMatches(riotId, matches) {
     const key = storeKey(riotId);
     if (!key) return [];
@@ -171,8 +179,10 @@ function mergeMatches(riotId, matches) {
     const byId = new Map((data[key] || []).map((m) => [m.id, m]));
     for (const m of matches) {
         if (!m?.id) continue;
-        const old = byId.get(m.id);
-        byId.set(m.id, old ? { ...old, ...m, players: m.players || old.players } : m);
+        const old = byId.get(m.id) || [...byId.values()].find((x) => sameGame(x, m));
+        if (old) byId.delete(old.id);
+        // The stored id stays, so a games dialog open on it keeps working.
+        byId.set(old ? old.id : m.id, old ? { ...old, ...m, id: old.id, players: m.players || old.players } : m);
     }
     const list = [...byId.values()].sort((a, b) => b.createdAt - a.createdAt).slice(0, MAX_STORED);
     data[key] = list;

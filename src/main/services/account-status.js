@@ -37,18 +37,21 @@ function update(username, fn) {
 const isCount = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 
 // Decay from /lol-ranked/v1/current-ranked-stats: each queue carries a
-// `warnings` object while decay applies to it (Diamond and above). Master and
-// higher use apexDaysUntilDecay. Returns { queue, days } for the queue that
-// decays first, or null.
+// `warnings` object. Decay only applies from Diamond up: Diamond reads
+// daysUntilDecay, Master and above apexDaysUntilDecay; other tiers' values
+// are ignored (the client can send 0 there). Returns { queue, days } for the
+// queue that decays first, or null.
+const APEX = ['MASTER', 'GRANDMASTER', 'CHALLENGER'];
 function parseDecay(rankedStats) {
     const queues = Array.isArray(rankedStats?.queues) ? rankedStats.queues : [];
     let best = null;
     for (const q of queues) {
         if (q?.queueType !== 'RANKED_SOLO_5x5' && q?.queueType !== 'RANKED_FLEX_SR') continue;
+        const tier = String(q.tier || '').toUpperCase();
         const w = q.warnings;
         if (!w || typeof w !== 'object') continue;
-        const days = [w.apexDaysUntilDecay, w.daysUntilDecay].find(isCount);
-        if (days === undefined) continue;
+        const days = APEX.includes(tier) ? w.apexDaysUntilDecay : tier === 'DIAMOND' ? w.daysUntilDecay : undefined;
+        if (!isCount(days)) continue;
         if (!best || days < best.days) best = { queue: q.queueType, days };
     }
     return best;
@@ -79,10 +82,12 @@ async function captureStatus(username) {
     });
 }
 
-function recordLastPlayed(username, ts = Date.now()) {
+// Any game counts as played; only ranked games stop decay (lastRankedPlayed).
+function recordLastPlayed(username, ts = Date.now(), { ranked = false } = {}) {
     if (!username || !isCount(ts)) return;
     update(username, (rec) => {
         if (!(rec.lastPlayed >= ts)) rec.lastPlayed = ts;
+        if (ranked && !(rec.lastRankedPlayed >= ts)) rec.lastRankedPlayed = ts;
         return rec;
     });
 }

@@ -50,6 +50,15 @@ const EMPTY_RANK = { tier: 'Unranked', lp: '', winLose: '', ratio: '' };
 // How a player does on the champion they play this game, from OP.GG's
 // season numbers: { champGames, champWins, mainChampion, poolSize, games }.
 // {} when OP.GG has nothing or the server is not covered.
+// The champion's numeric id from a Data Dragon key ("MonkeyKing") or a
+// display name ("Wukong", "Kai'Sa").
+function championIdOf(champion) {
+    const text = String(champion || '');
+    return championData.getChampionIdByKey(text)
+        ?? championData.getChampionMap()[text.toLowerCase()]
+        ?? null;
+}
+
 async function championRecord(p, championName) {
     if (!p.gameName || !p.tagLine || !championName) return {};
     const region = await getClientRegion();
@@ -57,8 +66,9 @@ async function championRecord(p, championName) {
     try {
         const profile = await opgg.getProfile(p.gameName, p.tagLine, region);
         const pool = Array.isArray(profile.championPool) ? profile.championPool : [];
+        const id = championIdOf(championName);
         const want = String(championName).toLowerCase().replace(/[^a-z]/g, '');
-        const champ = pool.find((c) => String(c.name).toLowerCase().replace(/[^a-z]/g, '') === want);
+        const champ = pool.find((c) => (id !== null && c.id === id) || String(c.name).toLowerCase().replace(/[^a-z]/g, '') === want);
         const m = /(\d+)W\s+(\d+)L/.exec(profile.winLose || '');
         return {
             champGames: champ ? champ.games : 0,
@@ -362,4 +372,4 @@ function register() {
     });
 }
 
-module.exports = { register, soloRankForPlayer, championRecord, formatLcuRanked, cleanOverlaySettings, OVERLAY_HOTKEYS };
+module.exports = { register, soloRankForPlayer, championRecord, championIdOf, formatLcuRanked, cleanOverlaySettings, OVERLAY_HOTKEYS };

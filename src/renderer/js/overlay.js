@@ -433,10 +433,10 @@ function loadingRow(p) {
         ? `<span class="ov-rank tier-${tier}"><img src="assets/ranks/${tier}.png" alt="">${escHtml(tierAbbr(p.tier))}${lp ? ` ${escHtml(lp)}` : ''}</span>`
         : `<span class="ov-rank">${p.failed ? '?' : 'Unranked'}</span>`;
     return `<div class="ov-player${p.isSelf ? ' is-me' : ''}">
-        <span class="ov-player-champ"><img class="ov-player-icon" src="${escHtml(champIconUrlFromKey(p.champion))}" alt="" data-fallback="logo" data-tip="${escHtml(p.champion || '')}"></span>
+        <span class="ov-player-champ"><img class="ov-player-icon" src="${escHtml(champIconUrlFromKey(p.champion))}" alt="" data-fallback="logo" data-tip="${escHtml(p.championName || p.champion || '')}"></span>
         <span class="ov-player-main">
             <span class="ov-player-name">${escHtml(p.gameName)}</span>
-            ${tagsHtml(p, p.champion)}
+            ${tagsHtml(p, p.championName || p.champion)}
         </span>
         <span class="ov-player-side">${rank}<span class="ov-sub"><span class="ov-wr">${escHtml(p.ratio || '')}</span></span></span>
     </div>`;

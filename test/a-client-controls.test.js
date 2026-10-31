@@ -52,16 +52,13 @@ test('fix client closes the Riot Client UI too', async () => {
     assert.ok(fx.spawned[0].args.at(-1).includes("'Riot Client'"));
 });
 
-test('status message and profile background report a failed LCU request', async () => {
-    fakeLcu({ 'GET /lol-summoner/v1/current-summoner': { gameName: 'x' } });
-    assert.equal((await fx.invoke('set-status-message', 'hi')).success, false);
-    assert.equal((await fx.invoke('set-profile-background', { championName: 'x', skinId: 1000 })).success, false);
-
-    fakeLcu({
-        'GET /lol-summoner/v1/current-summoner': { gameName: 'x' },
-        'PUT /lol-chat/v1/me': { statusMessage: 'hi' },
-        'POST /lol-summoner/v1/current-summoner/summoner-profile': '',
-    });
-    assert.equal((await fx.invoke('set-status-message', 'hi')).success, true);
-    assert.equal((await fx.invoke('set-profile-background', { championName: 'x', skinId: 1000 })).success, true);
+// get-lobby-members looked up champ-select teammates without checking whether
+// the game hides their names (Riot policy); it and two other handlers were
+// never used, so they are gone.
+test('no handler resolves champion select names outside the lobby check', () => {
+    assert.throws(() => fx.invoke('get-lobby-members'), /No IPC handler/);
+    assert.throws(() => fx.invoke('set-status-message', 'hi'), /No IPC handler/);
+    assert.throws(() => fx.invoke('set-profile-background', {}), /No IPC handler/);
+    const preload = require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'preload', 'preload.js'), 'utf8');
+    assert.doesNotMatch(preload, /getLobbyMembers|setStatusMessage|setProfileBackground/);
 });

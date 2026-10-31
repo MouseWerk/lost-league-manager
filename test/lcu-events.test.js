@@ -179,3 +179,20 @@ test('auto-accept posts once per ready check', async () => {
     await emit(uri, 'Update', { state: 'InProgress', playerResponse: 'None' });
     assert.equal(count('POST', '/lol-matchmaking/v1/ready-check/accept'), 2, 'next ready check accepted again');
 });
+
+// While the vault is locked nothing reads the accounts: no matching, no
+// Riot ID linking; unlocking does it then.
+test('a locked vault matches no account on connect; unlocking does', async () => {
+    const fakes = require('./helpers/a-fakes');
+    setup({
+        accounts: [{ username: 'main', password: 'x' }],
+        routes: { 'GET /lol-login/v1/session': { username: 'main' }, 'GET /lol-gameflow/v1/gameflow-phase': 'Lobby' },
+    });
+    fakes.fakeVault.locked = true;
+    await connect();
+    assert.equal(state.currentAccount, null);
+    assert.equal(count('GET', '/lol-summoner/v1/current-summoner'), 0, 'no Riot ID linking');
+    fakes.fakeVault.locked = false;
+    await require('../src/main/lcu-events').onVaultUnlocked();
+    assert.equal(state.currentAccount?.username, 'main');
+});
