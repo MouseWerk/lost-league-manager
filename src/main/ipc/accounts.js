@@ -4,6 +4,7 @@ const { loadAccounts, saveAccounts, sameUser } = require('../services/storage');
 const { encrypt, decrypt, encryptExport, decryptExport, decryptExportV1, backupVersion } = require('../services/encryption');
 const { broadcastAccountsUpdate } = require('../windows');
 const { loadHonorWatch, getHonorRecord, isFlaggedRecord, forgetHonor } = require('../services/honor-watch');
+const { getStatusMap, statusFor, forgetStatus } = require('../services/account-status');
 const vault = require('../services/vault');
 const state = require('../state');
 
@@ -110,11 +111,13 @@ function register() {
         // would otherwise re-read and re-parse the whole file once per account,
         // O(N) sync disk reads on every get-accounts call).
         const honorWatch = loadHonorWatch();
+        const statusMap = getStatusMap();
         return loadAccounts().map(a => ({
             ...a,
             password: '',
             passwordOk: decrypt(a.password) !== null,
             honorFlagged: isFlaggedRecord(getHonorRecord(honorWatch, a.username)),
+            status: statusFor(statusMap, a.username),
         }));
     });
 
@@ -191,6 +194,7 @@ function register() {
             saveAccounts(accounts);
             // Re-adding the same username later must not inherit an old honor flag.
             forgetHonor(removed.username);
+            forgetStatus(removed.username);
             if (sameUser(state.currentAccount?.username, removed.username)) state.currentAccount = null;
         } catch (e) {
             return errorResult(e);

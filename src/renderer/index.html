@@ -78,6 +78,7 @@
                                 <option value="name">Name</option>
                                 <option value="region">Server</option>
                                 <option value="lastUsed">Recently used</option>
+                                <option value="lastPlayed">Last played</option>
                             </select>
                             <button id="addAccountBtn" class="primary-btn add-account-btn"><i class="fas fa-plus" aria-hidden="true"></i> Add account</button>
                         </div>
@@ -127,6 +128,10 @@
                                     <div id="profileFlexLp" class="profile-rank-lp"></div>
                                 </div>
                                 <div class="profile-rank-label">Flex<span id="profileFlexRecord" class="profile-rank-record"></span></div>
+                            </div>
+
+                            <div id="profileStatusWrap" class="profile-status" hidden>
+                                <div id="profileStatusList"></div>
                             </div>
 
                             <div id="profileTodayWrap" class="profile-today" hidden>

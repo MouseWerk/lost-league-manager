@@ -3,6 +3,7 @@ const path  = require('path');
 const lcu   = require('./lcu');
 const state = require('./state');
 const discordRpc = require('./services/discord-rpc');
+const accountStatus = require('./services/account-status');
 const isVaultLocked = () => require('./services/vault').isVaultLocked();
 
 // The login/summoner endpoints 404 for a few seconds while the client boots.
@@ -144,6 +145,15 @@ function applyGameflowPhase(phase, { fromEvent = false } = {}) {
         minimizedThisGame = false;
     }
 
+    // A finished game: the account has played, and its decay bank changed.
+    if (fromEvent && phase === 'EndOfGame' && state.currentAccount?.username) {
+        const username = state.currentAccount.username;
+        accountStatus.recordLastPlayed(username);
+        accountStatus.captureStatus(username)
+            .then(() => require('./windows').broadcastAccountsUpdate())
+            .catch((e) => console.log('[LCU] Status after game skipped:', e.message));
+    }
+
     if (state.overlayWindow && !state.overlayWindow.isDestroyed()) {
         if (phase === 'InProgress') {
             if (state.config.overlayEnabled) state.overlayWindow.show();
@@ -165,6 +175,9 @@ async function onConnect() {
         // Right away, not only when the next chat update arrives.
         await setAppearOffline();
         await linkRiotIdFromClient(username, conn);
+        if (conn !== connectionSeq) return;
+        await accountStatus.captureStatus(username);
+        if (username) require('./windows').broadcastAccountsUpdate();
     })().catch(e => console.log('[LCU] Account detection skipped:', e.message));
 
     const phaseWork = (async () => {
