@@ -98,9 +98,46 @@ test('overlay settings from its page: only known hotkeys and real booleans', () 
 
 test('player names, ranks and item names are escaped in the overlay', () => {
     const src = read('src', 'renderer', 'js', 'overlay.js');
-    assert.match(src, /<span class="ov-rp-name">\$\{escHtml\(name\)\}<\/span>/);
-    assert.match(src, /<span class="ov-rp-wr">\$\{escHtml\(wr\)\}<\/span>/);
-    assert.match(src, /data-tooltip="\$\{escHtml\(itemNames\[id\] \|\| id\)\}"/);
+    assert.match(src, /<span class="ov-player-name">\$\{escHtml\(name\)\}<\/span>/);
+    assert.match(src, /data-tip="\$\{escHtml\(itemNames\[id\] \|\| id\)\}"/);
+    // Every property put into the overlay's markup goes through escHtml.
+    const member = /\$\{\s*[A-Za-z_$][\w$]*(?:\??\.[\w$]+|\[[^\]]+\])+\s*\}/;
+    assert.deepEqual(src.split('\n').filter((l) => l.includes('<') && member.test(l)), []);
+});
+
+// 1.9 rework: the overlay sits over League only and never takes its focus.
+test('the overlay shows only in a game, with League in front, and without taking focus', () => {
+    const calls = [];
+    state.config.overlayEnabled = true;
+    state.overlayViaOverwolf = false;
+    let visible = false;
+    state.overlayWindow = {
+        isDestroyed: () => false,
+        isVisible: () => visible,
+        showInactive: () => { visible = true; calls.push('showInactive'); },
+        show: () => { visible = true; calls.push('show'); },
+        hide: () => { visible = false; calls.push('hide'); },
+        webContents: { send() {} },
+    };
+    state.gameflowPhase = 'InProgress';
+    manager.onForegroundLine('1234|chrome');
+    assert.equal(visible, false, 'another app in front: hidden');
+    manager.onForegroundLine('5678|League of Legends');
+    assert.equal(visible, true);
+    assert.ok(!calls.includes('show'), 'never show(): that takes focus');
+    manager.toggleByHotkey();
+    assert.equal(visible, false, 'the hotkey hides it');
+    manager.toggleByHotkey();
+    manager.onGameflowPhase('EndOfGame');
+    assert.equal(visible, false, 'gone after the game');
+    state.overlayWindow = null;
+    state.config.overlayEnabled = false;
+});
+
+test('the plain overlay window stays out of Alt+Tab and the taskbar', () => {
+    const src = read('src', 'main', 'windows.js');
+    assert.match(src, /new BrowserWindow\(\{ \.\.\.opts, type: 'toolbar' \}\)/);
+    assert.match(src, /skipTaskbar: true/);
 });
 
 test('opacity is applied once, by the page', () => {

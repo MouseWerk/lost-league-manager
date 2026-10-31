@@ -4,7 +4,6 @@ const state = require('../state');
 const championData = require('../services/champion-data');
 const riotApi = require('../services/riot-api');
 const opgg = require('../services/opgg-api');
-const { getBuilds } = require('../services/builds-api');
 const { saveConfig } = require('../services/storage');
 const { recordHonorLevel } = require('../services/honor-watch');
 const { liveClientGet } = require('../services/live-client');
@@ -101,6 +100,9 @@ async function soloRankForPlayer(p) {
     }
 }
 
+// The game's position names (Live Client, GEP) to OP.GG's.
+const OVERLAY_POSITIONS = { TOP: 'top', JUNGLE: 'jungle', MIDDLE: 'mid', MID: 'mid', BOTTOM: 'adc', ADC: 'adc', UTILITY: 'support', SUPPORT: 'support' };
+
 // The overlay page may only change these, with these values: the hotkey is
 // one of the choices it offers (any string used to be registered globally).
 const OVERLAY_HOTKEYS = ['Ctrl+Shift+H', 'Ctrl+Shift+X', 'Ctrl+Shift+O', 'F9', 'F10'];
@@ -185,8 +187,7 @@ function register() {
         saveConfig();
         if (!state.overlayWindow || state.overlayWindow.isDestroyed()) return;
         const { width: sw } = screen.getPrimaryDisplay().workAreaSize;
-        state.overlayWindow.setSize(480, 52);
-        state.overlayWindow.setPosition(sw - 480 - 16, 16);
+        state.overlayWindow.setPosition(sw - 364 - 16, 16);
     });
 
     // ── Ranked bulk (for overlay ranked panel) ─────────────────────────────────
@@ -206,10 +207,16 @@ function register() {
         return results;
     });
 
-    // ── Build data (from OP.GG JSON API) ──────────────────────────────────────
+    // ── Build (OP.GG runes, items and skill order) ─────────────────────────────
     ipcMain.handle('overlay-get-builds', async (event, { champKey, gameMode, position } = {}) => {
-        if (!champKey) return null;
-        return await getBuilds(champKey, gameMode, position);
+        if (typeof champKey !== 'string' || !champKey) return { success: false, message: 'No champion yet' };
+        try {
+            const build = await opgg.getChampionBuild(champKey, OVERLAY_POSITIONS[String(position || '').toUpperCase()] || null,
+                String(gameMode || '').toUpperCase() === 'ARAM' ? 'aram' : 'ranked');
+            return { success: true, build };
+        } catch (e) {
+            return { success: false, message: e.message };
+        }
     });
 
     // ── LCU overview (main window dashboard) ──────────────────────────────────

@@ -1,3 +1,8 @@
+// In-game overlay: a bar with your champion and score, and three panels
+// (players, build, settings), one open at a time. Data comes as GEP info
+// updates, from Overwolf or from the Live Client Data API (overlay-manager.js
+// sends both in the same shape).
+
 // Images that fail to load fall back to the logo or hide themselves, per their
 // data-fallback attribute. Inline onerror handlers are blocked by the CSP.
 document.addEventListener('error', (e) => {
@@ -15,29 +20,28 @@ let timerTick = null;
 let myName = null;
 let ddragonVersion = '15.1.1';
 let allPlayers = [];
-let panelOpen = false;
-let buildPanelOpen = false;
-let settingsPanelOpen = false;
+let openPanel = null; // 'players' | 'build' | 'settings' | null
 let overlayLocked = false;
 
-// Ranked data fetched from LCU
-let rankedData = {};    // { [riotIdKey]: { tier, lp, winLose, ratio } }
+// Ranked data from the main process: { [riotIdKey]: { tier, lp, ratio, failed? } }
+let rankedData = {};
 let rankedLoading = false;
 let rankedFetched = false;
 let rankedRetryCount = 0;
 const MAX_RANKED_RETRIES = 2;
 
-// Display name (lowercase) → authoritative DDragon champion key, sent from main
-// on init. Covers champions whose key doesn't match a stripped display name
-// (Wukong→MonkeyKing, Cho'Gath→Chogath, Nunu & Willump→Nunu, etc.)
+// Display name (lowercase) → Data Dragon key, sent from main on init
+// (Wukong → MonkeyKing, Cho'Gath → Chogath, ...).
 let champKeyMap = {};
-let itemNames = {}; // item id -> name, for the build tooltips
+let itemNames = {}; // item id → name, for the item tooltips
 
-// Build data fetched from OP.GG
-let buildData = null;   // { champKey, starting:[], core:[], optional:[] }
+// OP.GG build for my champion (opgg-api.js getChampionBuild).
+let buildData = null;
+let buildError = null;
 let buildLoading = false;
 let buildFetched = false;
-let myChampKey = null;  // Data Dragon key of my champion
+let myChampKey = null;
+let myChampName = null;
 let myGameMode = 'CLASSIC';
 let myPosition = null;
 
@@ -45,45 +49,47 @@ let myPosition = null;
 let isDead = false;
 let deathTick = null;
 let respawnAt = 0;
+let respawnTotal = 1;
 
 const DEAD_TIPS = [
-    'Buy items while dead!',
-    'Check enemy positions!',
-    'Ping your missing enemy!',
-    'Plan your next move.',
-    'Ward when you respawn!',
-    'Back when you respawn?',
+    'Shop while you wait',
+    'Check the minimap',
+    'Plan your next fight',
+    'Ward on the way back',
+    'Look at the enemy items',
 ];
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
-const ovKda    = document.getElementById('ovKda');
-const ovCs     = document.getElementById('ovCs');
-const ovCsm    = document.getElementById('ovCsm');
-const ovGold   = document.getElementById('ovGold');
-const ovTimer  = document.getElementById('ovTimer');
-const ovLevel  = document.getElementById('ovLevel');
-const ovChamp  = document.getElementById('ovChampIcon');
-const ovToggle       = document.getElementById('ovToggle');
-const ovBuildToggle  = document.getElementById('ovBuildToggle');
-const ovSettingsBtn  = document.getElementById('ovSettingsBtn');
-const ovRanked       = document.getElementById('ovRanked');
-const ovRankedContent= document.getElementById('ovRankedContent');
-const ovBuilds       = document.getElementById('ovBuilds');
-const ovBuildsContent= document.getElementById('ovBuildsContent');
-const ovSettingsPanel= document.getElementById('ovSettingsPanel');
-const ovLive         = document.getElementById('ovLive');
-const ovDeadB        = document.getElementById('ovDeadBar');
-const ovRCount       = document.getElementById('ovRespawnCount');
-const ovTip          = document.getElementById('ovDeadTip');
-// Settings controls
-const ovOpacitySlider    = document.getElementById('ovOpacitySlider');
-const ovOpacityVal       = document.getElementById('ovOpacityVal');
-const ovHotkeySelect     = document.getElementById('ovHotkeySelect');
-const ovLockToggle       = document.getElementById('ovLockToggle');
-const ovShowRankedToggle = document.getElementById('ovShowRankedToggle');
-const ovShowBuildsToggle = document.getElementById('ovShowBuildsToggle');
-
-const COMPACT_H = 52;
+const $ = (id) => document.getElementById(id);
+const ovRoot = $('ovRoot');
+const ovKda = $('ovKda');
+const ovCs = $('ovCs');
+const ovCsm = $('ovCsm');
+const ovGold = $('ovGold');
+const ovTimer = $('ovTimer');
+const ovLevel = $('ovLevel');
+const ovChamp = $('ovChampIcon');
+const ovLive = $('ovLive');
+const ovDeadBar = $('ovDeadBar');
+const ovRespawnCount = $('ovRespawnCount');
+const ovRespawnBar = $('ovRespawnBar');
+const ovRespawnFill = $('ovRespawnFill');
+const ovDeadTip = $('ovDeadTip');
+const ovToggle = $('ovToggle');
+const ovBuildToggle = $('ovBuildToggle');
+const ovSettingsBtn = $('ovSettingsBtn');
+const ovRanked = $('ovRanked');
+const ovRankedContent = $('ovRankedContent');
+const ovBuilds = $('ovBuilds');
+const ovBuildsContent = $('ovBuildsContent');
+const ovSettingsPanel = $('ovSettingsPanel');
+const ovOpacitySlider = $('ovOpacitySlider');
+const ovOpacityVal = $('ovOpacityVal');
+const ovHotkeySelect = $('ovHotkeySelect');
+const ovLockToggle = $('ovLockToggle');
+const ovShowRankedToggle = $('ovShowRankedToggle');
+const ovShowBuildsToggle = $('ovShowBuildsToggle');
+const ovTip = $('ovTip');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function escHtml(s) {
@@ -105,29 +111,22 @@ function champDDKey(rawChampionName, championName) {
     }
     const displayName = championName || rawChampionName;
     if (!displayName) return null;
-    // Prefer the authoritative Data Dragon key over guessing from the display
-    // name — casing/punctuation don't follow a consistent pattern (Cho'Gath→
-    // Chogath, Bel'Veth→Belveth, Renata Glasc→Renata, LeBlanc→Leblanc, ...).
     const mapped = champKeyMap[displayName.toLowerCase()];
     if (mapped) return mapped;
     return displayName.replace(/[\s'.&]/g, '');
 }
 
-function champIconUrl(rawChampionName, championName) {
-    const key = champDDKey(rawChampionName, championName);
-    if (!key) return 'assets/logo.png';
-    return `https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/champion/${key}.png`;
-}
-
-// For call sites that already hold a resolved DDragon key (e.g. myChampKey).
 function champIconUrlFromKey(key) {
     if (!key) return 'assets/logo.png';
     return `https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/champion/${key}.png`;
 }
 
-// Composite key matching how the main process keys overlay-get-ranked-bulk
-// results — full Riot ID (name#tag) when available, so two players sharing a
-// game name but different taglines don't collide in rankedData.
+function champIconUrl(rawChampionName, championName) {
+    return champIconUrlFromKey(champDDKey(rawChampionName, championName));
+}
+
+// The key the main process uses for overlay-get-ranked-bulk results: the full
+// Riot ID when there is one, so two players with one game name stay apart.
 function playerRiotKey(p) {
     const name = p.riotIdGameName || p.summonerName || '?';
     return p.riotIdTagLine ? `${name}#${p.riotIdTagLine}` : name;
@@ -137,50 +136,48 @@ function itemIconUrl(id) {
     return `https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/item/${id}.png`;
 }
 
-// LoL respawn timer by level (seconds), with late-game scaling
+// Respawn time by level (seconds), longer late in the game.
 function calcRespawnSecs(lvl, gameSecs) {
     const bases = [8, 10, 12, 14, 16, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80];
-    const base = bases[Math.min(lvl - 1, bases.length - 1)];
+    const base = bases[Math.min(Math.max(lvl, 1) - 1, bases.length - 1)];
     const minsOver25 = Math.max(0, gameSecs / 60 - 25);
     return Math.round(base * (1 + minsOver25 * 0.02));
 }
 
-// CS/min classification
 function csmClass(rate) {
-    if (rate >= 7.5) return 'csm-good';
-    if (rate >= 5.0) return 'csm-ok';
-    return 'csm-bad';
+    if (rate >= 7.5) return 'is-good';
+    if (rate >= 5.0) return 'is-ok';
+    return 'is-low';
 }
 
-// ── Rank helpers ──────────────────────────────────────────────────────────────
+// "Diamond II" → "D2", "Master" → "M"
 function tierAbbr(tier) {
-    if (!tier || tier === 'Unranked') return '–';
+    if (!tier || tier === 'Unranked') return '-';
     const parts = tier.split(' ');
     const name = parts[0].toLowerCase();
     if (name === 'challenger') return 'C';
     if (name === 'grandmaster') return 'GM';
     if (name === 'master') return 'M';
-    const letter = parts[0][0].toUpperCase();
-    const roman = { 'I': '1', 'II': '2', 'III': '3', 'IV': '4' };
-    const num = roman[parts[1]] || (parts[1] ? parts[1][0] : '');
-    return letter + (num || '');
+    const roman = { I: '1', II: '2', III: '3', IV: '4' };
+    return parts[0][0].toUpperCase() + (roman[parts[1]] || '');
 }
 
-function tierClass(tier) {
-    if (!tier) return 'tier-unranked';
-    const t = tier.toLowerCase();
-    if (t.startsWith('challenger'))  return 'tier-challenger';
-    if (t.startsWith('grandmaster')) return 'tier-grandmaster';
-    if (t.startsWith('master'))      return 'tier-master';
-    if (t.startsWith('diamond'))     return 'tier-diamond';
-    if (t.startsWith('emerald'))     return 'tier-emerald';
-    if (t.startsWith('platinum'))    return 'tier-platinum';
-    if (t.startsWith('gold'))        return 'tier-gold';
-    if (t.startsWith('silver'))      return 'tier-silver';
-    if (t.startsWith('bronze'))      return 'tier-bronze';
-    if (t.startsWith('iron'))        return 'tier-iron';
-    return 'tier-unranked';
+const TIERS = ['iron', 'bronze', 'silver', 'gold', 'platinum', 'emerald', 'diamond', 'master', 'grandmaster', 'challenger'];
+function tierName(tier) {
+    const t = String(tier || '').trim().toLowerCase().split(/\s+/)[0];
+    return TIERS.includes(t) ? t : null;
 }
+
+// ── Window size follows the content ──────────────────────────────────────────
+let lastSize = '';
+new ResizeObserver(() => {
+    const w = Math.ceil(ovRoot.offsetWidth);
+    const h = Math.ceil(ovRoot.offsetHeight);
+    const size = `${w}x${h}`;
+    if (size === lastSize) return;
+    lastSize = size;
+    window.overlayAPI.resize(w, h);
+}).observe(ovRoot);
 
 // ── Timer ─────────────────────────────────────────────────────────────────────
 function startTimer() {
@@ -189,44 +186,48 @@ function startTimer() {
 }
 function stopTimer() { if (timerTick) { clearInterval(timerTick); timerTick = null; } }
 
-// ── Death / Respawn ───────────────────────────────────────────────────────────
+// ── Death and respawn ─────────────────────────────────────────────────────────
 function onDeath() {
     if (isDead) return;
     isDead = true;
-    respawnAt = Date.now() + calcRespawnSecs(level, gameTime) * 1000;
-    ovTip.textContent = DEAD_TIPS[Math.floor(Math.random() * DEAD_TIPS.length)];
-    ovLive.style.display = 'none';
-    ovDeadB.style.display = 'flex';
+    respawnTotal = calcRespawnSecs(level, gameTime);
+    respawnAt = Date.now() + respawnTotal * 1000;
+    ovDeadTip.textContent = DEAD_TIPS[Math.floor(Math.random() * DEAD_TIPS.length)];
+    ovLive.hidden = true;
+    ovDeadBar.hidden = false;
+    ovRespawnBar.hidden = false;
     if (deathTick) clearInterval(deathTick);
-    deathTick = setInterval(tickDeath, 100);
+    deathTick = setInterval(tickDeath, 200);
+    tickDeath();
 }
 
 function tickDeath() {
-    const rem = Math.ceil((respawnAt - Date.now()) / 1000);
-    if (rem <= 0) { onRespawn(); return; }
-    ovRCount.textContent = rem;
+    const left = (respawnAt - Date.now()) / 1000;
+    if (left <= 0) { onRespawn(); return; }
+    ovRespawnCount.textContent = Math.ceil(left);
+    ovRespawnFill.style.transform = `scaleX(${Math.max(0, left / respawnTotal)})`;
 }
 
 function onRespawn() {
     if (!isDead) return;
     isDead = false;
     if (deathTick) { clearInterval(deathTick); deathTick = null; }
-    ovDeadB.style.display = 'none';
-    ovLive.style.display = 'flex';
+    ovDeadBar.hidden = true;
+    ovRespawnBar.hidden = true;
+    ovLive.hidden = false;
 }
 
-// ── Bar update ────────────────────────────────────────────────────────────────
+// ── Bar ───────────────────────────────────────────────────────────────────────
 function updateBar() {
-    ovKda.textContent  = `${kills}/${deaths}/${assists}`;
-    ovCs.textContent   = `${cs} CS`;
-    ovGold.textContent = fmtGold(gold) + 'g';
+    ovKda.textContent = `${kills}/${deaths}/${assists}`;
+    ovCs.textContent = `${cs} CS`;
+    ovGold.textContent = fmtGold(gold);
     ovTimer.textContent = formatTime(gameTime);
     ovLevel.textContent = level || 1;
-
     if (gameTime > 90) {
         const rate = cs / (gameTime / 60);
-        ovCsm.textContent = rate.toFixed(1) + '/m';
-        ovCsm.className = 'ov-csm ' + csmClass(rate);
+        ovCsm.textContent = `${rate.toFixed(1)}/m`;
+        ovCsm.className = `ov-csm ${csmClass(rate)}`;
     } else {
         ovCsm.textContent = '';
         ovCsm.className = 'ov-csm';
@@ -234,181 +235,145 @@ function updateBar() {
 }
 
 function resetAll() {
-    kills = deaths = assists = cs = gold = level = 0;
+    kills = deaths = assists = cs = gold = 0;
+    level = 1;
     gameTime = 0;
     allPlayers = [];
     myName = null;
-    isDead = false;
     rankedData = {};
     rankedFetched = false;
     rankedLoading = false;
     rankedRetryCount = 0;
     buildData = null;
+    buildError = null;
     buildFetched = false;
     buildLoading = false;
     myChampKey = null;
+    myChampName = null;
     myGameMode = 'CLASSIC';
     myPosition = null;
-    if (deathTick) { clearInterval(deathTick); deathTick = null; }
     stopTimer();
-
-    ovLive.style.display = 'flex';
-    ovDeadB.style.display = 'none';
-    ovCsm.textContent = '';
-    ovCsm.className = 'ov-csm';
+    if (isDead) onRespawn();
     ovChamp.src = 'assets/logo.png';
-    ovLevel.textContent = '1';
     updateBar();
-
-    if (panelOpen) togglePanel(false);
-    if (buildPanelOpen) toggleBuildPanel(false);
+    showPanel(null);
 }
+
+// ── Panels: one open at a time ────────────────────────────────────────────────
+function showPanel(name) {
+    openPanel = openPanel === name ? null : name;
+    ovRanked.hidden = openPanel !== 'players';
+    ovBuilds.hidden = openPanel !== 'build';
+    ovSettingsPanel.hidden = openPanel !== 'settings';
+    ovToggle.setAttribute('aria-pressed', String(openPanel === 'players'));
+    ovBuildToggle.setAttribute('aria-pressed', String(openPanel === 'build'));
+    ovSettingsBtn.setAttribute('aria-pressed', String(openPanel === 'settings'));
+    if (openPanel === 'players') {
+        if (!rankedFetched && allPlayers.length) triggerRankedFetch();
+        renderRankedPanel();
+    }
+    if (openPanel === 'build') {
+        if (!buildFetched && myChampKey) triggerBuildFetch();
+        renderBuildPanel();
+    }
+}
+
+ovToggle.addEventListener('click', () => showPanel('players'));
+ovBuildToggle.addEventListener('click', () => showPanel('build'));
+ovSettingsBtn.addEventListener('click', () => showPanel('settings'));
 
 // ── Build panel ───────────────────────────────────────────────────────────────
-function calcBuildPanelHeight() {
-    const rows = buildData
-        ? ['starting', 'boots', 'core', 'optional'].filter(k => buildData[k]?.length).length
-        : 0;
-    return Math.max(36 + rows * 42 + 10, 60);
-}
-
 function triggerBuildFetch() {
     if (buildFetched || !myChampKey) return;
     buildFetched = true;
     buildLoading = true;
+    buildError = null;
     window.overlayAPI.fetchBuilds(myChampKey, myGameMode, myPosition)
-        .then(data => {
-            buildData = data;
+        .then((res) => {
             buildLoading = false;
-            if (buildPanelOpen) {
-                renderBuildPanel();
-                // Resize to fit actual data now that it has loaded
-                window.overlayAPI.resize(480, COMPACT_H + calcBuildPanelHeight());
-            }
+            if (res?.success) buildData = res.build;
+            else buildError = res?.message || 'No build for this champion yet';
+            if (openPanel === 'build') renderBuildPanel();
         })
         .catch(() => {
-            buildFetched = false;  // allow retry on next trigger
+            buildFetched = false; // try again next time
             buildLoading = false;
-            if (buildPanelOpen) renderBuildPanel();
+            if (openPanel === 'build') renderBuildPanel();
         });
 }
 
+function itemRow(label, ids) {
+    if (!ids?.length) return '';
+    const imgs = ids.map((id) => `<img class="ov-item" src="${escHtml(itemIconUrl(id))}" alt="" data-tip="${escHtml(itemNames[id] || id)}" data-fallback="hide">`).join('');
+    return `<div><p class="ov-label">${escHtml(label)}</p><div class="ov-item-row">${imgs}</div></div>`;
+}
+
+const POSITION_NAMES = { top: 'Top', jungle: 'Jungle', mid: 'Mid', adc: 'Bot', support: 'Support' };
+
 function renderBuildPanel() {
-    if (buildLoading) {
-        ovBuildsContent.innerHTML = '<div class="ov-rp-msg">Loading builds…</div>';
-        return;
-    }
-    if (!myChampKey) {
-        ovBuildsContent.innerHTML = '<div class="ov-rp-msg">Waiting for champion data…</div>';
-        return;
-    }
-    if (!buildData || (!buildData.starting.length && !buildData.core.length)) {
-        ovBuildsContent.innerHTML = `<div class="ov-rp-msg">No build data available for ${escHtml(myChampKey)}</div>`;
-        return;
-    }
-
-    const champIcon = champIconUrlFromKey(myChampKey);
-    const rows = [];
-
-    if (buildData.starting?.length) rows.push(buildRow('START', buildData.starting));
-    if (buildData.boots?.length)    rows.push(buildRow('BOOTS', buildData.boots));
-    if (buildData.core?.length)     rows.push(buildRow('CORE',  buildData.core));
-    if (buildData.optional?.length) rows.push(buildRow('OPT',   buildData.optional));
-
-    const modeLabel = myGameMode === 'ARAM' ? 'ARAM'
-        : (myPosition ? myPosition.charAt(0) + myPosition.slice(1).toLowerCase() : 'Ranked');
-
+    if (!myChampKey) { ovBuildsContent.innerHTML = '<p class="ov-msg">Waiting for your champion...</p>'; return; }
+    if (buildLoading) { ovBuildsContent.innerHTML = '<p class="ov-msg">Loading the build from OP.GG...</p>'; return; }
+    if (!buildData) { ovBuildsContent.innerHTML = `<p class="ov-msg">${escHtml(buildError || 'No build for this champion yet')}</p>`; return; }
+    const b = buildData;
+    const where = b.mode === 'aram' ? 'ARAM' : POSITION_NAMES[b.position] || '';
+    const runes = b.runes
+        ? `<div class="ov-runes">${b.runes.names.map((n, i) => `<span class="ov-rune${i === 0 ? ' is-key' : ''}">${escHtml(n)}</span>`).join('')}</div>`
+        : '';
+    const skills = b.skills?.length ? `<p class="ov-skills">Max <b>${escHtml(b.skills.join(' > '))}</b></p>` : '';
     ovBuildsContent.innerHTML = `
-        <div class="ov-build-header">
-            <img class="ov-build-champ-icon" src="${champIcon}" data-fallback="logo">
-            <span class="ov-build-champ-name">${escHtml(myChampKey)}</span>
-            <span class="ov-build-mode">${escHtml(modeLabel)}</span>
-            <span class="ov-build-source">op.gg</span>
+        <div class="ov-build-head">
+            <img src="${escHtml(champIconUrlFromKey(myChampKey))}" alt="" data-fallback="logo">
+            <span class="ov-build-title">${escHtml(myChampName || myChampKey)}</span>
+            <span class="ov-build-sub">${escHtml([where, 'OP.GG'].filter(Boolean).join(', '))}</span>
         </div>
-        ${rows.join('')}
-    `;
+        ${runes}
+        <div class="ov-items">
+            ${itemRow('Start', b.items.starter)}${itemRow('Boots', b.items.boots)}${itemRow('Core', b.items.core)}${itemRow('Later', b.items.late)}
+        </div>
+        ${skills}`;
 }
 
-function buildRow(label, ids, isBoot) {
-    const imgs = ids.map(id =>
-        `<img class="ov-build-item${isBoot ? ' ov-build-item--boot' : ''}" src="${escHtml(itemIconUrl(id))}" data-tooltip="${escHtml(itemNames[id] || id)}" data-fallback="hide">`
-    ).join('');
-    return `<div class="ov-build-row"><span class="ov-build-label">${label}</span><div class="ov-build-items">${imgs}</div></div>`;
-}
-
-function toggleBuildPanel(force) {
-    buildPanelOpen = force !== undefined ? force : !buildPanelOpen;
-    ovBuilds.style.display = buildPanelOpen ? 'block' : 'none';
-    ovBuildToggle.classList.toggle('active', buildPanelOpen);
-
-    if (buildPanelOpen) {
-        if (panelOpen) togglePanel(false);
-        if (!buildFetched && myChampKey) triggerBuildFetch();
-        renderBuildPanel();
-    }
-
-    window.overlayAPI.resize(480, COMPACT_H + (buildPanelOpen ? calcBuildPanelHeight() : 0));
-}
-
-// ── Ranked panel ──────────────────────────────────────────────────────────────
+// ── Players panel ─────────────────────────────────────────────────────────────
 function renderRankedPanel() {
-    if (!allPlayers.length || rankedLoading) {
-        ovRankedContent.innerHTML = `<div class="ov-rp-msg">${rankedLoading ? 'Loading player data…' : 'Waiting for game data…'}</div>`;
+    if (!allPlayers.length) {
+        ovRankedContent.innerHTML = '<p class="ov-msg">Waiting for the game...</p>';
         return;
     }
-
-    const order = allPlayers.filter(p => p.team === 'ORDER' || p.teamID === '100');
-    const chaos = allPlayers.filter(p => p.team === 'CHAOS' || p.teamID === '200');
-
-    ovRankedContent.innerHTML = `<div class="ov-rp-teams">${buildTeamCol(order, true)}${buildTeamCol(chaos, false)}</div>`;
+    const me = allPlayers.find((p) => isMe(p));
+    const myTeam = me?.team || 'ORDER';
+    const mine = allPlayers.filter((p) => p.team === myTeam);
+    const theirs = allPlayers.filter((p) => p.team !== myTeam);
+    ovRankedContent.innerHTML = teamBlock('Your team', mine) + teamBlock('Enemies', theirs)
+        + (rankedLoading ? '<p class="ov-msg">Looking up ranks...</p>' : '');
 }
 
-function buildTeamCol(players, isBlue) {
-    const hdrClass = isBlue ? 'ov-rp-hdr--blue' : 'ov-rp-hdr--red';
-    const label = isBlue ? 'Blue' : 'Red';
-    let html = `<div class="ov-rp-col"><div class="ov-rp-hdr ${hdrClass}">${label}</div>`;
-
-    for (const p of players) {
-        const name  = p.riotIdGameName || p.summonerName || '?';
-        const k     = p.scores?.kills   ?? 0;
-        const d     = p.scores?.deaths  ?? 0;
-        const a     = p.scores?.assists ?? 0;
-        const dead  = p.isDead === true;
-        const isMe  = myName && (p.summonerName === myName || p.riotIdGameName === myName);
-        const icon  = champIconUrl(p.rawChampionName, p.championName);
-        const rd    = rankedData[playerRiotKey(p)];
-        const tier  = rd?.tier || '';
-        const abbr  = rd ? tierAbbr(tier) : '?';
-        const cls   = tierClass(tier);
-        const wr    = rd?.ratio || '—';
-
-        html += `<div class="ov-rp-row${isMe ? ' is-me' : ''}${dead ? ' is-dead' : ''}">
-            <img class="ov-rp-icon" src="${escHtml(icon)}" data-fallback="logo">
-            <span class="ov-rp-name">${escHtml(name)}</span>
-            <span class="ov-rp-badge ${cls}">${escHtml(abbr)}</span>
-            <span class="ov-rp-wr">${escHtml(wr)}</span>
-            <span class="ov-rp-kda">${k}/${d}/${a}</span>
-        </div>`;
-    }
-    html += '</div>';
-    return html;
+function isMe(p) {
+    return !!myName && (p.summonerName === myName || p.riotIdGameName === myName);
 }
 
-function togglePanel(force) {
-    panelOpen = force !== undefined ? force : !panelOpen;
-    ovRanked.style.display = panelOpen ? 'block' : 'none';
-    ovToggle.classList.toggle('active', panelOpen);
+function teamBlock(title, players) {
+    if (!players.length) return '';
+    return `<div class="ov-team"><p class="ov-label">${escHtml(title)}</p>${players.map(playerRow).join('')}</div>`;
+}
 
-    if (panelOpen) {
-        if (buildPanelOpen) toggleBuildPanel(false);
-        if (!rankedFetched && allPlayers.length > 0) triggerRankedFetch();
-        renderRankedPanel();
-    }
-
-    const rowH = 28;
-    const rows = Math.max(allPlayers.length / 2, 5);
-    const panelH = 6 + 18 + rows * rowH + 8; // top pad + header + rows + bottom pad
-    window.overlayAPI.resize(480, COMPACT_H + (panelOpen ? Math.round(panelH) : 0));
+function playerRow(p) {
+    const name = p.riotIdGameName || p.summonerName || '?';
+    const rd = rankedData[playerRiotKey(p)];
+    const tier = tierName(rd?.tier);
+    const lp = rd?.lp ? String(rd.lp).replace(/\s*LP$/i, '') : '';
+    const rank = tier
+        ? `<span class="ov-rank tier-${tier}"><img src="assets/ranks/${tier}.png" alt="">${escHtml(tierAbbr(rd.tier))}${lp ? ` ${escHtml(lp)}` : ''}</span>`
+        : `<span class="ov-rank">${rd ? 'Unranked' : '...'}</span>`;
+    const k = p.scores?.kills ?? 0;
+    const d = p.scores?.deaths ?? 0;
+    const a = p.scores?.assists ?? 0;
+    return `<div class="ov-player${isMe(p) ? ' is-me' : ''}${p.isDead ? ' is-dead' : ''}">
+        <img class="ov-player-icon" src="${escHtml(champIconUrl(p.rawChampionName, p.championName))}" alt="" data-fallback="logo" data-tip="${escHtml(p.championName || '')}">
+        <span class="ov-player-name">${escHtml(name)}</span>
+        ${rank}
+        <span class="ov-wr">${escHtml(rd?.ratio || '')}</span>
+        <span class="ov-pkda">${escHtml(`${k}/${d}/${a}`)}</span>
+    </div>`;
 }
 
 function triggerRankedFetch(retryPlayers) {
@@ -417,236 +382,188 @@ function triggerRankedFetch(retryPlayers) {
         rankedFetched = true;
     }
     rankedLoading = true;
-
     const source = retryPlayers || allPlayers;
-    const playerList = source.map(p => ({
+    const playerList = source.map((p) => ({
         gameName: p.riotIdGameName || null,
-        tagLine:  p.riotIdTagLine  || null,
-        summonerName: p.summonerName || null
+        tagLine: p.riotIdTagLine || null,
+        summonerName: p.summonerName || null,
     }));
-
     window.overlayAPI.fetchRanked(playerList)
-        .then(data => {
+        .then((data) => {
             rankedData = { ...rankedData, ...(data || {}) };
             rankedLoading = false;
-            if (panelOpen) renderRankedPanel();
-
-            // Players whose lookup outright failed (LCU hadn't cached them yet,
-            // or a transient API error) get a couple of automatic retries
-            // instead of being stuck showing "Unranked" for the rest of the game.
+            if (openPanel === 'players') renderRankedPanel();
+            // Lookups that failed (the client had not cached the player yet, a
+            // short API error) get a couple of retries.
             if (rankedRetryCount < MAX_RANKED_RETRIES) {
-                const failedKeys = new Set(
-                    Object.entries(data || {}).filter(([, v]) => v?.failed).map(([k]) => k)
-                );
-                if (failedKeys.size > 0) {
-                    const retrySet = allPlayers.filter(p => failedKeys.has(playerRiotKey(p)));
-                    if (retrySet.length > 0) {
-                        rankedRetryCount++;
-                        setTimeout(() => triggerRankedFetch(retrySet), 3000);
-                    }
+                const failed = new Set(Object.entries(data || {}).filter(([, v]) => v?.failed).map(([k]) => k));
+                const retrySet = allPlayers.filter((p) => failed.has(playerRiotKey(p)));
+                if (retrySet.length) {
+                    rankedRetryCount++;
+                    setTimeout(() => triggerRankedFetch(retrySet), 3000);
                 }
             }
         })
         .catch(() => {
-            if (!retryPlayers) rankedFetched = false;  // allow full retry on next trigger
+            if (!retryPlayers) rankedFetched = false;
             rankedLoading = false;
-            if (panelOpen) renderRankedPanel();
+            if (openPanel === 'players') renderRankedPanel();
         });
 }
 
-// ── Dragging ──────────────────────────────────────────────────────────────────
-const drag = document.getElementById('ovDrag');
-drag.addEventListener('mousedown', (e) => {
-    if (overlayLocked) return;
+// ── Dragging (by the champion icon) ──────────────────────────────────────────
+$('ovDrag').addEventListener('mousedown', (e) => {
+    if (overlayLocked || e.button !== 0) return;
     e.preventDefault();
     window.overlayAPI.startDragging();
 });
 
-// ── Hover-to-interact ─────────────────────────────────────────────────────────
+// Clicks reach the overlay only while the pointer is over it; elsewhere they
+// go through to the game.
 document.addEventListener('mouseenter', () => window.overlayAPI.setInteractive(true));
-document.addEventListener('mouseleave', () => window.overlayAPI.setInteractive(false));
+document.addEventListener('mouseleave', () => {
+    window.overlayAPI.setInteractive(false);
+    ovTip.hidden = true;
+});
 
-// ── Toggle buttons ────────────────────────────────────────────────────────────
-ovToggle.addEventListener('click', () => togglePanel());
-ovBuildToggle.addEventListener('click', () => toggleBuildPanel());
-ovSettingsBtn.addEventListener('click', () => toggleSettingsPanel());
+// ── Tooltips (data-tip) ──────────────────────────────────────────────────────
+document.addEventListener('mouseover', (e) => {
+    const el = e.target.closest('[data-tip]');
+    if (!el || !el.dataset.tip) { ovTip.hidden = true; return; }
+    ovTip.textContent = el.dataset.tip;
+    ovTip.hidden = false;
+    const r = el.getBoundingClientRect();
+    const left = Math.min(r.left, ovRoot.offsetWidth - ovTip.offsetWidth - 4);
+    ovTip.style.left = `${Math.max(4, left)}px`;
+    ovTip.style.top = `${r.bottom + 4}px`;
+});
 
 // ── Settings panel ────────────────────────────────────────────────────────────
-function toggleSettingsPanel(force) {
-    settingsPanelOpen = force !== undefined ? force : !settingsPanelOpen;
-    ovSettingsPanel.style.display = settingsPanelOpen ? 'block' : 'none';
-    ovSettingsBtn.classList.toggle('active', settingsPanelOpen);
-
-    if (settingsPanelOpen) {
-        if (panelOpen)      togglePanel(false);
-        if (buildPanelOpen) toggleBuildPanel(false);
-    }
-
-    const panelH = settingsPanelOpen ? 5 * 40 + 16 : 0; // 5 rows × 40px + padding
-    window.overlayAPI.resize(480, COMPACT_H + panelH);
-}
-
-// Opacity slider — instant CSS preview on input, save to config on release
 function applyOpacity(v) {
-    document.getElementById('ovRoot').style.opacity = v;
+    ovRoot.style.opacity = v;
 }
 
 ovOpacitySlider.addEventListener('input', () => {
-    const pct = parseInt(ovOpacitySlider.value);
-    ovOpacityVal.textContent = pct + '%';
+    const pct = parseInt(ovOpacitySlider.value, 10);
+    ovOpacityVal.textContent = `${pct}%`;
     applyOpacity(pct / 100);
 });
 ovOpacitySlider.addEventListener('change', () => {
-    // Persist to config (no BrowserWindow.setOpacity — doesn't work on transparent windows)
-    window.overlayAPI.setOpacity(parseInt(ovOpacitySlider.value) / 100);
+    window.overlayAPI.setOpacity(parseInt(ovOpacitySlider.value, 10) / 100);
 });
-
-// Hotkey select
 ovHotkeySelect.addEventListener('change', () => {
     window.overlayAPI.saveSettings({ hotkey: ovHotkeySelect.value });
 });
-
-// Lock toggle
 ovLockToggle.addEventListener('change', () => {
-    overlayLocked = ovLockToggle.checked;
+    setLocked(ovLockToggle.checked);
     window.overlayAPI.saveSettings({ locked: overlayLocked });
 });
-
-// Show ranked toggle
 ovShowRankedToggle.addEventListener('change', () => {
-    const on = ovShowRankedToggle.checked;
-    ovToggle.style.display = on ? '' : 'none';
-    if (!on && panelOpen) togglePanel(false);
-    window.overlayAPI.saveSettings({ showRanked: on });
+    showButton(ovToggle, 'players', ovShowRankedToggle.checked);
+    window.overlayAPI.saveSettings({ showRanked: ovShowRankedToggle.checked });
 });
-
-// Show builds toggle
 ovShowBuildsToggle.addEventListener('change', () => {
-    const on = ovShowBuildsToggle.checked;
-    ovBuildToggle.style.display = on ? '' : 'none';
-    if (!on && buildPanelOpen) toggleBuildPanel(false);
-    window.overlayAPI.saveSettings({ showBuilds: on });
+    showButton(ovBuildToggle, 'build', ovShowBuildsToggle.checked);
+    window.overlayAPI.saveSettings({ showBuilds: ovShowBuildsToggle.checked });
 });
 
-// Settings pushed from main (when another window changes a config value)
+function setLocked(on) {
+    overlayLocked = !!on;
+    ovLockToggle.checked = overlayLocked;
+    ovRoot.classList.toggle('is-locked', overlayLocked);
+}
+
+function showButton(btn, panel, on) {
+    btn.hidden = !on;
+    if (!on && openPanel === panel) showPanel(panel);
+}
+
+// Settings changed in the app's Settings page.
 window.overlayAPI.onSettingsUpdate((s) => {
-    if (s.showRanked !== undefined) {
-        ovToggle.style.display = s.showRanked ? '' : 'none';
-        ovShowRankedToggle.checked = s.showRanked;
-    }
-    if (s.showBuilds !== undefined) {
-        ovBuildToggle.style.display = s.showBuilds ? '' : 'none';
-        ovShowBuildsToggle.checked = s.showBuilds;
-    }
-    if (s.locked !== undefined) {
-        overlayLocked = s.locked;
-        ovLockToggle.checked = s.locked;
-    }
+    if (s.showRanked !== undefined) { ovShowRankedToggle.checked = s.showRanked; showButton(ovToggle, 'players', s.showRanked); }
+    if (s.showBuilds !== undefined) { ovShowBuildsToggle.checked = s.showBuilds; showButton(ovBuildToggle, 'build', s.showBuilds); }
+    if (s.locked !== undefined) setLocked(s.locked);
 });
 
-// ── GEP: game events ──────────────────────────────────────────────────────────
+// ── Game events ───────────────────────────────────────────────────────────────
 window.overlayAPI.onGepGameEvent((data) => {
     if (!data?.feature) return;
     const k = data.key || data.feature;
-    if (k === 'kill')   { kills++;  }
-    if (k === 'death')  { deaths++; onDeath(); }
-    if (k === 'assist') { assists++; }
+    if (k === 'kill') kills++;
+    if (k === 'death') { deaths++; onDeath(); }
+    if (k === 'assist') assists++;
     updateBar();
 });
 
-// ── GEP: info updates ─────────────────────────────────────────────────────────
 window.overlayAPI.onGepInfoUpdate((data) => {
     if (!data?.feature) return;
-
     switch (data.feature) {
         case 'matchState': {
             if (data.key !== 'matchState') break;
-            const state = data.value;
-            if (state === 'InProgress') { startTimer(); }
-            else if (state === 'EndOfGame' || state === 'PreGame') resetAll();
+            if (data.value === 'InProgress') startTimer();
+            else if (data.value === 'EndOfGame' || data.value === 'PreGame') resetAll();
             break;
         }
-
         case 'live_client_data': {
-            switch (data.key) {
-                case 'game_data': {
-                    const gd = tryParse(data.value);
-                    if (gd?.gameTime) { gameTime = parseFloat(gd.gameTime); if (!timerTick) startTimer(); }
-                    if (gd?.gameMode && gd.gameMode !== myGameMode) {
-                        myGameMode = gd.gameMode;
-                        buildFetched = false;
-                        buildData = null;
-                    }
-                    break;
-                }
-                case 'active_player': {
-                    const ap = tryParse(data.value);
-                    if (ap) {
-                        myName = ap.riotIdGameName || ap.summonerName || myName;
-                        level  = ap.level ?? ap.championStats?.level ?? level;
-                        gold   = Math.floor(ap.currentGold ?? ap.championStats?.currentGold ?? gold);
-                        const cs_ = ap.creepScore ?? ap.scores?.creepScore;
-                        if (cs_ !== undefined) cs = cs_;
-                    }
-                    break;
-                }
-                case 'all_players': {
-                    const players = tryParse(data.value);
-                    if (Array.isArray(players)) {
-                        allPlayers = players;
-                        const me = players.find(p =>
-                            p.summonerName === myName || p.riotIdGameName === myName
-                        );
-                        if (me) {
-                            if (me.isDead === true  && !isDead) onDeath();
-                            if (me.isDead === false && isDead)  onRespawn();
-                            kills   = me.scores?.kills   ?? kills;
-                            deaths  = me.scores?.deaths  ?? deaths;
-                            assists = me.scores?.assists ?? assists;
-                            level   = me.level ?? level;
-                            cs      = me.scores?.creepScore ?? cs;
-                            const iconUrl = champIconUrl(me.rawChampionName, me.championName);
-                            if (ovChamp.src !== iconUrl) ovChamp.src = iconUrl;
-
-                            // Detect champion and position, kick off build fetch
-                            const key = champDDKey(me.rawChampionName, me.championName);
-                            const pos = me.position || me.role || null;
-                            if (pos && pos !== 'NONE' && pos !== myPosition) {
-                                myPosition = pos;
-                                buildFetched = false;
-                                buildData = null;
-                            }
-                            if (key && key !== myChampKey) {
-                                myChampKey = key;
-                                buildFetched = false;
-                                buildData = null;
-                            }
-                            if (!buildFetched && myChampKey) triggerBuildFetch();
-                        }
-
-                        // Auto-fetch ranked data as soon as we have players
-                        if (!rankedFetched && players.length > 0) {
-                            triggerRankedFetch();
-                        }
-
-                        if (panelOpen) renderRankedPanel();
-                    }
-                    break;
-                }
-            }
+            onLiveData(data.key, tryParse(data.value));
             updateBar();
             break;
         }
-
         case 'summoner_info': {
-            if (data.key === 'cs')    cs    = parseInt(data.value) || cs;
-            if (data.key === 'gold')  gold  = parseInt(data.value) || gold;
-            if (data.key === 'level') level = parseInt(data.value) || level;
+            if (data.key === 'cs') cs = parseInt(data.value, 10) || cs;
+            if (data.key === 'gold') gold = parseInt(data.value, 10) || gold;
+            if (data.key === 'level') level = parseInt(data.value, 10) || level;
             updateBar();
             break;
         }
     }
 });
+
+function onLiveData(key, value) {
+    if (!value) return;
+    if (key === 'game_data') {
+        if (value.gameTime) {
+            gameTime = Math.floor(parseFloat(value.gameTime));
+            if (!timerTick) startTimer();
+        }
+        if (value.gameMode && value.gameMode !== myGameMode) {
+            myGameMode = value.gameMode;
+            buildFetched = false;
+            buildData = null;
+        }
+    } else if (key === 'active_player') {
+        myName = value.riotIdGameName || value.summonerName || myName;
+        level = value.level ?? level;
+        gold = Math.floor(value.currentGold ?? gold);
+    } else if (key === 'all_players' && Array.isArray(value)) {
+        allPlayers = value;
+        const me = value.find(isMe);
+        if (me) {
+            if (me.isDead === true && !isDead) onDeath();
+            if (me.isDead === false && isDead) onRespawn();
+            kills = me.scores?.kills ?? kills;
+            deaths = me.scores?.deaths ?? deaths;
+            assists = me.scores?.assists ?? assists;
+            level = me.level ?? level;
+            cs = me.scores?.creepScore ?? cs;
+            const iconUrl = champIconUrl(me.rawChampionName, me.championName);
+            if (ovChamp.src !== iconUrl) ovChamp.src = iconUrl;
+            const champKey = champDDKey(me.rawChampionName, me.championName);
+            const pos = me.position && me.position !== 'NONE' ? me.position : null;
+            if (pos !== myPosition || champKey !== myChampKey) {
+                myPosition = pos;
+                myChampKey = champKey;
+                myChampName = me.championName || champKey;
+                buildFetched = false;
+                buildData = null;
+            }
+            if (!buildFetched && myChampKey && openPanel === 'build') triggerBuildFetch();
+        }
+        if (!rankedFetched && value.length) triggerRankedFetch();
+        if (openPanel === 'players') renderRankedPanel();
+        if (openPanel === 'build') renderBuildPanel();
+    }
+}
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 window.overlayAPI.onInit((initData) => {
@@ -654,26 +571,20 @@ window.overlayAPI.onInit((initData) => {
     if (initData?.champKeyMap) champKeyMap = initData.champKeyMap;
     if (initData?.itemNames) itemNames = initData.itemNames;
 
-    // Populate settings panel from saved config and apply opacity via CSS
     const opacity = typeof initData?.opacity === 'number' ? initData.opacity : 1.0;
     applyOpacity(opacity);
-    ovOpacitySlider.value    = Math.round(opacity * 100);
-    ovOpacityVal.textContent = Math.round(opacity * 100) + '%';
-
-    if (initData?.hotkey) {
-        const opt = ovHotkeySelect.querySelector(`option[value="${initData.hotkey}"]`);
-        if (opt) ovHotkeySelect.value = initData.hotkey;
+    ovOpacitySlider.value = Math.round(opacity * 100);
+    ovOpacityVal.textContent = `${Math.round(opacity * 100)}%`;
+    if (initData?.hotkey && [...ovHotkeySelect.options].some((o) => o.value === initData.hotkey)) {
+        ovHotkeySelect.value = initData.hotkey;
     }
-
-    overlayLocked = initData?.locked || false;
-    ovLockToggle.checked = overlayLocked;
-
+    setLocked(initData?.locked);
     const showRanked = initData?.showRanked !== false;
     const showBuilds = initData?.showBuilds !== false;
-    ovToggle.style.display      = showRanked ? '' : 'none';
-    ovBuildToggle.style.display = showBuilds ? '' : 'none';
-    ovShowRankedToggle.checked  = showRanked;
-    ovShowBuildsToggle.checked  = showBuilds;
+    ovShowRankedToggle.checked = showRanked;
+    ovShowBuildsToggle.checked = showBuilds;
+    showButton(ovToggle, 'players', showRanked);
+    showButton(ovBuildToggle, 'build', showBuilds);
 });
 
 updateBar();

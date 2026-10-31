@@ -60,13 +60,13 @@ function createMainWindow() {
 
 function createOverlayWindow(owOverlay, onReady = null) {
     const { width: sw } = screen.getPrimaryDisplay().workAreaSize;
-    const w = 480;
+    const w = 364; // .ov-root in overlay.css plus its padding; the page sets the height
     // The last place the player dragged it to, else the top right.
     const saved = Number.isInteger(state.config.overlayX) && Number.isInteger(state.config.overlayY);
     const opts = {
         name: 'overlay',
         width: w,
-        height: 52,
+        height: 62,
         x: saved ? state.config.overlayX : sw - w - 16,
         y: saved ? state.config.overlayY : 16,
         transparent: true,
@@ -139,7 +139,8 @@ function createOverlayWindow(owOverlay, onReady = null) {
         if (onReady) onReady();
     };
     const fallback = () => {
-        const fb = new BrowserWindow(opts);
+        // 'toolbar' keeps it out of Alt+Tab and the taskbar.
+        const fb = new BrowserWindow({ ...opts, type: 'toolbar' });
         fb.setAlwaysOnTop(true, 'screen-saver');
         done(fb, false);
     };
