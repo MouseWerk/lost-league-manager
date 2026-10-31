@@ -30,7 +30,12 @@
 .tag-chip i, .tag-suggestion i { font-size: 10px; opacity: 0.7; margin-right: 2px; }
 .tag-suggestions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .tag-suggestions[hidden] { display: none; }
-.card-tags { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
+/* The Riot ID gives way first; the tags stay readable. */
+.card-meta:has(.card-tag) { display: flex; align-items: center; gap: 8px; }
+.card-meta .card-username { min-width: 48px; overflow: hidden; text-overflow: ellipsis; }
+.card-tags { display: inline-flex; gap: 4px; flex-shrink: 0; }
+.card-tags:empty { display: none; }
+.account-card.is-selected .card-tag { background: var(--bg); }
 .card-tag {
     padding: 1px 7px;
     border-radius: var(--radius-pill);
@@ -167,6 +172,12 @@
 .fav-mark { color: var(--favourite); font-size: 11px; flex-shrink: 0; }
 .active-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
 .account-warning-badge { color: var(--warning); font-size: 12px; flex-shrink: 0; }
+.account-info-badge { color: var(--subtle); font-size: 12px; flex-shrink: 0; }
+.profile-status { display: flex; flex-direction: column; gap: 4px; padding: 0 2px; }
+.profile-status-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--warning); }
+.profile-status-row i { width: 14px; text-align: center; font-size: 12px; }
+.profile-status-row.is-urgent { color: var(--danger); font-weight: 600; }
+.profile-status-row.is-quiet { color: var(--muted); }
 .card-meta { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .card-region { justify-self: start; }

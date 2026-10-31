@@ -187,6 +187,7 @@ const {
   parseTags,
   tagCounts,
   hasTag,
+  statusWarnings,
   lobbyMemberLabel,
   normalizeLoginStatus,
   needsLaunchAttention,
@@ -357,6 +358,9 @@ function getFilteredSorted() {
       break;
     case "lastUsed":
       list.sort((a, b) => (b.lastUsed || 0) - (a.lastUsed || 0));
+      break;
+    case "lastPlayed":
+      list.sort((a, b) => (b.status?.lastPlayed || 0) - (a.status?.lastPlayed || 0));
       break;
     case "rank":
       // Tier, then division, then LP (rankScore in ui-lib.js); stable sort
@@ -2354,6 +2358,43 @@ function goalRankOptions() {
 }
 
 // LP and games since midnight, as far as the app has seen them.
+// ── Status warnings (decay, restriction, inactivity) ──────────────────────
+const WARNING_ICONS = { restriction: "fa-ban", decay: "fa-hourglass-half", inactive: "fa-moon" };
+
+function accountWarnings(account) {
+  return statusWarnings(account.status, getCachedStats(account)?.tier, Date.now());
+}
+
+function warningBadge(w) {
+  const cls = w.kind === "inactive" ? "account-info-badge" : "account-warning-badge";
+  return `<span class="${cls}" data-tooltip="${escapeHtml(w.text)}" aria-label="${escapeHtml(w.text)}"><i class="fas ${escapeHtml(WARNING_ICONS[w.kind])}" aria-hidden="true"></i></span>`;
+}
+
+// Panel: the warnings in words, and when the account last played.
+function renderStatus(acc) {
+  const wrap = document.getElementById("profileStatusWrap");
+  const list = document.getElementById("profileStatusList");
+  if (!wrap || !list) return;
+  const warnings = accountWarnings(acc);
+  const lastPlayed = acc.status?.lastPlayed;
+  list.textContent = "";
+  for (const w of warnings) {
+    const row = document.createElement("div");
+    row.className = `profile-status-row${w.urgent ? " is-urgent" : ""}`;
+    row.innerHTML = `<i class="fas ${escapeHtml(WARNING_ICONS[w.kind])}" aria-hidden="true"></i><span></span>`;
+    row.querySelector("span").textContent = w.text;
+    list.appendChild(row);
+  }
+  if (lastPlayed && !warnings.some((w) => w.kind === "inactive")) {
+    const row = document.createElement("div");
+    row.className = "profile-status-row is-quiet";
+    row.innerHTML = '<i class="fas fa-clock" aria-hidden="true"></i><span></span>';
+    row.querySelector("span").textContent = `Last played ${timeAgo(lastPlayed)}`;
+    list.appendChild(row);
+  }
+  wrap.hidden = list.childElementCount === 0;
+}
+
 function renderToday(history) {
   const wrap = document.getElementById("profileTodayWrap");
   const day = dailySummary(history);
@@ -2459,6 +2500,7 @@ async function selectAccount(username) {
   document.getElementById("profileRankHistoryWrap").style.display = "none";
   document.getElementById("profileTodayWrap").hidden = true;
   renderGoal(acc, []);
+  renderStatus(acc);
   if (acc.riotId) {
     window.electronAPI.getRankHistory(acc.riotId).then((history) => {
       if (_profileUsername !== username) return;
@@ -2566,6 +2608,7 @@ function createAccountCard(account) {
                 ${isActive ? '<span class="active-dot" data-tooltip="Signed in to the League client" aria-label="Signed in"></span>' : ""}
                 ${account.passwordOk === false ? '<span class="account-warning-badge" data-tooltip="Saved password could not be read (often after a Windows update). Click Edit and enter it again."><i class="fas fa-triangle-exclamation"></i></span>' : ""}
                 ${account.honorFlagged ? '<span class="account-warning-badge" data-tooltip="Honor level has dropped since it was last seen"><i class="fas fa-arrow-trend-down"></i></span>' : ""}
+                ${accountWarnings(account).map(warningBadge).join("")}
             </div>
             <div class="card-meta"><span class="card-username"></span><span class="card-tags"></span></div>
         </div>

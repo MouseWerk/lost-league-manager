@@ -201,6 +201,44 @@
     return parseTags(account && account.tags).some((t) => t.toLowerCase() === want);
   }
 
+  // ── Account status ─────────────────────────────────────────────────────────
+  const DAY_MS = 86400000;
+  // Decay banks when the client has not told us (other accounts): Diamond
+  // holds 28 days, Master and above 14. Only an estimate, shown as "about".
+  const DECAY_BANK_DAYS = { diamond: 28, master: 14, grandmaster: 14, challenger: 14 };
+  const INACTIVE_DAYS = 30;
+
+  // Warnings for an account row and panel, most urgent first:
+  // [{ kind: 'restriction'|'decay'|'inactive', text, urgent }].
+  // status is the record from account-status.js, tier the solo tier text.
+  function statusWarnings(status, tier, now) {
+    const out = [];
+    const s = status || {};
+    const days = (ms) => Math.floor(ms / DAY_MS);
+    const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+    if (s.restriction && s.restriction.gamesLeft > 0) {
+      out.push({ kind: "restriction", text: `Ranked restricted, ${plural(s.restriction.gamesLeft, "normal game")} left`, urgent: true });
+    }
+    const bank = DECAY_BANK_DAYS[String(tier || "").trim().toLowerCase().split(/\s+/)[0]];
+    if (s.decay && typeof s.decay.days === "number" && s.decay.checkedAt) {
+      // The bank only drains while the account does not play.
+      const played = s.lastPlayed && s.lastPlayed > s.decay.checkedAt;
+      const left = played ? null : Math.max(0, s.decay.days - days(now - s.decay.checkedAt));
+      if (left !== null && left <= 7) {
+        out.push({ kind: "decay", text: left === 0 ? "Decaying now" : `Decays in ${plural(left, "day")}`, urgent: left <= 3 });
+      }
+    } else if (bank && s.lastPlayed) {
+      const left = bank - days(now - s.lastPlayed);
+      if (left <= 7) {
+        out.push({ kind: "decay", text: left <= 0 ? "May be decaying" : `Decay in about ${plural(left, "day")}`, urgent: left <= 3 });
+      }
+    }
+    if (s.lastPlayed && days(now - s.lastPlayed) >= INACTIVE_DAYS) {
+      out.push({ kind: "inactive", text: `Not played for ${days(now - s.lastPlayed)} days`, urgent: false });
+    }
+    return out;
+  }
+
   // ── Live view ──────────────────────────────────────────────────────────────
   // Lobby members carry gameName/tagLine since the Riot ID migration; the old
   // summoner name fields are often empty.
@@ -264,6 +302,7 @@
     goalProgress,
     parseTags,
     tagCounts,
+    statusWarnings,
     hasTag,
     lobbyMemberLabel,
     normalizeLoginStatus,
