@@ -331,3 +331,38 @@ test('recording lastUsed keeps changes made while the launch checked the client'
     assert.ok(saved.find(a => a.username === 'alice').lastUsed > 0);
     launch.cancelLaunch();
 });
+
+// After the sign-in the Riot Client stayed on its home page: League is now
+// started through its API as soon as it reports a signed-in player.
+test('League is started through the Riot Client once the sign-in is done, not before', async (t) => {
+    setup();
+    let signedIn = false;
+    const launches = [];
+    const server = http.createServer((req, res) => {
+        if (req.url === '/rso-auth/v1/authorization') {
+            res.statusCode = signedIn ? 200 : 404;
+        } else if (req.method === 'POST' && req.url === '/product-launcher/v1/products/league_of_legends/patchlines/live') {
+            launches.push(req.headers.authorization);
+            res.statusCode = 204;
+        } else {
+            res.statusCode = 404;
+        }
+        res.end(res.statusCode === 204 ? '' : '{}');
+    });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    t.after(() => server.close());
+    const lockDir = path.join(process.env.LOCALAPPDATA, 'Riot Games', 'Riot Client', 'Config');
+    fs.mkdirSync(lockDir, { recursive: true });
+    fs.writeFileSync(path.join(lockDir, 'lockfile'), `Riot Client:1:${server.address().port}:secret:http`);
+    t.after(() => fs.rmSync(path.join(lockDir, 'lockfile'), { force: true }));
+
+    const script = await startUntilScript('alice');
+    script.print('Credentials submitted\r\n');
+    await new Promise(r => setTimeout(r, 1500));
+    assert.equal(launches.length, 0, 'nothing while a code or captcha may still be open');
+    signedIn = true;
+    await fx.waitFor(() => launches.length === 1, 'League started through the Riot Client', 4000);
+    assert.equal(launches[0], `Basic ${Buffer.from('riot:secret').toString('base64')}`);
+    assert.match(lastStatus().message, /Launching League/);
+    script.exit(0);
+});
