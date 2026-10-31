@@ -35,6 +35,13 @@ const SESSION_CHECK_INTERVAL_MS = 1000;
 
 const riotClientAgent = new https.Agent({ rejectUnauthorized: false });
 
+// After the sign-in, how often League is asked to start (when it has not come
+// up yet) and how long that is tried before login.ps1's own fallback is left.
+const LEAGUE_START_RETRY_MS = 12000;
+const LEAGUE_START_MAX_TRIES = 3;
+const LEAGUE_START_TIMEOUT_MS = 90000;
+const AUTH_POLL_MS = 1000;
+
 function send(channel, ...args) {
     if (state.mainWindow && !state.mainWindow.isDestroyed()) {
         state.mainWindow.webContents.send(channel, ...args);
@@ -191,27 +198,67 @@ function riotClientLockfilePath() {
     return path.join(localAppData, 'Riot Games', 'Riot Client', 'Config', 'lockfile');
 }
 
-// Asks the Riot Client's local API whether someone is signed in:
-// 'signed-in', 'signed-out', or 'unknown' when the client is not reachable.
-async function riotClientAuthState() {
+// A request to the Riot Client's local API (port and password from its
+// lockfile). Throws like axios; null when the client is not running.
+async function riotClientRequest(method, endpoint) {
     let parts;
     try {
         parts = fs.readFileSync(riotClientLockfilePath(), 'utf8').trim().split(':');
     } catch {
-        return 'unknown';
+        return null;
     }
     const [, , port, password, protocol] = parts;
-    if (!port || !password) return 'unknown';
+    if (!port || !password) return null;
     const scheme = protocol === 'http' ? 'http' : 'https';
+    return axios({
+        method,
+        url: `${scheme}://127.0.0.1:${port}${endpoint}`,
+        auth: { username: 'riot', password },
+        httpsAgent: riotClientAgent,
+        timeout: 3000,
+    });
+}
+
+// Asks the Riot Client's local API whether someone is signed in:
+// 'signed-in', 'signed-out', or 'unknown' when the client is not reachable.
+async function riotClientAuthState() {
     try {
-        await axios.get(`${scheme}://127.0.0.1:${port}/rso-auth/v1/authorization`, {
-            auth: { username: 'riot', password },
-            httpsAgent: riotClientAgent,
-            timeout: 3000,
-        });
-        return 'signed-in';
+        const res = await riotClientRequest('GET', '/rso-auth/v1/authorization');
+        return res ? 'signed-in' : 'unknown';
     } catch (e) {
         return e.response?.status === 404 ? 'signed-out' : 'unknown';
+    }
+}
+
+// Starts League the way the Riot Client's Play button does.
+async function riotClientStartLeague() {
+    try {
+        return !!(await riotClientRequest('POST', '/product-launcher/v1/products/league_of_legends/patchlines/live'));
+    } catch (e) {
+        console.log('[Launch] Riot Client did not start League:', e.response?.status || e.message);
+        return false;
+    }
+}
+
+// After the credentials are in, the Riot Client often stays on its home page
+// instead of starting League (its --launch-product start is unreliable once
+// the sign-in takes a moment). As soon as it reports a signed-in player, ask
+// it to start League, and again while League has not come up. Ends when
+// login.ps1 sees League (the script exits), on cancel, or after the timeout.
+// Nothing is asked before the sign-in finished, so a verification code or a
+// captcha is never interrupted.
+async function startLeagueAfterSignIn(launch) {
+    const deadline = Date.now() + LEAGUE_START_TIMEOUT_MS;
+    let tries = 0;
+    let lastTry = 0;
+    while (isCurrent(launch) && launch.child && Date.now() < deadline && tries < LEAGUE_START_MAX_TRIES) {
+        if (Date.now() - lastTry >= LEAGUE_START_RETRY_MS && await riotClientAuthState() === 'signed-in') {
+            if (!isCurrent(launch) || !launch.child) return;
+            lastTry = Date.now();
+            tries++;
+            if (await riotClientStartLeague()) status(launch, 'Launching League...', 88);
+        }
+        await sleep(AUTH_POLL_MS);
     }
 }
 
@@ -385,6 +432,10 @@ function startLoginScript(launch, account, password, riotClientPath, notBefore) 
             console.log('[Login Script]:', line);
             const step = statusForLine(line);
             if (step && step.progress >= launch.progress) status(launch, step.message, step.progress);
+            if (line.includes('Credentials submitted') && !launch.startingLeague) {
+                launch.startingLeague = true;
+                startLeagueAfterSignIn(launch).catch(e => console.log('[Launch] League start after sign-in:', e.message));
+            }
         }
     });
     child.stderr.on('data', (data) => {
@@ -560,6 +611,7 @@ module.exports = {
     isVaultLocked,
     riotClientFromInstallsJson,
     riotClientAuthState,
+    riotClientStartLeague,
     statusForLine,
     verifyLoggedInAccount,
     killProcessesCommand,
