@@ -31,6 +31,7 @@ const MAX_RANKED_RETRIES = 2;
 // on init. Covers champions whose key doesn't match a stripped display name
 // (Wukong→MonkeyKing, Cho'Gath→Chogath, Nunu & Willump→Nunu, etc.)
 let champKeyMap = {};
+let itemNames = {}; // item id -> name, for the build tooltips
 
 // Build data fetched from OP.GG
 let buildData = null;   // { champKey, starting:[], core:[], optional:[] }
@@ -330,7 +331,7 @@ function renderBuildPanel() {
 
 function buildRow(label, ids, isBoot) {
     const imgs = ids.map(id =>
-        `<img class="ov-build-item${isBoot ? ' ov-build-item--boot' : ''}" src="${itemIconUrl(id)}" data-tooltip="${id}" data-fallback="hide">`
+        `<img class="ov-build-item${isBoot ? ' ov-build-item--boot' : ''}" src="${escHtml(itemIconUrl(id))}" data-tooltip="${escHtml(itemNames[id] || id)}" data-fallback="hide">`
     ).join('');
     return `<div class="ov-build-row"><span class="ov-build-label">${label}</span><div class="ov-build-items">${imgs}</div></div>`;
 }
@@ -382,10 +383,10 @@ function buildTeamCol(players, isBlue) {
         const wr    = rd?.ratio || '—';
 
         html += `<div class="ov-rp-row${isMe ? ' is-me' : ''}${dead ? ' is-dead' : ''}">
-            <img class="ov-rp-icon" src="${icon}" data-fallback="logo">
-            <span class="ov-rp-name">${name}</span>
-            <span class="ov-rp-badge ${cls}">${abbr}</span>
-            <span class="ov-rp-wr">${wr}</span>
+            <img class="ov-rp-icon" src="${escHtml(icon)}" data-fallback="logo">
+            <span class="ov-rp-name">${escHtml(name)}</span>
+            <span class="ov-rp-badge ${cls}">${escHtml(abbr)}</span>
+            <span class="ov-rp-wr">${escHtml(wr)}</span>
             <span class="ov-rp-kda">${k}/${d}/${a}</span>
         </div>`;
     }
@@ -651,6 +652,7 @@ window.overlayAPI.onGepInfoUpdate((data) => {
 window.overlayAPI.onInit((initData) => {
     if (initData?.ddragonVersion) ddragonVersion = initData.ddragonVersion;
     if (initData?.champKeyMap) champKeyMap = initData.champKeyMap;
+    if (initData?.itemNames) itemNames = initData.itemNames;
 
     // Populate settings panel from saved config and apply opacity via CSS
     const opacity = typeof initData?.opacity === 'number' ? initData.opacity : 1.0;

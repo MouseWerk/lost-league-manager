@@ -101,6 +101,17 @@ async function soloRankForPlayer(p) {
     }
 }
 
+// The overlay page may only change these, with these values: the hotkey is
+// one of the choices it offers (any string used to be registered globally).
+const OVERLAY_HOTKEYS = ['Ctrl+Shift+H', 'Ctrl+Shift+X', 'Ctrl+Shift+O', 'F9', 'F10'];
+function cleanOverlaySettings(raw) {
+    const s = raw && typeof raw === 'object' ? raw : {};
+    const out = {};
+    if (OVERLAY_HOTKEYS.includes(s.hotkey)) out.hotkey = s.hotkey;
+    for (const k of ['locked', 'showRanked', 'showBuilds']) if (typeof s[k] === 'boolean') out[k] = s[k];
+    return out;
+}
+
 function register() {
     // ── Window controls ────────────────────────────────────────────────────────
     ipcMain.on('overlay-interactive', (_, on) => {
@@ -134,17 +145,16 @@ function register() {
     });
 
     // ── Opacity ────────────────────────────────────────────────────────────────
+    // The page applies it (CSS); the window's own opacity stays at 1.
     ipcMain.handle('overlay-set-opacity', (_, opacity) => {
         const val = Math.max(0.1, Math.min(1.0, Number(opacity) || 1.0));
-        if (state.overlayWindow && !state.overlayWindow.isDestroyed()) {
-            state.overlayWindow.setOpacity(val);
-        }
         state.config.overlayOpacity = val;
         saveConfig();
     });
 
     // ── Settings ───────────────────────────────────────────────────────────────
-    ipcMain.handle('overlay-save-settings', (_, settings) => {
+    ipcMain.handle('overlay-save-settings', (_, raw) => {
+        const settings = cleanOverlaySettings(raw);
         if (settings.hotkey !== undefined && settings.hotkey !== state.config.overlayHotkey) {
             try {
                 const { registerOverlayHotkey } = require('../overlay-hotkey');
@@ -170,6 +180,9 @@ function register() {
     });
 
     ipcMain.handle('overlay-reset-position', () => {
+        delete state.config.overlayX;
+        delete state.config.overlayY;
+        saveConfig();
         if (!state.overlayWindow || state.overlayWindow.isDestroyed()) return;
         const { width: sw } = screen.getPrimaryDisplay().workAreaSize;
         state.overlayWindow.setSize(480, 52);
@@ -310,4 +323,4 @@ function register() {
     });
 }
 
-module.exports = { register, soloRankForPlayer, formatLcuRanked };
+module.exports = { register, soloRankForPlayer, formatLcuRanked, cleanOverlaySettings, OVERLAY_HOTKEYS };

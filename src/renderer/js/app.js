@@ -1091,7 +1091,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     }
 
-    bindSettingToggle("overlayEnabledToggle", "overlayEnabled", true);
+    bindSettingToggle("overlayEnabledToggle", "overlayEnabled", false);
     bindSettingToggle("overlayShowRankedToggle", "overlayShowRanked", true);
     bindSettingToggle("overlayShowBuildsToggle", "overlayShowBuilds", true);
     bindSettingToggle(

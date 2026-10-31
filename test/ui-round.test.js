@@ -9,13 +9,16 @@ const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const app = fs.readFileSync(path.join(root, 'js', 'app.js'), 'utf8');
 const stats = fs.readFileSync(path.join(root, 'css', 'stats.css'), 'utf8');
 
-// The overlay is not built yet; its switches showed as on and could be changed.
-test('the game overlay settings cannot be changed while it is in development', () => {
+// 1.9: the overlay is finished; its settings work and it starts off.
+test('the game overlay settings can be used, and the overlay is off by default', () => {
     const section = html.slice(html.indexOf('id="settingsOverlay"'), html.indexOf('id="settingsAbout"'));
-    assert.match(section, /class="settings-section is-wip"/);
+    assert.doesNotMatch(section, /is-wip|In development/);
     const controls = [...section.matchAll(/<(input|button)\b[^>]*>/g)].map(m => m[0]);
     assert.equal(controls.length, 4);
-    for (const c of controls) assert.match(c, /\bdisabled\b/, c);
+    for (const c of controls) assert.doesNotMatch(c, /\bdisabled\b/, c);
+    assert.match(app, /bindSettingToggle\("overlayEnabledToggle", "overlayEnabled", false\)/);
+    const stateSrc = fs.readFileSync(path.join(__dirname, '..', 'src', 'main', 'state.js'), 'utf8');
+    assert.match(stateSrc, /overlayEnabled: false/);
 });
 
 // Without a client the Live view said "Idle", as if League were open.

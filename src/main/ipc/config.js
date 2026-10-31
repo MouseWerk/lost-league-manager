@@ -137,6 +137,13 @@ function register() {
             }
         }
 
+        // Switched on: create the window (and hotkey); off: remove both.
+        if (state.config.overlayEnabled !== prev.overlayEnabled) {
+            const manager = require('../overlay-manager');
+            if (state.config.overlayEnabled) manager.ensureOverlay();
+            else manager.destroyOverlay();
+        }
+
         if (state.config.startWithWindows !== prev.startWithWindows) {
             app.setLoginItemSettings({ openAtLogin: !!state.config.startWithWindows });
         }
