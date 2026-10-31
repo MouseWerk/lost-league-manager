@@ -81,7 +81,10 @@
                             </select>
                             <button id="addAccountBtn" class="primary-btn add-account-btn"><i class="fas fa-plus" aria-hidden="true"></i> Add account</button>
                         </div>
-                        <div id="regionFilters" class="region-filters" role="group" aria-label="Filter by server"></div>
+                        <div class="list-filters">
+                            <div id="regionFilters" class="region-filters" role="group" aria-label="Filter by server"></div>
+                            <div id="tagFilters" class="region-filters tag-filters" role="group" aria-label="Filter by tag" hidden></div>
+                        </div>
                         <div id="accountsList" class="accounts-list">
                             <!-- Account rows injected here -->
                         </div>
@@ -811,6 +814,11 @@
                         </label>
 
                         <div class="acct-section-title spaced">Display</div>
+                        <div class="form-group">
+                            <label for="newTags">Tags <span class="field-hint">comma-separated, for example Main, Duo</span></label>
+                            <input type="text" id="newTags" maxlength="400" placeholder="Main, Duo" autocomplete="off">
+                            <div id="tagSuggestions" class="tag-suggestions" hidden></div>
+                        </div>
                         <div class="form-group">
                             <label for="newGoalRank">Goal rank <span class="field-hint">progress shows beside the account</span></label>
                             <!-- Options come from goalRankOptions() in app.js -->

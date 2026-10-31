@@ -233,3 +233,15 @@ test('the goal rank is saved with the account and capped in length', async () =>
     await invoke('update-account', { username: 'goal-test', goalRank: 'x'.repeat(100) });
     assert.equal(readJson('accounts.json').find(a => a.username === 'goal-test').goalRank, 'DIAMOND IV');
 });
+
+test('tags are cleaned up before they are stored', async () => {
+    await invoke('add-account', { username: 'tag-test', password: 'pw', tags: '  Main ,duo,  DUO, ,Smurf   one  ' });
+    const stored = () => readJson('accounts.json').find(a => a.username === 'tag-test').tags;
+    assert.equal(stored(), 'Main, duo, Smurf one');
+    await invoke('update-account', { username: 'tag-test', tags: Array.from({ length: 12 }, (_, i) => `t${i}`).join(',') });
+    assert.equal(stored().split(', ').length, 8);
+    await invoke('update-account', { username: 'tag-test', tags: 'x'.repeat(40) });
+    assert.equal(stored(), 'x'.repeat(24));
+    await invoke('update-account', { username: 'tag-test', tags: 7 });
+    assert.equal(stored(), 'x'.repeat(24));
+});

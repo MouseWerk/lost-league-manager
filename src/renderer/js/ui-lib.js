@@ -173,6 +173,34 @@
     return { goal, current, left: Math.max(0, goal - current), pct, reached: current >= goal };
   }
 
+  // ── Tags ───────────────────────────────────────────────────────────────────
+  // An account's tags are one comma-separated string; the main process
+  // normalizes it (accounts.js), this only splits it.
+  function parseTags(text) {
+    return String(text || "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }
+
+  // Every tag in use, with how many accounts carry it, sorted by name.
+  function tagCounts(accounts) {
+    const counts = new Map();
+    for (const a of accounts || []) {
+      for (const t of parseTags(a.tags)) {
+        const key = t.toLowerCase();
+        const cur = counts.get(key);
+        counts.set(key, { tag: cur ? cur.tag : t, count: (cur ? cur.count : 0) + 1 });
+      }
+    }
+    return [...counts.values()].sort((a, b) => a.tag.localeCompare(b.tag));
+  }
+
+  function hasTag(account, tag) {
+    const want = String(tag || "").toLowerCase();
+    return parseTags(account && account.tags).some((t) => t.toLowerCase() === want);
+  }
+
   // ── Live view ──────────────────────────────────────────────────────────────
   // Lobby members carry gameName/tagLine since the Riot ID migration; the old
   // summoner name fields are often empty.
@@ -234,6 +262,9 @@
     ladderScore,
     dailySummary,
     goalProgress,
+    parseTags,
+    tagCounts,
+    hasTag,
     lobbyMemberLabel,
     normalizeLoginStatus,
     needsLaunchAttention,

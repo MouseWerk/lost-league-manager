@@ -184,6 +184,9 @@ const {
   sparklinePoints,
   dailySummary,
   goalProgress,
+  parseTags,
+  tagCounts,
+  hasTag,
   lobbyMemberLabel,
   normalizeLoginStatus,
   needsLaunchAttention,
@@ -328,6 +331,7 @@ function getFilteredSorted() {
   if (currentRegion) {
     list = list.filter((a) => (a.region || "").toLowerCase() === currentRegion);
   }
+  if (currentTag) list = list.filter((a) => hasTag(a, currentTag));
   if (currentQuery) {
     const q = currentQuery.toLowerCase();
     list = list.filter(
@@ -335,7 +339,8 @@ function getFilteredSorted() {
         (a.label || "").toLowerCase().includes(q) ||
         a.username.toLowerCase().includes(q) ||
         (a.riotId || "").toLowerCase().includes(q) ||
-        (a.region || "").toLowerCase().includes(q),
+        (a.region || "").toLowerCase().includes(q) ||
+        (a.tags || "").toLowerCase().includes(q),
     );
   }
   switch (currentSort) {
@@ -968,6 +973,8 @@ function dismissPatchNotesModal(version) {
 document.addEventListener("DOMContentLoaded", async () => {
   initDragAndDrop();
   initRegionFilters();
+  initTagFilters();
+  initTagSuggestions();
   initAccountDetail();
   initTooltips();
 
@@ -2081,6 +2088,7 @@ function renderAccounts() {
   const countEl = document.getElementById("accountCount");
   if (countEl) countEl.textContent = allAccounts.length;
   renderRegionFilters();
+  renderTagFilters();
   renderAccountsSummary();
 
   const filtered = getFilteredSorted();
@@ -2559,7 +2567,7 @@ function createAccountCard(account) {
                 ${account.passwordOk === false ? '<span class="account-warning-badge" data-tooltip="Saved password could not be read (often after a Windows update). Click Edit and enter it again."><i class="fas fa-triangle-exclamation"></i></span>' : ""}
                 ${account.honorFlagged ? '<span class="account-warning-badge" data-tooltip="Honor level has dropped since it was last seen"><i class="fas fa-arrow-trend-down"></i></span>' : ""}
             </div>
-            <div class="card-meta"><span class="card-username"></span></div>
+            <div class="card-meta"><span class="card-username"></span><span class="card-tags"></span></div>
         </div>
         <span class="region-badge card-region"></span>
         <div class="rank card-rank"></div>
@@ -2578,6 +2586,13 @@ function createAccountCard(account) {
   const label = account.label || account.username;
   card.querySelector(".card-label").textContent = label;
   card.querySelector(".card-username").textContent = account.riotId || account.username;
+  const tagsEl = card.querySelector(".card-tags");
+  for (const t of parseTags(account.tags).slice(0, 2)) {
+    const chip = document.createElement("span");
+    chip.className = "card-tag";
+    chip.textContent = t;
+    tagsEl.appendChild(chip);
+  }
   const regionEl = card.querySelector(".card-region");
   if (region) regionEl.textContent = region;
   else regionEl.remove();
@@ -2617,6 +2632,7 @@ function createAccountCard(account) {
 
 // ── Server filter, summary, selected account ────────────────────────────────
 let currentRegion = ""; // "" = every server
+let currentTag = ""; // "" = no tag filter
 
 function renderRegionFilters() {
   const el = document.getElementById("regionFilters");
@@ -2646,6 +2662,55 @@ function initRegionFilters() {
     currentRegion = chip.dataset.region || "";
     renderAccounts();
   });
+}
+
+// Tag chips beside the server chips; hidden while no account has a tag.
+function renderTagFilters() {
+  const el = document.getElementById("tagFilters");
+  if (!el) return;
+  const tags = tagCounts(allAccounts);
+  if (currentTag && !tags.some((t) => t.tag.toLowerCase() === currentTag)) currentTag = "";
+  el.hidden = tags.length === 0;
+  el.innerHTML = tags
+    .map(({ tag, count }) => {
+      const on = tag.toLowerCase() === currentTag;
+      return `<button class="region-chip tag-chip${on ? " active" : ""}" data-tag="${escapeHtml(tag.toLowerCase())}" aria-pressed="${on}"><i class="fas fa-tag" aria-hidden="true"></i> ${escapeHtml(tag)} ${count}</button>`;
+    })
+    .join("");
+}
+
+function initTagFilters() {
+  document.getElementById("tagFilters")?.addEventListener("click", (e) => {
+    const chip = e.target.closest(".tag-chip");
+    if (!chip) return;
+    // A second click on the active tag clears the filter.
+    currentTag = chip.dataset.tag === currentTag ? "" : chip.dataset.tag;
+    renderAccounts();
+  });
+}
+
+// Tags other accounts use, as chips under the form field; a click adds one.
+function renderTagSuggestions() {
+  const el = document.getElementById("tagSuggestions");
+  const input = document.getElementById("newTags");
+  if (!el || !input) return;
+  const have = new Set(parseTags(input.value).map((t) => t.toLowerCase()));
+  const tags = tagCounts(allAccounts).filter((t) => !have.has(t.tag.toLowerCase()));
+  el.hidden = tags.length === 0;
+  el.innerHTML = tags
+    .map(({ tag }) => `<button type="button" class="region-chip tag-suggestion" data-tag="${escapeHtml(tag)}"><i class="fas fa-plus" aria-hidden="true"></i> ${escapeHtml(tag)}</button>`)
+    .join("");
+}
+
+function initTagSuggestions() {
+  const input = document.getElementById("newTags");
+  document.getElementById("tagSuggestions")?.addEventListener("click", (e) => {
+    const chip = e.target.closest(".tag-suggestion");
+    if (!chip || !input) return;
+    input.value = [...parseTags(input.value), chip.dataset.tag].join(", ");
+    renderTagSuggestions();
+  });
+  input?.addEventListener("input", renderTagSuggestions);
 }
 
 function renderAccountsSummary() {
@@ -2796,7 +2861,7 @@ function initAccountDetail() {
 let _dragUsername = null;
 
 function canReorder() {
-  return currentSort === "default" && !currentQuery && !currentRegion;
+  return currentSort === "default" && !currentQuery && !currentRegion && !currentTag;
 }
 
 function endDrag() {
@@ -2953,6 +3018,7 @@ function openModal(account = null) {
       account.isFavourite || false;
     document.getElementById("newCustomRank").value = account.customRank || "";
     document.getElementById("newGoalRank").value = account.goalRank || "";
+    document.getElementById("newTags").value = account.tags || "";
     document.getElementById("newCustomAvatar").value =
       account.customAvatar || "";
 
@@ -2976,6 +3042,7 @@ function openModal(account = null) {
     document.getElementById("isFavouriteToggle").checked = false;
     document.getElementById("newCustomRank").value = "";
     document.getElementById("newGoalRank").value = "";
+    document.getElementById("newTags").value = "";
     document.getElementById("newCustomAvatar").value = "";
 
     document.getElementById("newUsername").disabled = false;
@@ -2985,6 +3052,7 @@ function openModal(account = null) {
     if (lastRegion) document.getElementById("newRegion").value = lastRegion;
   }
 
+  renderTagSuggestions();
   document.getElementById("passwordKeepHint").style.display = isEditing
     ? ""
     : "none";
@@ -3385,6 +3453,7 @@ async function saveAccountForm() {
     isFavourite: document.getElementById("isFavouriteToggle").checked,
     customRank: document.getElementById("newCustomRank").value.trim(),
     goalRank: document.getElementById("newGoalRank").value,
+    tags: document.getElementById("newTags").value,
     customAvatar: document.getElementById("newCustomAvatar").value.trim(),
   };
 

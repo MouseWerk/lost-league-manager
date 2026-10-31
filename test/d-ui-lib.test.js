@@ -144,3 +144,20 @@ test('retry countdown rounds up to whole seconds', () => {
     assert.equal(lib.secondsUntil(1001), 2);
     assert.equal(lib.secondsUntil(0), 1);
 });
+
+test('parseTags splits the stored tag string', () => {
+    assert.deepEqual(lib.parseTags('Main, Duo ,, Smurf'), ['Main', 'Duo', 'Smurf']);
+    assert.deepEqual(lib.parseTags(''), []);
+    assert.deepEqual(lib.parseTags(undefined), []);
+});
+
+test('tagCounts counts tags across accounts, ignoring case', () => {
+    const accounts = [{ tags: 'Main, Duo' }, { tags: 'duo' }, { tags: '' }, {}];
+    assert.deepEqual(lib.tagCounts(accounts), [{ tag: 'Duo', count: 2 }, { tag: 'Main', count: 1 }]);
+});
+
+test('hasTag matches a tag regardless of case', () => {
+    assert.equal(lib.hasTag({ tags: 'Main, Duo' }, 'duo'), true);
+    assert.equal(lib.hasTag({ tags: 'Main' }, 'mai'), false);
+    assert.equal(lib.hasTag({}, 'main'), false);
+});
