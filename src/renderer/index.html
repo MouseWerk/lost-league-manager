@@ -178,6 +178,7 @@
                                 <div class="profile-rank-history-header">
                                     <span class="profile-rank-history-label">Rank history</span>
                                     <span id="profileRankHistoryRange" class="profile-rank-history-range"></span>
+                                    <button id="profileSeasonBtn" type="button" class="link-btn">Season review</button>
                                 </div>
                                 <svg id="profileRankSparkline" class="profile-rank-sparkline" viewBox="0 0 300 48" preserveAspectRatio="none"></svg>
                             </div>
@@ -1029,6 +1030,18 @@
 
     <!-- Account Profile Modal -->
     <!-- Patch Notes Modal (shown once on first launch after an update) -->
+    <!-- One account's season. Filled by openSeasonReview() in app.js. -->
+    <div id="seasonModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="seasonTitle">
+        <div class="modal-content season-content">
+            <button id="closeSeasonBtn" class="modal-close-x" data-tooltip="Close" aria-label="Close"><i class="fas fa-times"></i></button>
+            <div class="games-head">
+                <h2 id="seasonTitle">Season</h2>
+                <span id="seasonAccount" class="games-account"></span>
+            </div>
+            <div id="seasonBody" class="season-body"></div>
+        </div>
+    </div>
+
     <!-- Games of one account. Filled by openGamesDialog() in app.js. -->
     <div id="gamesModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="gamesTitle">
         <div class="modal-content games-content">

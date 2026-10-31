@@ -341,6 +341,7 @@
 .profile-rank-record { margin-left: auto; }
 
 /* Today: LP and games since midnight */
+.profile-rank-history-header .link-btn { margin-left: auto; }
 .profile-today { display: flex; align-items: baseline; gap: 10px; padding: 0 2px; font-size: 13px; }
 .profile-today-label { color: var(--muted); }
 .profile-today-lp { font-family: var(--font-display); font-weight: 700; font-size: 15px; }

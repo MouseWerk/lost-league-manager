@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onUnknownAccount: (callback) => ipcRenderer.on('unknown-account-signed-in', (event, data) => callback(data)),
     onRiotIdChanged: (callback) => ipcRenderer.on('riot-id-changed', (event, data) => callback(data)),
     getSession: () => ipcRenderer.invoke('get-session'),
+    getSeasonReview: (region, riotId) => ipcRenderer.invoke('get-season-review', { region, riotId }),
     getAllRankHistory: () => ipcRenderer.invoke('get-all-rank-history'),
     getStoredMatches: (riotId) => ipcRenderer.invoke('get-stored-matches', riotId),
     getMatchDetail: (region, riotId, matchId) => ipcRenderer.invoke('get-match-detail', { region, riotId, matchId }),
