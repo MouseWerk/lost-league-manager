@@ -24,6 +24,7 @@ function isLeagueClientPath(v) {
 // are refused here.
 const ALLOWED_CONFIG_KEYS = {
     autoAccept:            v => typeof v === 'boolean',
+    autoImportBuild:       v => typeof v === 'boolean',
     checkUpdatesOnStartup: v => typeof v === 'boolean',
     discordRpcEnabled:     v => typeof v === 'boolean',
     lastSeenPatchNotesVersion: v => typeof v === 'string' && v.length <= 64,

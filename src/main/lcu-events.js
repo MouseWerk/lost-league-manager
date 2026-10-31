@@ -259,8 +259,11 @@ async function onEvent(event) {
                 // Auto champ lock is intentionally not implemented: instant-locking
                 // through the LCU API is not permitted under the Riot ToS.
                 if (state.currentAccount?.autoSkinRandom) await rollRandomSkin(event.data);
+                const imported = await require('./ipc/champ-build').autoImportOnLock(event.data);
+                if (imported) send(state.mainWindow, 'build-imported', imported);
             } else if (event.eventType === 'Delete') {
                 skinRolledFor = null;
+                require('./ipc/champ-build').resetAutoImport();
                 send(state.mainWindow, 'champ-select-end');
             }
         }

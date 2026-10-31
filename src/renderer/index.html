@@ -309,6 +309,31 @@
                             </div>
                         </div>
 
+                        <!-- Champ select: OP.GG runes and items for the picked champion. Filled by loadChampBuild() in app.js. -->
+                        <div id="ovBuild" class="ov-build" hidden>
+                            <div class="ov-build-head">
+                                <img id="ovBuildIcon" class="ov-build-icon" alt="">
+                                <div class="ov-build-heading">
+                                    <div id="ovBuildTitle" class="ov-build-title"></div>
+                                    <div id="ovBuildSub" class="ov-build-sub"></div>
+                                </div>
+                                <div id="ovBuildPositions" class="scale-btns ov-build-positions" role="group" aria-label="Position">
+                                    <button class="scale-btn" data-position="top">Top</button>
+                                    <button class="scale-btn" data-position="jungle">Jungle</button>
+                                    <button class="scale-btn" data-position="mid">Mid</button>
+                                    <button class="scale-btn" data-position="adc">Bot</button>
+                                    <button class="scale-btn" data-position="support">Support</button>
+                                </div>
+                            </div>
+                            <div id="ovBuildRunes" class="ov-build-runes"></div>
+                            <div id="ovBuildItems" class="ov-build-items"></div>
+                            <div class="ov-build-actions">
+                                <span id="ovBuildNote" class="ov-build-note"></span>
+                                <button id="ovImportRunes" type="button" class="secondary-btn">Import runes</button>
+                                <button id="ovImportItems" type="button" class="secondary-btn">Import item set</button>
+                            </div>
+                        </div>
+
                         <!-- Lobby check: ranks of the players whose names the game shows. -->
                         <div id="ovPlayers" class="ov-players" hidden>
                             <div class="ov-players-head">
@@ -519,6 +544,16 @@
                         <section id="settingsAutomation" class="settings-section">
                             <h2 class="settings-section-title">Automation</h2>
                             <p class="desc">What the app does in the League client for you.</p>
+                            <div class="setting-row">
+                                <div class="setting-row-info">
+                                    <h3>Import runes and items</h3>
+                                    <p>When you lock in a champion, adds the OP.GG rune page and item set to the client. Your own rune pages are never replaced.</p>
+                                </div>
+                                <label class="setting-switch">
+                                    <input type="checkbox" id="autoImportBuildToggle" aria-label="Import runes and items when you lock in">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
                             <div class="setting-row">
                                 <div class="setting-row-info">
                                     <h3>Auto-accept matches</h3>
