@@ -128,7 +128,7 @@ test('every border radius comes from the radius tokens', () => {
 });
 
 test('buttons, fields, tabs and chips use the control height scale', () => {
-    const CONTROL = /(btn|button|input|select|search|chip|-tab\b|\.ov-tab|\.stats-tab|nav-link|about-link|form-control|close|clear|region-chip|scale-btn|gameflow-badge|honor-badge|member-chip|update-pill|champ-search-back|champ-search-clear-sel|champ-picker-btn)/;
+    const CONTROL = /(btn|button|input|select|search|chip|-tab\b|\.ov-tab|\.stats-tab|nav-link|about-link|form-control|close|clear|region-chip|scale-btn|gameflow-badge|honor-badge|member-chip|update-pill)/;
     const NOT_CONTROL = /(-icon|img|logo|spinner|ring|skeleton|thumb|track|fill|preview|dot|checkbox|switch|slider|::(before|after))/;
     const offenders = APP_RULES
         .filter(r => CONTROL.test(r.selector) && !NOT_CONTROL.test(r.selector.replace(/\.icon-btn/g, '')))

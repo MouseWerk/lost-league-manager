@@ -245,3 +245,17 @@ test('tags are cleaned up before they are stored', async () => {
     await invoke('update-account', { username: 'tag-test', tags: 7 });
     assert.equal(stored(), 'x'.repeat(24));
 });
+
+test('deleting the last account with a Riot ID forgets its games and rank history', async () => {
+    const matches = require('../src/main/services/matches');
+    const { getRankHistory, recordRankSnapshot } = require('../src/main/services/rank-history');
+    await invoke('add-account', { username: 'one', password: 'pw', riotId: 'Shared#EUW' });
+    await invoke('add-account', { username: 'two', password: 'pw', riotId: 'Shared#EUW' });
+    matches.mergeMatches('Shared#EUW', [{ id: 'm1', createdAt: 1, champion: 'Ahri' }]);
+    recordRankSnapshot('Shared#EUW', 'GOLD', 'II', 50, 'lcu');
+    await invoke('delete-account', 'one');
+    assert.equal(matches.getStoredMatches('Shared#EUW').length, 1, 'another account still uses it');
+    await invoke('delete-account', 'two');
+    assert.equal(matches.getStoredMatches('Shared#EUW').length, 0);
+    assert.deepEqual(getRankHistory('Shared#EUW'), []);
+});

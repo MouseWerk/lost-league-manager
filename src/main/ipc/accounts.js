@@ -38,7 +38,6 @@ const ACCOUNT_FIELDS = {
     notes:            { type: 'string',  def: '', max: 5000 },
     appearOffline:    { type: 'boolean', def: false },
     autoSkinRandom:   { type: 'boolean', def: false },
-    autoChampLock:    { type: 'string',  def: '', max: 100 },
     minimizeOnLaunch: { type: 'boolean', def: false },
     isFavourite:      { type: 'boolean', def: false },
     customRank:       { type: 'string',  def: '', max: 100 },
@@ -195,6 +194,13 @@ function register() {
             // Re-adding the same username later must not inherit an old honor flag.
             forgetHonor(removed.username);
             forgetStatus(removed.username);
+            // Games and rank history are kept per Riot ID; drop them with the
+            // last account that has it.
+            const riotId = (removed.riotId || '').trim().toLowerCase();
+            if (riotId && !accounts.some(a => (a.riotId || '').trim().toLowerCase() === riotId)) {
+                require('../services/matches').forgetMatches(riotId);
+                require('../services/rank-history').forgetRankHistory(riotId);
+            }
             if (sameUser(state.currentAccount?.username, removed.username)) state.currentAccount = null;
         } catch (e) {
             return errorResult(e);

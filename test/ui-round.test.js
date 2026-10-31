@@ -86,3 +86,15 @@ test('accounts cannot be reordered while a tag filter is on', () => {
     assert.match(app, /function canReorder\(\) \{\s*return [^;]*!currentTag;/);
     assert.match(app, /if \(currentTag\) list = list\.filter\(\(a\) => hasTag\(a, currentTag\)\)/);
 });
+
+// The overlay ships as a beta: off until switched on, and labelled so.
+test('the game overlay is marked Beta and off by default', () => {
+    const section = html.slice(html.indexOf('id="settingsOverlay"'), html.indexOf('id="settingsAbout"'));
+    assert.match(section, /<span class="wip-badge">Beta<\/span>/);
+    assert.doesNotMatch(section, /Ctrl\+Shift\+H;/, 'no fixed key named as the only one');
+});
+
+test('an Overview row clears the list filters before it opens the account', () => {
+    const fn = app.slice(app.indexOf('A row opens that account'), app.indexOf('selectAccount(row.dataset.username)'));
+    assert.match(fn, /currentRegion = "";[\s\S]*currentTag = "";[\s\S]*currentQuery = "";/);
+});
