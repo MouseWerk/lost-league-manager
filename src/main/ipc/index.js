@@ -7,6 +7,7 @@ const config         = require('./config');
 const updater        = require('./updater');
 const lolData        = require('./lol-data');
 const lobbyCheck     = require('./lobby-check');
+const champBuild     = require('./champ-build');
 
 function registerAll() {
     accounts.register();
@@ -18,6 +19,7 @@ function registerAll() {
     updater.register();
     lolData.register();
     lobbyCheck.register();
+    champBuild.register();
 }
 
 module.exports = { registerAll };

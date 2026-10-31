@@ -314,6 +314,72 @@ async function getRecentMatches(gameName, tagLine, region, limit = 5) {
     });
 }
 
+// ── Champion builds (champ select import) ──────────────────────────────────
+
+const BUILD_POSITIONS = ['top', 'jungle', 'mid', 'adc', 'support'];
+const ids = (v) => (Array.isArray(v) ? v.filter((n) => Number.isInteger(n) && n > 0) : []);
+const firstIds = (list) => (Array.isArray(list) && list[0] ? ids(list[0].ids) : []);
+
+// The most played runes and items for a champion, from OP.GG's statistics.
+// champKey is the DDragon key ("MonkeyKing"); position one of BUILD_POSITIONS
+// or null for the champion's main position; mode 'ranked' or 'aram'.
+async function getChampionBuild(champKey, position, mode = 'ranked') {
+    const champion = String(champKey || '').toUpperCase();
+    if (!/^[A-Z]+$/.test(champion)) throw new Error('Unknown champion');
+    const gameMode = mode === 'aram' ? 'aram' : 'ranked';
+    let pos = BUILD_POSITIONS.includes(position) ? position : null;
+    if (!pos && gameMode === 'aram') pos = 'mid'; // ARAM has one build per champion
+    if (!pos) {
+        const main = await cached(`build-pos:${champion}`, () => callTool('lol_get_champion_analysis', {
+            game_mode: 'ranked', champion, position: 'mid',
+            desired_output_fields: ['data.summary.positions[].name'],
+        }));
+        const name = String(main?.data?.summary?.positions?.[0]?.name || 'MID').toLowerCase();
+        pos = BUILD_POSITIONS.includes(name) ? name : 'mid';
+    }
+    return cached(`build:${gameMode}:${champion}:${pos}`, async () => {
+        const parsed = await callTool('lol_get_champion_analysis', {
+            game_mode: gameMode, champion, position: pos,
+            desired_output_fields: [
+                'data.runes.{primary_page_id,primary_page_name,primary_rune_ids[],primary_rune_names[],secondary_page_id,secondary_page_name,secondary_rune_ids[],secondary_rune_names[],stat_mod_ids[],play,win}',
+                'data.starter_items.{ids[]}',
+                'data.boots.{ids[]}',
+                'data.core_items.{ids[]}',
+                'data.fourth_items[].{ids[]}',
+                'data.fifth_items[].{ids[]}',
+                'data.sixth_items[].{ids[]}',
+                'data.skill_masteries.{ids[]}',
+            ],
+        });
+        const d = parsed?.data || {};
+        const r = d.runes || {};
+        const perks = [...ids(r.primary_rune_ids), ...ids(r.secondary_rune_ids), ...ids(r.stat_mod_ids)];
+        // A full page is four primary, two secondary and three stat shards.
+        const runes = Number.isInteger(r.primary_page_id) && Number.isInteger(r.secondary_page_id) && perks.length === 9
+            ? {
+                primaryStyleId: r.primary_page_id,
+                subStyleId: r.secondary_page_id,
+                perkIds: perks,
+                primaryName: typeof r.primary_page_name === 'string' ? r.primary_page_name : '',
+                secondaryName: typeof r.secondary_page_name === 'string' ? r.secondary_page_name : '',
+                names: [...(r.primary_rune_names || []), ...(r.secondary_rune_names || [])].filter((n) => typeof n === 'string'),
+                games: Number.isInteger(r.play) ? r.play : 0,
+                winRate: r.play ? Math.round((r.win / r.play) * 1000) / 10 : null,
+            }
+            : null;
+        const late = [...new Set([...firstIds(d.fourth_items), ...firstIds(d.fifth_items), ...firstIds(d.sixth_items)])];
+        const items = {
+            starter: ids(d.starter_items?.ids),
+            boots: ids(d.boots?.ids),
+            core: ids(d.core_items?.ids),
+            late,
+        };
+        const skills = (Array.isArray(d.skill_masteries?.ids) ? d.skill_masteries.ids : []).filter((s) => /^[QWER]$/.test(s));
+        if (!runes && !items.core.length) throw new Error('OP.GG has no build for this champion yet');
+        return { champion: champKey, position: pos, mode: gameMode, runes, items, skills };
+    });
+}
+
 // Both teams of one game (the games dialog), by the id and start time that
 // lol_list_summoner_matches returned.
 async function getGameDetail(gameName, tagLine, region, gameId, createdAtIso) {
@@ -341,7 +407,7 @@ async function getGameDetail(gameName, tagLine, region, gameId, createdAtIso) {
 }
 
 module.exports = {
-    getProfile, getRecentMatches, getGameDetail, parseRiotIdInput, toOpggRegion, parseToolText,
+    getProfile, getRecentMatches, getGameDetail, getChampionBuild, BUILD_POSITIONS, parseRiotIdInput, toOpggRegion, parseToolText,
     // Clears the cache and the busy cooldown between tests.
     _resetForTests() {
         cache.clear();

@@ -269,3 +269,21 @@
 .match-item-icon.empty { display: inline-block; }
 .match-right { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; color: var(--muted); font-size: 12px; text-align: right; }
 .match-queue { color: var(--ink); font-weight: 500; }
+
+/* Champ select build (OP.GG runes and items) */
+.ov-build { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: var(--radius-lg); background: var(--surface); }
+.ov-build[hidden] { display: none; }
+.ov-build-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ov-build-icon { width: 44px; height: 44px; border-radius: var(--radius); object-fit: cover; }
+.ov-build-heading { flex: 1; min-width: 120px; }
+.ov-build-title { font-family: var(--font-display); font-weight: 700; font-size: 17px; }
+.ov-build-sub { color: var(--muted); font-size: 13px; }
+.ov-build-positions[hidden] { display: none; }
+.ov-build-label { color: var(--muted); font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.ov-build-rune-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.ov-build-rune { padding: 3px 9px; border-radius: var(--radius-pill); background: var(--bg); font-size: 13px; }
+.ov-build-items { display: flex; flex-wrap: wrap; gap: 14px; }
+.ov-build-item-row { display: flex; gap: 4px; }
+.ov-build-item-row .match-item-icon { width: 32px; height: 32px; }
+.ov-build-actions { display: flex; align-items: center; gap: 8px; }
+.ov-build-note { flex: 1; color: var(--muted); font-size: 13px; }

@@ -986,6 +986,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initTagSuggestions();
   initGamesDialog();
   initOverview();
+  initChampBuild();
   initAccountDetail();
   initTooltips();
 
@@ -1106,6 +1107,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       true,
     );
     bindSettingToggle("toastOnQueuePopToggle", "toastOnQueuePop", true);
+    bindSettingToggle("autoImportBuildToggle", "autoImportBuild", false);
     bindSettingToggle("discordRpcEnabledToggle", "discordRpcEnabled", true);
 
     // UI Scale — only apply if non-default; let ow-electron manage native DPI at 1.0
@@ -1246,6 +1248,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.electronAPI.onLcuGameflow(handleGameflowEvent);
   // Champion select changes (a player joins, swaps): refresh the lobby check.
   window.electronAPI.onChampSelectUpdate?.((session) => {
+    const me = (session?.myTeam || []).find((m) => m.cellId === session?.localPlayerCellId);
+    const champ = me?.championId || me?.championPickIntent || 0;
+    if (champ !== _buildChampion && currentView === "liveView") {
+      _buildChampion = champ;
+      _buildPosition = null;
+      clearTimeout(_buildTimer);
+      _buildTimer = setTimeout(loadChampBuild, 600);
+    }
     const key = (session?.myTeam || []).map((m) => `${m.cellId}:${m.puuid || ""}`).join(",");
     if (key !== _lobbyCheckTeamKey && currentView === "liveView") {
       _lobbyCheckTeamKey = key;
@@ -4196,6 +4206,112 @@ let _lobbyCheckTimer = null;
 let _lobbyCheckTeamKey = "";
 let _lobbyCheckRetries = 0;
 
+// ── Champ select build (OP.GG runes and items) ────────────────────────────
+let _buildChampion = 0;
+let _buildPosition = null; // a position the player chose over the assigned one
+let _buildTimer = null;
+let _buildGen = 0;
+
+function hideChampBuild() {
+  clearTimeout(_buildTimer);
+  _buildChampion = 0;
+  _buildPosition = null;
+  document.getElementById("ovBuild").hidden = true;
+}
+
+async function loadChampBuild() {
+  const gen = ++_buildGen;
+  const res = await window.electronAPI.getChampBuild(_buildPosition).catch(() => null);
+  if (gen !== _buildGen) return;
+  if (!res?.success) {
+    // Outside champ select or before a hover there is nothing to show.
+    if (!res?.waiting) return hideChampBuild();
+    document.getElementById("ovBuild").hidden = true;
+    return;
+  }
+  renderChampBuild(res);
+}
+
+function renderChampBuild(res) {
+  const b = res.build;
+  const el = document.getElementById("ovBuild");
+  const icon = document.getElementById("ovBuildIcon");
+  icon.src = res.icon || "assets/logo.png";
+  document.getElementById("ovBuildTitle").textContent = res.champion;
+  const where = b.mode === "aram" ? "ARAM" : { top: "Top", jungle: "Jungle", mid: "Mid", adc: "Bot", support: "Support" }[b.position] || "";
+  document.getElementById("ovBuildSub").textContent = [where, b.runes?.winRate != null ? `${b.runes.winRate}% win rate` : "", "OP.GG"].filter(Boolean).join(", ");
+  document.querySelectorAll("#ovBuildPositions .scale-btn").forEach((btn) => {
+    const on = btn.dataset.position === b.position;
+    btn.classList.toggle("active", on);
+    btn.setAttribute("aria-pressed", String(on));
+  });
+  document.getElementById("ovBuildPositions").hidden = b.mode === "aram";
+
+  const runes = document.getElementById("ovBuildRunes");
+  runes.textContent = "";
+  if (b.runes) {
+    const head = document.createElement("div");
+    head.className = "ov-build-label";
+    head.textContent = `Runes: ${b.runes.primaryName || "Primary"} and ${b.runes.secondaryName || "secondary"}`;
+    const list = document.createElement("div");
+    list.className = "ov-build-rune-list";
+    for (const name of b.runes.names) {
+      const chip = document.createElement("span");
+      chip.className = "ov-build-rune";
+      chip.textContent = name;
+      list.appendChild(chip);
+    }
+    runes.append(head, list);
+  }
+
+  const items = document.getElementById("ovBuildItems");
+  const group = (label, ids) =>
+    ids.length
+      ? `<div class="ov-build-group"><div class="ov-build-label">${escapeHtml(label)}</div><div class="ov-build-item-row">${itemIcons(ids, res.version)}</div></div>`
+      : "";
+  items.innerHTML =
+    group("Start", b.items.starter) + group("Boots", b.items.boots) + group("Core", b.items.core) + group("Later", b.items.late);
+  document.getElementById("ovBuildNote").textContent = b.skills.length ? `Skill order ${b.skills.join(" > ")}` : "";
+  document.getElementById("ovImportRunes").disabled = !b.runes;
+  el.hidden = false;
+}
+
+async function importChampBuild(what) {
+  const btn = document.getElementById(what === "runes" ? "ovImportRunes" : "ovImportItems");
+  btn.disabled = true;
+  try {
+    let res = await window.electronAPI.importChampBuild({ what, position: _buildPosition });
+    if (res?.runes?.needsConfirm) {
+      const ok = await showConfirm("Replace the current rune page?", "All your rune pages are in use. The page you have selected now is replaced by the OP.GG runes.", "warning", "Replace");
+      if (!ok) return;
+      res = await window.electronAPI.importChampBuild({ what, position: _buildPosition, replaceCurrent: true });
+    }
+    const part = what === "runes" ? res?.runes : res?.items;
+    if (part?.success) showToast(`${what === "runes" ? "Rune page" : "Item set"} "${part.name}" added to the client`, "success");
+    else showToast(part?.message || res?.message || "Import failed", "error");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function initChampBuild() {
+  document.getElementById("ovImportRunes")?.addEventListener("click", () => importChampBuild("runes"));
+  document.getElementById("ovImportItems")?.addEventListener("click", () => importChampBuild("items"));
+  document.getElementById("ovBuildPositions")?.addEventListener("click", (e) => {
+    const btn = e.target.closest(".scale-btn");
+    if (!btn) return;
+    _buildPosition = btn.dataset.position;
+    loadChampBuild();
+  });
+  window.electronAPI.onChampSelectEnd?.(hideChampBuild);
+  window.electronAPI.onBuildImported?.((r) => {
+    if (r.error) return showToast(`No build for ${r.champion}: ${r.error}`, "error");
+    const done = [r.runes?.success && "runes", r.items?.success && "item set"].filter(Boolean);
+    if (done.length) showToast(`Imported ${done.join(" and ")} for ${r.champion}`, "success");
+    if (r.runes?.needsConfirm) showToast("All rune pages are in use: open Live to replace the current page.", "info");
+  });
+}
+
 function hideLobbyCheck() {
   clearTimeout(_lobbyCheckTimer);
   _lobbyCheck = null;
@@ -4557,6 +4673,8 @@ async function loadLiveView() {
   }
   if (LOBBY_CHECK_PHASES.includes(phase)) loadLobbyCheck();
   else hideLobbyCheck();
+  if (phase === "ChampSelect") loadChampBuild();
+  else hideChampBuild();
 
   // ── Champion mastery ───────────────────────────────────────────────────────
   const masteryEl = document.getElementById("ovMastery");
