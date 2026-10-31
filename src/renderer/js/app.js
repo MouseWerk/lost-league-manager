@@ -1093,12 +1093,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     // UI Scale — only apply if non-default; let ow-electron manage native DPI at 1.0
     const savedScale = config.uiScale ?? 1.0;
     if (savedScale !== 1.0) applyUiScale(savedScale);
-    document.querySelectorAll(".scale-btn").forEach((btn) => {
+    document.querySelectorAll("#scaleBtns .scale-btn").forEach((btn) => {
       const s = parseFloat(btn.dataset.scale);
       btn.classList.toggle("active", s === savedScale);
       btn.setAttribute("aria-pressed", String(s === savedScale));
       btn.addEventListener("click", async () => {
-        document.querySelectorAll(".scale-btn").forEach((b) => {
+        document.querySelectorAll("#scaleBtns .scale-btn").forEach((b) => {
           b.classList.toggle("active", b === btn);
           b.setAttribute("aria-pressed", String(b === btn));
         });
@@ -1108,6 +1108,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     initThemeSettings(config);
+    initDensitySettings(config);
     initSettingsNav();
 
     // Vault settings
@@ -1552,6 +1553,39 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     });
 });
+
+// ── Layout density (Settings > Appearance) ──────────────────────────────
+// "roomy" swaps the control and row sizes in tokens.css for the larger ones of 1.7.
+function applyDensity(density) {
+  document.documentElement.dataset.density = density === "roomy" ? "roomy" : "compact";
+}
+
+function initDensitySettings(config) {
+  let current = config.density === "roomy" ? "roomy" : "compact";
+  const btns = document.querySelectorAll("#densityBtns .scale-btn");
+  const render = () =>
+    btns.forEach((b) => {
+      b.classList.toggle("active", b.dataset.density === current);
+      b.setAttribute("aria-pressed", String(b.dataset.density === current));
+    });
+  applyDensity(current);
+  render();
+  btns.forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      const previous = current;
+      current = btn.dataset.density;
+      applyDensity(current);
+      render();
+      const res = await window.electronAPI.setConfig({ density: current });
+      if (res && res.success === false) {
+        current = previous;
+        applyDensity(current);
+        render();
+        showToast(res.message || "Could not change the layout", "error");
+      }
+    }),
+  );
+}
 
 function applyUiScale(scale) {
   window.electronAPI.setZoomFactor(scale);

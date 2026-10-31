@@ -37,6 +37,7 @@ const state = {
         overlayLocked: false,
         uiScale: 1.0,
         theme: 'system', // 'system' follows Windows; 'light' / 'dark' force one
+        density: 'compact', // 'roomy' gives the larger controls of 1.7
         startWithWindows: false,
         startMinimized: false,
         minimizeOnGameStart: false,

@@ -92,6 +92,17 @@ test('uiScale must be a finite value in range', async () => {
     assert.equal(state.config.uiScale, 1.25);
 });
 
+// The roomy layout keeps the larger controls of 1.7 for those who prefer them.
+test('the layout density is compact or roomy', async () => {
+    for (const bad of ['huge', '', 1, null]) {
+        const res = await invoke('set-config', { density: bad });
+        assert.equal(res.success, false, String(bad));
+    }
+    assert.equal((await invoke('set-config', { density: 'roomy' })).success, true);
+    assert.equal(state.config.density, 'roomy');
+    assert.equal((await invoke('set-config', { density: 'compact' })).success, true);
+});
+
 test('lolPath must point to an existing LeagueClient.exe', async () => {
     const before = state.config.lolPath;
     const exe = path.join(userData, 'cmd.exe');

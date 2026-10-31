@@ -628,3 +628,146 @@ select option { background: var(--surface-raised); color: var(--ink); }
         scroll-behavior: auto !important;
     }
 }
+
+/* ── Roomy layout (Settings > Appearance > Layout) ───────────────────────── */
+/* The larger controls, rows and text of 1.7. Heights still come from the
+   control tokens; only their values grow. */
+:root[data-density="roomy"] {
+    --control-xs: 32px;
+    --control-sm: 40px;
+    --control: 46px;
+    --control-lg: 52px;
+}
+:root[data-density="roomy"] body { font-size: 15px; }
+:root[data-density="roomy"] .primary-btn,
+:root[data-density="roomy"] .secondary-btn,
+:root[data-density="roomy"] .action-btn,
+:root[data-density="roomy"] .danger-btn { padding: 0 22px; font-size: 15px; gap: 10px; }
+:root[data-density="roomy"] .icon-btn { font-size: 16px; }
+:root[data-density="roomy"] .form-control,
+:root[data-density="roomy"] .search-input { font-size: 15px; }
+:root[data-density="roomy"] .topbar { height: 68px; gap: 26px; }
+:root[data-density="roomy"] .nav-links { gap: 4px; }
+:root[data-density="roomy"] .nav-btn { padding: 0 16px; gap: 9px; font-size: 15px; }
+:root[data-density="roomy"] .accounts-list { gap: 6px; }
+:root[data-density="roomy"] .account-card {
+    grid-template-columns: 50px minmax(0, 1fr) auto 190px 92px 40px;
+    column-gap: 16px;
+    padding: 16px 18px;
+}
+:root[data-density="roomy"] .summoner-icon-container,
+:root[data-density="roomy"] .summoner-icon { width: 50px; height: 50px; }
+:root[data-density="roomy"] .card-rank { font-size: 14px; }
+:root[data-density="roomy"] .card-emblem { width: 40px; height: 40px; }
+:root[data-density="roomy"] .profile-play { height: var(--control-lg); font-size: 16px; }
+/* Copy buttons share the first row, OP.GG, Edit and Delete the second, so the
+   larger buttons do not wrap unevenly. */
+:root[data-density="roomy"] .profile-secondary-actions { gap: 8px; }
+:root[data-density="roomy"] .profile-secondary-actions .secondary-btn { flex: 1 1 30%; padding: 0 10px; font-size: 14px; }
+:root[data-density="roomy"] .profile-secondary-actions #profileCopyUserBtn,
+:root[data-density="roomy"] .profile-secondary-actions #profileCopyPassBtn { flex-basis: 40%; }
+:root[data-density="roomy"] .setting-row { padding: 18px 0; }
+:root[data-density="roomy"] .setting-row-info p { font-size: 14px; }
+
+/* Shell and every view */
+:root[data-density="roomy"] .view { padding: 30px 32px 26px; }
+:root[data-density="roomy"] .view-title { font-size: 32px; }
+:root[data-density="roomy"] .view-sub { font-size: 15px; }
+:root[data-density="roomy"] .auto-accept-control { font-size: 14px; }
+
+/* Live */
+:root[data-density="roomy"] .gameflow-badge,
+:root[data-density="roomy"] .honor-badge,
+:root[data-density="roomy"] .ov-tab { font-size: 14px; }
+:root[data-density="roomy"] .ov-tab { padding: 0 18px; }
+:root[data-density="roomy"] .summoner-banner { padding: 22px 24px; }
+:root[data-density="roomy"] .summoner-banner-name { font-size: 25px; }
+:root[data-density="roomy"] .summoner-banner-rank { font-size: 17px; }
+:root[data-density="roomy"] .ov-ranked-card,
+:root[data-density="roomy"] .ov-context,
+:root[data-density="roomy"] .ov-players { padding: 20px 22px; }
+:root[data-density="roomy"] .ov-ranked-emblem { width: 72px; height: 72px; }
+:root[data-density="roomy"] .ov-ranked-tier { font-size: 21px; }
+:root[data-density="roomy"] .ov-ranked-lp { font-size: 15px; }
+:root[data-density="roomy"] .ov-ranked-record,
+:root[data-density="roomy"] .ov-ctx-sub,
+:root[data-density="roomy"] .ov-players-note,
+:root[data-density="roomy"] .ov-players-sub { font-size: 14px; }
+:root[data-density="roomy"] .ov-ctx-title,
+:root[data-density="roomy"] .ov-players-title { font-size: 16px; }
+:root[data-density="roomy"] .ov-player {
+    grid-template-columns: 36px minmax(0, 1fr) minmax(0, auto) 72px;
+    column-gap: 14px;
+    padding: 8px 14px 8px 8px;
+}
+:root[data-density="roomy"] .ov-player-emblem { width: 36px; height: 36px; }
+:root[data-density="roomy"] .ov-player-name,
+:root[data-density="roomy"] .ov-player-rank { font-size: 15px; }
+:root[data-density="roomy"] .ov-player-sub,
+:root[data-density="roomy"] .ov-player-wr { font-size: 13px; }
+:root[data-density="roomy"] .mastery-grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+:root[data-density="roomy"] .mastery-card { padding: 16px 12px 14px; }
+:root[data-density="roomy"] .mastery-champ-icon { width: 64px; height: 64px; }
+:root[data-density="roomy"] .mastery-champ-name { font-size: 14px; }
+:root[data-density="roomy"] .match-item {
+    grid-template-columns: 50px 58px minmax(0, 1fr) auto;
+    gap: 16px;
+    padding: 14px 18px 14px 14px;
+}
+:root[data-density="roomy"] .match-champ-icon { width: 50px; height: 50px; }
+:root[data-density="roomy"] .match-kda { font-size: 16px; }
+:root[data-density="roomy"] .match-sub,
+:root[data-density="roomy"] .match-right { font-size: 13px; }
+:root[data-density="roomy"] .match-item-icon { width: 26px; height: 26px; }
+
+/* Stat viewer */
+:root[data-density="roomy"] .stats-tab { padding: 0 18px; font-size: 15px; }
+:root[data-density="roomy"] .stats-sidebar { width: 292px; padding: 16px; }
+:root[data-density="roomy"] .stats-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+:root[data-density="roomy"] .stats-grid-item { padding: 10px 4px; }
+:root[data-density="roomy"] .stats-grid-item img { width: 52px; height: 52px; }
+:root[data-density="roomy"] .stats-grid-item span { max-width: 80px; font-size: 12px; }
+:root[data-density="roomy"] .stats-detail { padding: 26px 28px; }
+:root[data-density="roomy"] .champ-detail-icon,
+:root[data-density="roomy"] .item-detail-icon { width: 80px; height: 80px; }
+:root[data-density="roomy"] .level-slider-row { padding: 16px 20px; }
+:root[data-density="roomy"] .stat-cards-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+:root[data-density="roomy"] .stat-card { padding: 16px 18px; }
+:root[data-density="roomy"] .stat-card-label { font-size: 13px; }
+:root[data-density="roomy"] .stat-card-value { font-size: 20px; }
+:root[data-density="roomy"] .info-bar-label,
+:root[data-density="roomy"] .item-stat-row,
+:root[data-density="roomy"] .item-description { font-size: 14px; }
+:root[data-density="roomy"] .item-stat-row { padding: 10px 14px; }
+:root[data-density="roomy"] .efficiency-block { padding: 18px 20px; }
+
+/* Settings and Tools */
+:root[data-density="roomy"] .settings-nav { width: 250px; }
+:root[data-density="roomy"] .settings-nav-link { padding: 11px 14px; font-size: 15px; }
+:root[data-density="roomy"] .settings-section { padding: 26px 28px 10px; }
+:root[data-density="roomy"] .setting-row-info h3,
+:root[data-density="roomy"] .setting-row-info h4 { font-size: 15px; }
+:root[data-density="roomy"] .scale-btn,
+:root[data-density="roomy"] .about-link { padding: 0 16px; font-size: 14px; }
+:root[data-density="roomy"] .setting-card { padding: 24px 26px; }
+:root[data-density="roomy"] .setting-icon { width: 46px; height: 46px; font-size: 18px; }
+:root[data-density="roomy"] .setting-info h3 { font-size: 19px; }
+:root[data-density="roomy"] .setting-info .desc { font-size: 14px; }
+
+/* Dialogs */
+:root[data-density="roomy"] .modal-content { width: 520px; padding: 28px; }
+:root[data-density="roomy"] .modal-content h2 { font-size: 21px; }
+:root[data-density="roomy"] .onboarding-content { width: 580px; }
+:root[data-density="roomy"] .confirm-content,
+:root[data-density="roomy"] .launch-content { width: 440px; }
+:root[data-density="roomy"] .form-dialog-content { width: 470px; }
+:root[data-density="roomy"] .patch-notes-content { width: 520px; }
+:root[data-density="roomy"] .patch-notes-item-body,
+:root[data-density="roomy"] .launch-acc-meta,
+:root[data-density="roomy"] .update-status-row { font-size: 14px; }
+:root[data-density="roomy"] .update-card { width: 350px; padding: 20px; }
+:root[data-density="roomy"] .vault-lock-content { width: 380px; }
+:root[data-density="roomy"] .retry-launch-btn,
+:root[data-density="roomy"] .cancel-launch-btn,
+:root[data-density="roomy"] .vault-lock-btn { padding: 0 22px; font-size: 15px; }
+:root[data-density="roomy"] .vault-lock-input { font-size: 15px; }

@@ -27,6 +27,7 @@ const ALLOWED_CONFIG_KEYS = {
     checkUpdatesOnStartup: v => typeof v === 'boolean',
     discordRpcEnabled:     v => typeof v === 'boolean',
     lastSeenPatchNotesVersion: v => typeof v === 'string' && v.length <= 64,
+    density:               v => DENSITIES.includes(v),
     // Launch and repair start or delete files next to this path.
     lolPath:               isLeagueClientPath,
     minimizeOnGameStart:   v => typeof v === 'boolean',
@@ -65,6 +66,8 @@ function pushOverlaySettings() {
 }
 
 const THEMES = ['system', 'light', 'dark'];
+// 'roomy' brings back the larger controls and rows of 1.7.
+const DENSITIES = ['compact', 'roomy'];
 
 // The renderer's prefers-color-scheme follows nativeTheme.themeSource, in
 // every window, so this one call switches the whole app.
