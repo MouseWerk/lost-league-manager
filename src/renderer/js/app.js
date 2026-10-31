@@ -4476,8 +4476,45 @@ function stopLiveTimers() {
   _gameTimerInterval = null;
 }
 
+// ── Today's session ─────────────────────────────────────────────────────────
+let _sessionHintShownFor = 0; // newest game the break toast was shown for
+
+async function loadSession() {
+  const card = document.getElementById("sessionCard");
+  const s = await window.electronAPI.getSession().catch(() => null);
+  if (!s?.connected || s.locked || !s.games?.length) {
+    card.hidden = true;
+    return;
+  }
+  document.getElementById("sessionGames").textContent = plural(s.games.length, "game");
+  document.getElementById("sessionRecord").textContent = `${s.wins}W ${s.losses}L${s.streak && s.streak.count > 1 ? `, ${s.streak.count} ${s.streak.win ? "wins" : "losses"} in a row` : ""}`;
+  const lpEl = document.getElementById("sessionLp");
+  lpEl.textContent = s.lp == null ? "" : `${s.lp > 0 ? "+" : ""}${s.lp} LP`;
+  lpEl.className = `session-lp${s.lp > 0 ? " is-up" : s.lp < 0 ? " is-down" : ""}`;
+  const version = s.version || "";
+  document.getElementById("sessionStrip").innerHTML = [...s.games]
+    .reverse()
+    .map((g) => {
+      const tip = `${g.win ? "Win" : "Loss"}, ${g.champion || "?"}, ${g.queue}`;
+      const img = g.champion && version ? `<img src="https://ddragon.leagueoflegends.com/cdn/${escapeHtml(version)}/img/champion/${escapeHtml(g.champion)}.png" alt="">` : "";
+      return `<span class="session-dot ${g.win ? "is-win" : "is-loss"}" data-tooltip="${escapeHtml(tip)}">${img}</span>`;
+    })
+    .join("");
+  const hint = document.getElementById("sessionHint");
+  hint.hidden = !s.pauseHint;
+  hint.textContent = s.pauseHint ? `${s.streak.count} losses in a row. A short break before the next game often helps.` : "";
+  card.hidden = false;
+  // Once per new loss streak game, also as a message (the window may be hidden).
+  if (s.pauseHint && s.games[0].ts !== _sessionHintShownFor) {
+    _sessionHintShownFor = s.games[0].ts;
+    showToast(hint.textContent, "info");
+  }
+}
+
 function handleGameflowEvent(phase) {
   _gameflowSeq++;
+  // The game's result shows up in the client's history shortly after it ends.
+  if (phase === "EndOfGame" || (phase === "None" && _lastGameflowPhase === "EndOfGame")) setTimeout(loadSession, 4000);
   _lastGameflowPhase = phase;
   updateGameflowBadge(phase);
   updateContextButtons(phase);
@@ -4498,6 +4535,7 @@ function handleGameflowEvent(phase) {
 }
 
 async function loadLiveView() {
+  loadSession();
   const gen = ++_liveGen;
   const seqAtStart = _gameflowSeq;
   let data;
