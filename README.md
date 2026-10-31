@@ -16,6 +16,9 @@
     <img src="https://img.shields.io/github/actions/workflow/status/MouseWerk/lost-league-manager/release.yml?style=for-the-badge&label=Build" alt="Build status">
   </a>
   <img src="https://img.shields.io/badge/platform-Windows-172234?style=for-the-badge" alt="Windows">
+  <a href="https://discord.gg/ZyfUMWTPFe">
+    <img src="https://img.shields.io/badge/Discord-Join%20the%20server-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Official Discord server">
+  </a>
   <br><br>
   <a href="https://www.buymeacoffee.com/mousewerk">
     <img src="https://img.shields.io/badge/Buy%20me%20a%20coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy me a coffee">
@@ -101,6 +104,13 @@
 
 > **During the login** the app types your login name and password into the Riot Client. Leave
 > mouse and keyboard alone for those few seconds.
+
+---
+
+## Community and help
+
+Questions, bug reports or ideas: join the **[official Discord server](https://discord.gg/ZyfUMWTPFe)**
+or open an issue here on GitHub. The website is **[lostleague.com](https://www.lostleague.com/)**.
 
 ---
 
