@@ -37,10 +37,15 @@
 - **Ranks at a glance.** Every account shows its solo rank with the ranked emblem from the League
   client, LP and win rate. Ranks work without a Riot API key (League client, OP.GG, or the Riot API
   if you add a key).
-- **Account panel.** Rank history, the last five games, notes, today's LP and games, and a goal
-  rank with the LP still to go.
-- **Find and sort.** Search by name or Riot ID, filter by server, sort by rank, name, server, or
-  last played, or drag accounts into your own order.
+- **Account panel.** Rank history, recent games, notes, today's LP and games, and a goal rank with
+  the LP still to go. Open any game to see both teams, items, CS and damage, and a champion table
+  with win rate, KDA and CS per minute.
+- **Warnings.** Ranked decay ("Decays in 3 days"), a ranked restriction with the games left, and
+  accounts you have not played for a while.
+- **Overview.** The week of all your accounts: ranked games, win rate, LP, a 30-day rank chart and
+  each account's goal.
+- **Find and sort.** Search by name, Riot ID or tag, filter by server or tag (Main, Duo, Smurf, ...),
+  sort by rank, name, server, recently used or last played, or drag accounts into your own order.
 - **Safe storage.** Passwords are encrypted on your PC. An optional vault password locks the app,
   and backups are protected with a password you choose.
 
@@ -49,6 +54,11 @@
 - **Lobby check.** The ranks of your party, of your champion select where the game shows names,
   and of all ten players once the game starts, with one click to OP.GG multi-search. Ranked
   champion select keeps names hidden, as the game does.
+- **Runes and items.** The OP.GG runes, items and skill order for your champion in champion
+  select, imported into the client with one click or automatically when you lock in.
+- **In-game overlay (beta).** On the loading screen and while you hold Tab: both teams with rank,
+  win rate and tags such as One-trick or New on champ. In the game: your score, team gold and
+  objectives, timers for taken objectives, and your build. Off until you switch it on.
 - **Auto-accept**, a random owned skin in champion select, appear offline, dodge, and a
   notification when a match is found.
 
@@ -60,7 +70,8 @@
   cache, change the client language.
 
 ### The app
-- Light and dark themes, or follow Windows. Interface size from 75% to 150%.
+- Light and dark themes, or follow Windows. Interface size from 75% to 150%, and a Roomy layout
+  with larger buttons and rows.
 - A short setup on first start, automatic updates, tray menu and Windows jump list.
 
 <div align="center">

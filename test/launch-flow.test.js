@@ -366,3 +366,10 @@ test('League is started through the Riot Client once the sign-in is done, not be
     await fx.waitFor(() => /Launching League/.test(lastStatus()?.message || ''), 'the Launching League status');
     script.exit(0);
 });
+
+test('an account that is already signed in still counts as used', async () => {
+    setup({ lcuConnected: true, session: { username: 'alice' } });
+    const res = await launch.executeAccountLaunch('alice');
+    assert.equal(res.success, true);
+    assert.ok(fx.readAccounts().find((a) => a.username === 'alice').lastUsed > 0);
+});

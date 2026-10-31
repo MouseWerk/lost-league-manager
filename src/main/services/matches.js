@@ -190,8 +190,16 @@ function mergeMatches(riotId, matches) {
     return list;
 }
 
+function forgetMatches(riotId) {
+    const key = storeKey(riotId);
+    const data = loadStore();
+    if (!key || !(key in data)) return;
+    delete data[key];
+    saveStore(data);
+}
+
 function getStoredMatches(riotId) {
     return loadStore()[storeKey(riotId)] || [];
 }
 
-module.exports = { fromRiotMatch, fromOpggGame, fromOpggDetail, mergeMatches, getStoredMatches, MAX_STORED, RIOT_QUEUES, OPGG_QUEUES };
+module.exports = { fromRiotMatch, fromOpggGame, fromOpggDetail, mergeMatches, getStoredMatches, forgetMatches, MAX_STORED, RIOT_QUEUES, OPGG_QUEUES };

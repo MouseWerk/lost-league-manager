@@ -135,4 +135,13 @@ function parseRecord(winLose) {
     return m ? { wins: Number(m[1]), losses: Number(m[2]) } : null;
 }
 
-module.exports = { recordRankSnapshot, getRankHistory, getRankHistories, rankScore, parseRecord };
+// Called when the last account with this Riot ID is deleted.
+function forgetRankHistory(riotId) {
+    const key = riotIdKey(riotId);
+    const all = loadRankHistory();
+    if (!key || !(key in all)) return;
+    delete all[key];
+    saveRankHistory(all);
+}
+
+module.exports = { recordRankSnapshot, getRankHistory, getRankHistories, forgetRankHistory, rankScore, parseRecord };

@@ -490,6 +490,12 @@ async function executeAccountLaunch(username, opts = {}) {
             ]);
             if (!isCurrent(launch)) return CANCELLED;
             if (sameUsername(session?.username, account.username)) {
+                updateAccounts((fresh) => {
+                    const current = fresh.find(a => sameUsername(a.username, account.username));
+                    if (!current) return false;
+                    current.lastUsed = Date.now();
+                });
+                broadcastAccountsUpdate();
                 send('launch-account-info', accountMeta(account));
                 succeed(launch, 'Already logged in!');
                 return { success: true };

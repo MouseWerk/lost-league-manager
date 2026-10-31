@@ -2,8 +2,6 @@
 let isEditing = false;
 let currentView = "accountsView";
 let previousView = "accountsView";
-let selectedChampion = null; // { id, name, key, iconUrl } | null
-let currentAutoLockName = ""; // raw saved name, used as fallback before list loads
 let champListCache = null; // loaded once, reused
 let isLaunching = false;
 let lastLaunchedUsername = null;
@@ -77,8 +75,8 @@ const PATCH_NOTES = {
     },
     {
       icon: "fas fa-window-maximize",
-      title: "In-game overlay",
-      body: "Switch it on in Settings > Game overlay: your score, all ten ranks and your build over the game.",
+      title: "In-game overlay (beta)",
+      body: "Switch it on in Settings > Game overlay: your score, both teams with ranks and tags on the loading screen and on Tab, game stats, objective timers and your OP.GG build over the game.",
     },
     {
       icon: "fas fa-up-right-and-down-left-from-center",
@@ -1365,8 +1363,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   // Listen for external account updates
-  window.electronAPI.onAccountsUpdated(() => {
-    loadAccounts();
+  window.electronAPI.onAccountsUpdated(async () => {
+    await loadAccounts();
+    if (currentView === "overviewView") renderOverview();
   });
 
   // A data file became damaged or unreadable while the app ran; saving it
@@ -1581,7 +1580,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   document
     .getElementById("saveAccountBtn")
     .addEventListener("click", saveAccount);
-  initChampionPicker();
   initQuickAdd();
   initOnboarding();
 
@@ -1966,12 +1964,6 @@ document.addEventListener("keydown", (e) => {
     }
     return;
   }
-  const champSearch = document.getElementById("champSearchOverlay");
-  if (champSearch?.classList.contains("open")) {
-    e.preventDefault();
-    closeChampionSearch();
-    return;
-  }
   if (currentView === "accountFormView") {
     e.preventDefault();
     closeModal();
@@ -2219,8 +2211,8 @@ function scheduleRankResort() {
 function applyStatsToCard(cardEl, stats) {
   const acc = allAccounts.find((a) => a.username === cardEl.dataset.username);
   // Decay estimates need the tier, which arrives here.
-  const badges = cardEl.querySelector(".status-badges");
-  if (badges && acc) badges.innerHTML = statusWarnings(acc.status, stats?.tier, Date.now()).map(warningBadge).join("");
+  const statusEl = cardEl.querySelector(".status-badges");
+  if (statusEl && acc) statusEl.innerHTML = statusWarnings(acc.status, stats?.tier, Date.now()).map(warningBadge).join("");
 
   const rankEl = cardEl.querySelector(".rank");
   if (rankEl && !acc?.customRank) {
@@ -3035,8 +3027,8 @@ async function renderOverview() {
   const games = wins + losses;
   const attention = rows.filter((r) => r.warnings.some((w) => w.kind !== "inactive")).length;
   document.getElementById("overviewTiles").innerHTML =
-    overviewTile("Games this week", String(games), games ? `${wins} won, ${losses} lost` : "") +
-    overviewTile("Win rate", games ? `${Math.round((wins / games) * 100)}%` : "-", "") +
+    overviewTile("Ranked games this week", String(games), games ? `${wins} won, ${losses} lost (solo/duo)` : "solo/duo") +
+    overviewTile("Ranked win rate", games ? `${Math.round((wins / games) * 100)}%` : "-", "solo/duo") +
     overviewTile("LP this week", counted ? signed(lp) : "-", counted ? `over ${plural(counted, "account")}` : "") +
     overviewTile("Need attention", String(attention), attention ? "decay or restriction" : "nothing to do");
 
@@ -3136,7 +3128,14 @@ function initOverview() {
   document.getElementById("overviewTable")?.addEventListener("click", (e) => {
     const row = e.target.closest(".overview-row[data-username]");
     if (!row) return;
+    // A server, tag or search filter could hide the account in the list.
+    currentRegion = "";
+    currentTag = "";
+    currentQuery = "";
+    const search = document.getElementById("accountSearch");
+    if (search) search.value = "";
     document.querySelector('.nav-btn[data-view="accountsView"]')?.click();
+    renderAccounts();
     selectAccount(row.dataset.username);
   });
 }
@@ -3415,9 +3414,6 @@ function updateDownloadProgress(percent) {
 
 // Account Form View Functions
 function openModal(account = null) {
-  // Leaving the form through the sidebar skips closeModal(), so an open
-  // champion search would otherwise cover the next form.
-  closeChampionSearch();
   // Coming from the form itself (sidebar Add while editing) keeps the view
   // the form was first opened from.
   if (currentView !== "accountFormView") previousView = currentView;
@@ -3438,8 +3434,6 @@ function openModal(account = null) {
       account.appearOffline || false;
     document.getElementById("autoSkinToggle").checked =
       account.autoSkinRandom || false;
-    setSelectedChampionByName(account.autoChampLock || "");
-    document.getElementById("autoSpellsToggle").checked = false;
     document.getElementById("minimizeOnLaunchToggle").checked =
       account.minimizeOnLaunch || false;
     document.getElementById("isFavouriteToggle").checked =
@@ -3464,8 +3458,6 @@ function openModal(account = null) {
 
     document.getElementById("appearOfflineToggle").checked = false;
     document.getElementById("autoSkinToggle").checked = false;
-    setSelectedChampion(null);
-    document.getElementById("autoSpellsToggle").checked = false;
     document.getElementById("minimizeOnLaunchToggle").checked = false;
     document.getElementById("isFavouriteToggle").checked = false;
     document.getElementById("newCustomRank").value = "";
@@ -3656,7 +3648,6 @@ function initQuickAdd() {
 }
 
 function closeModal() {
-  closeChampionSearch();
   showView(previousView || "accountsView");
   // Re-highlight the correct nav button
   document.querySelectorAll(".nav-btn").forEach((b) => {
@@ -3664,152 +3655,6 @@ function closeModal() {
       "active",
       b.dataset.view === (previousView || "accountsView"),
     );
-  });
-}
-
-// ── Champion Picker ──────────────────────────────────────────────────────────
-
-function setSelectedChampion(champ) {
-  selectedChampion = champ;
-  currentAutoLockName = champ ? champ.name : "";
-  const preview = document.getElementById("champPickerPreview");
-  const placeholder = document.getElementById("champPickerPlaceholder");
-  preview
-    .querySelectorAll("img, .champ-picker-name")
-    .forEach((el) => el.remove());
-  if (champ) {
-    placeholder.style.display = "none";
-    const img = document.createElement("img");
-    img.src = champ.iconUrl;
-    img.alt = champ.name;
-    img.onerror = () => {
-      img.style.display = "none";
-    };
-    const nameEl = document.createElement("span");
-    nameEl.className = "champ-picker-name";
-    nameEl.textContent = champ.name;
-    preview.appendChild(img);
-    preview.appendChild(nameEl);
-  } else {
-    placeholder.style.display = "";
-  }
-}
-
-function setSelectedChampionByName(name) {
-  currentAutoLockName = name || "";
-  if (!name) {
-    setSelectedChampion(null);
-    return;
-  }
-  if (champListCache) {
-    const found = champListCache.find(
-      (c) => c.name.toLowerCase() === name.toLowerCase(),
-    );
-    if (found) {
-      setSelectedChampion(found);
-      return;
-    }
-  }
-  // List not yet loaded — show name text only, no icon
-  selectedChampion = null;
-  const preview = document.getElementById("champPickerPreview");
-  const placeholder = document.getElementById("champPickerPlaceholder");
-  placeholder.style.display = "none";
-  preview
-    .querySelectorAll("img, .champ-picker-name")
-    .forEach((el) => el.remove());
-  const nameEl = document.createElement("span");
-  nameEl.className = "champ-picker-name";
-  nameEl.textContent = name;
-  preview.appendChild(nameEl);
-}
-
-function openChampionSearch() {
-  document.getElementById("champSearchOverlay").classList.add("open");
-  const input = document.getElementById("champSearchInput");
-  input.value = "";
-  renderChampionGrid("");
-  input.focus();
-}
-
-function closeChampionSearch() {
-  document.getElementById("champSearchOverlay")?.classList.remove("open");
-}
-
-function renderChampionGrid(query) {
-  const grid = document.getElementById("champSearchGrid");
-  if (!champListCache || champListCache.length === 0) {
-    grid.innerHTML =
-      '<div style="color:var(--text-dim);font-size:12px;padding:16px;grid-column:1/-1;text-align:center;">Loading champions…</div>';
-    return;
-  }
-  const q = query.toLowerCase().trim();
-  const list = q
-    ? champListCache.filter((c) => c.name.toLowerCase().includes(q))
-    : champListCache;
-  grid.innerHTML = "";
-  if (list.length === 0) {
-    grid.innerHTML =
-      '<div style="color:var(--text-dim);font-size:12px;padding:16px;grid-column:1/-1;text-align:center;">No champions found</div>';
-    return;
-  }
-  list.forEach((champ) => {
-    const item = document.createElement("div");
-    item.className =
-      "champ-search-item" +
-      (selectedChampion?.id === champ.id ? " selected" : "");
-    const img = document.createElement("img");
-    img.src = champ.iconUrl;
-    img.alt = champ.name;
-    img.loading = "lazy";
-    img.decoding = "async";
-    img.onerror = () => {
-      img.style.display = "none";
-    };
-    const span = document.createElement("span");
-    span.textContent = champ.name;
-    item.appendChild(img);
-    item.appendChild(span);
-    item.addEventListener("click", () => {
-      setSelectedChampion(champ);
-      closeChampionSearch();
-    });
-    grid.appendChild(item);
-  });
-}
-
-function initChampionPicker() {
-  document
-    .getElementById("champPickerOpenBtn")
-    .addEventListener("click", async () => {
-      if (!champListCache?.length) {
-        document.getElementById("champSearchGrid").innerHTML =
-          '<div style="color:var(--text-dim);font-size:12px;padding:16px;grid-column:1/-1;text-align:center;">Loading champions…</div>';
-        document.getElementById("champSearchOverlay").classList.add("open");
-        // An empty answer (Data Dragon unreachable) is not cached.
-        const list = await window.electronAPI.getChampionList().catch(() => null);
-        if (Array.isArray(list) && list.length) champListCache = list;
-        // Resolve pending name now that the list is available
-        if (champListCache && currentAutoLockName && !selectedChampion) {
-          const found = champListCache.find(
-            (c) => c.name.toLowerCase() === currentAutoLockName.toLowerCase(),
-          );
-          if (found) setSelectedChampion(found);
-        }
-      }
-      openChampionSearch();
-    });
-  document
-    .getElementById("champSearchBack")
-    .addEventListener("click", closeChampionSearch);
-  document
-    .getElementById("champSearchClearSel")
-    .addEventListener("click", () => {
-      setSelectedChampion(null);
-      closeChampionSearch();
-    });
-  document.getElementById("champSearchInput").addEventListener("input", (e) => {
-    renderChampionGrid(e.target.value);
   });
 }
 
@@ -3848,9 +3693,6 @@ async function saveAccountForm() {
 
   const appearOffline = document.getElementById("appearOfflineToggle").checked;
   const autoSkin = document.getElementById("autoSkinToggle").checked;
-  const autoChampLock = selectedChampion
-    ? selectedChampion.name
-    : currentAutoLockName;
   const minimizeOnLaunch = document.getElementById(
     "minimizeOnLaunchToggle",
   ).checked;
@@ -3876,7 +3718,6 @@ async function saveAccountForm() {
     region,
     appearOffline,
     autoSkinRandom: autoSkin,
-    autoChampLock,
     minimizeOnLaunch,
     isFavourite: document.getElementById("isFavouriteToggle").checked,
     customRank: document.getElementById("newCustomRank").value.trim(),

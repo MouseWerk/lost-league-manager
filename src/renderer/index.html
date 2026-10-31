@@ -721,8 +721,8 @@
                         </section>
 
                         <section id="settingsOverlay" class="settings-section">
-                            <h2 class="settings-section-title">Game overlay</h2>
-                            <p class="desc">A small bar over the game with your score, the ranks of all ten players and your item build. Show or hide it with Ctrl+Shift+H; opacity, hotkey and lock are in its own settings. The game has to run in borderless or windowed mode.</p>
+                            <h2 class="settings-section-title">Game overlay <span class="wip-badge">Beta</span></h2>
+                            <p class="desc">A small bar over the game with your score, both teams with their ranks, and the OP.GG build for your champion. Hold Tab in the game to see the players. Show or hide it with its key (Ctrl+Shift+H at first; change it, the opacity and the lock in the overlay's own settings). The game has to run in borderless or windowed mode. The overlay is in beta and off until you switch it on.</p>
                             <div class="setting-row">
                                 <div class="setting-row-info">
                                     <h3>Show the overlay</h3>
@@ -863,22 +863,9 @@
                     <!-- Right column: automation & display -->
                     <div class="account-form-section">
                         <div class="acct-section-title">Automation</div>
-                        <div class="form-group is-disabled" data-tooltip="Instant-locking a champion is not allowed by Riot">
-                            <label>Auto champion lock <span class="field-hint">not available</span></label>
-                            <div class="champ-picker-trigger" style="pointer-events:none">
-                                <div class="champ-picker-preview" id="champPickerPreview">
-                                    <span class="champ-picker-placeholder" id="champPickerPlaceholder">Not available</span>
-                                </div>
-                                <button type="button" class="champ-picker-btn" id="champPickerOpenBtn" disabled>Choose</button>
-                            </div>
-                        </div>
                         <label class="checkbox-group">
                             <input type="checkbox" id="autoSkinToggle">
                             Pick a random owned skin in champion select
-                        </label>
-                        <label class="checkbox-group" data-tooltip="Comes in a later version">
-                            <input type="checkbox" id="autoSpellsToggle" disabled>
-                            Set summoner spells automatically (later version)
                         </label>
                         <label class="checkbox-group">
                             <input type="checkbox" id="appearOfflineToggle">
@@ -917,17 +904,6 @@
                     </div>
                 </div>
 
-                <!-- Champion search overlay — fills the view when open -->
-                <div class="champ-search-overlay" id="champSearchOverlay">
-                    <div class="champ-search-header">
-                        <button type="button" class="champ-search-back" id="champSearchBack" aria-label="Back">
-                            <i class="fas fa-arrow-left"></i>
-                        </button>
-                        <input type="text" class="champ-search-input" id="champSearchInput" placeholder="Search champions" aria-label="Search champions">
-                        <button type="button" class="champ-search-clear-sel" id="champSearchClearSel">Clear</button>
-                    </div>
-                    <div class="champ-search-grid" id="champSearchGrid"></div>
-                </div>
             </div>
         </main>
     </div>
