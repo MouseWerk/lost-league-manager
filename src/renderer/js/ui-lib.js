@@ -239,6 +239,36 @@
     return out;
   }
 
+  // ── Games ──────────────────────────────────────────────────────────────────
+  // Per champion over the stored games (matches.js shape), most played first.
+  // kda is null for a champion without deaths ("perfect").
+  function championStats(matches) {
+    const by = new Map();
+    for (const m of matches || []) {
+      if (!m || !m.champion) continue;
+      const c = by.get(m.champion) || { champion: m.champion, icon: m.championIcon || null, games: 0, wins: 0, k: 0, d: 0, a: 0, cs: 0, seconds: 0 };
+      c.games += 1;
+      c.wins += m.win ? 1 : 0;
+      c.k += m.kills || 0;
+      c.d += m.deaths || 0;
+      c.a += m.assists || 0;
+      c.cs += m.cs || 0;
+      c.seconds += m.duration || 0;
+      by.set(m.champion, c);
+    }
+    return [...by.values()]
+      .map((c) => ({
+        champion: c.champion,
+        icon: c.icon,
+        games: c.games,
+        wins: c.wins,
+        winRate: Math.round((c.wins / c.games) * 100),
+        kda: c.d ? Math.round(((c.k + c.a) / c.d) * 100) / 100 : null,
+        csPerMin: c.seconds ? Math.round((c.cs / (c.seconds / 60)) * 10) / 10 : null,
+      }))
+      .sort((a, b) => b.games - a.games || b.winRate - a.winRate);
+  }
+
   // ── Live view ──────────────────────────────────────────────────────────────
   // Lobby members carry gameName/tagLine since the Riot ID migration; the old
   // summoner name fields are often empty.
@@ -303,6 +333,7 @@
     parseTags,
     tagCounts,
     statusWarnings,
+    championStats,
     hasTag,
     lobbyMemberLabel,
     normalizeLoginStatus,

@@ -5,6 +5,10 @@ const riotApi = require('../services/riot-api');
 const opgg = require('../services/opgg-api');
 const championData = require('../services/champion-data');
 const { recordRankSnapshot, getRankHistory, parseRecord } = require('../services/rank-history');
+const matches = require('../services/matches');
+const { recordLastPlayed } = require('../services/account-status');
+
+const MATCH_COUNT = 10;
 
 const CACHE_MAX_AGE_MS = 30 * 60 * 1000;
 
@@ -236,39 +240,66 @@ async function getStats(region, riotId, force) {
     }
 }
 
+// Keeps the games for the games dialog and notes when each account with
+// this Riot ID last played.
+function keepMatches(riotId, list) {
+    matches.mergeMatches(riotId, list.filter((m) => m.id));
+    const newest = Math.max(0, ...list.map((m) => m.createdAt || 0));
+    if (!newest) return;
+    for (const a of loadAccounts()) {
+        if (norm(a.riotId) === norm(riotId)) recordLastPlayed(a.username, newest);
+    }
+}
+
 async function getMatchHistory(region, riotId) {
     const parsed = opgg.parseRiotIdInput(riotId);
     if (!parsed) return { matches: [] };
     const { gameName: name, tagLine: tag } = parsed;
     await championData.whenReady();
+    const maps = { idToName: championData.getIdToNameMap(), idToImage: championData.getIdToImageMap() };
 
     if (riotApi.getApiKey() && norm(region) !== 'cn') {
         try {
             const { account, platform } = await riotApi.getAccountByRiotId(name, tag, region);
-            const matches = await riotApi.getMatchHistory(account.puuid, platform, 5);
-            const idToName  = championData.getIdToNameMap();
-            const idToImage = championData.getIdToImageMap();
-            return {
-                matches: matches.map((m) => {
-                    // match-v5's championName is not always the DDragon key
-                    // ("FiddleSticks"); the numeric id is reliable.
-                    const key = idToName[m.championId] || m.championName;
-                    return {
-                        win: m.win,
-                        kda: m.kda,
-                        championName: key,
-                        championIcon: idToImage[key] || null,
-                    };
-                }),
-            };
+            const found = await riotApi.getMatchHistory(account.puuid, platform, MATCH_COUNT);
+            const list = found.map((m) => {
+                const full = m.info ? matches.fromRiotMatch(m.matchId, m.info, account.puuid, maps) : null;
+                if (full) return full;
+                // match-v5's championName is not always the DDragon key
+                // ("FiddleSticks"); the numeric id is reliable.
+                const key = maps.idToName[m.championId] || m.championName;
+                return { id: m.matchId, win: m.win, kda: m.kda, champion: key, championName: key, championIcon: maps.idToImage[key] || null };
+            }).filter((m) => !m.remake);
+            keepMatches(riotId, list);
+            return { matches: list };
         } catch (e) {
             console.log('[MatchHistory] Riot API failed, trying OP.GG:', e.message);
         }
     }
     try {
-        return { matches: await opgg.getRecentMatches(name, tag, region, 5) };
+        const list = await opgg.getRecentMatches(name, tag, region, MATCH_COUNT);
+        keepMatches(riotId, list);
+        return { matches: list };
     } catch (e) {
         return { error: e.message };
+    }
+}
+
+// One game with both teams: from the store when known (the Riot API gives
+// it with the list), else from OP.GG, then kept.
+async function getMatchDetail(region, riotId, matchId) {
+    const stored = matches.getStoredMatches(riotId).find((m) => m.id === matchId);
+    if (!stored) return { success: false, message: 'This game is no longer stored' };
+    if (stored.players) return { success: true, match: stored };
+    const parsed = opgg.parseRiotIdInput(riotId);
+    if (!parsed || !stored.createdAtIso) return { success: false, message: 'No details for this game' };
+    try {
+        await championData.whenReady();
+        const detail = await opgg.getGameDetail(parsed.gameName, parsed.tagLine, region, matchId, stored.createdAtIso);
+        const [merged] = matches.mergeMatches(riotId, [{ ...stored, players: detail.players }]).filter((m) => m.id === matchId);
+        return { success: true, match: merged || { ...stored, players: detail.players } };
+    } catch (e) {
+        return { success: false, message: e.message };
     }
 }
 
@@ -288,6 +319,9 @@ function register() {
 
     // On-demand only (profile modal), not per-card.
     ipcMain.handle('get-match-history', (event, { region, riotId } = {}) => getMatchHistory(region, riotId));
+    // The games dialog: every stored game, and one in detail.
+    ipcMain.handle('get-stored-matches', (event, riotId) => ({ matches: matches.getStoredMatches(riotId), version: championData.getLatestVersion() }));
+    ipcMain.handle('get-match-detail', async (event, { region, riotId, matchId } = {}) => ({ ...(await getMatchDetail(region, riotId, matchId)), version: championData.getLatestVersion() }));
 
     // Quick-add lookup: accepts "Name#TAG" or an OP.GG profile link, returns a
     // preview (icon, level, rank, top champions) plus the normalised Riot ID

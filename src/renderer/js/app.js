@@ -188,6 +188,7 @@ const {
   tagCounts,
   hasTag,
   statusWarnings,
+  championStats,
   lobbyMemberLabel,
   normalizeLoginStatus,
   needsLaunchAttention,
@@ -979,6 +980,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initRegionFilters();
   initTagFilters();
   initTagSuggestions();
+  initGamesDialog();
   initAccountDetail();
   initTooltips();
 
@@ -2471,15 +2473,187 @@ function renderMatchHistory(res) {
   // Matches can come from OP.GG (external), so the icon URL and KDA text are
   // escaped like any other outside string.
   strip.innerHTML = matches
+    .slice(0, 5)
     .map((m) => {
-      const tip = `${m.win ? "Victory" : "Defeat"}${m.kda ? ` — ${m.kda} KDA` : ""}`;
+      const tip = `${m.win ? "Victory" : "Defeat"}${m.kda ? `, ${m.kda} KDA` : ""}${m.champion ? ` on ${m.champion}` : ""}`;
       return `
-        <div class="match-pill ${m.win ? "win" : "loss"}" data-tooltip="${escapeHtml(tip)}">
+        <button type="button" class="match-pill ${m.win ? "win" : "loss"}" data-match-id="${escapeHtml(m.id || "")}" data-tooltip="${escapeHtml(tip)}" aria-label="${escapeHtml(tip)}">
             ${m.championIcon ? `<img src="${escapeHtml(m.championIcon)}" alt="">` : ""}
-        </div>
+        </button>
     `;
     })
     .join("");
+}
+
+// ── Games dialog: stored games, one in detail, and champion stats ─────────
+let _games = null; // { acc, matches, version, selected }
+
+function itemIcons(items, version) {
+  return (items || [])
+    .map((id) => `<img class="match-item-icon" src="https://ddragon.leagueoflegends.com/cdn/${escapeHtml(version)}/img/item/${escapeHtml(id)}.png" alt="" data-fallback="hide">`)
+    .join("");
+}
+
+function kdaRatio(m) {
+  return m.deaths ? ((m.kills + m.assists) / m.deaths).toFixed(2) : "Perfect";
+}
+
+async function openGamesDialog(acc, matchId = null) {
+  if (!acc?.riotId) return;
+  const res = await window.electronAPI.getStoredMatches(acc.riotId);
+  const list = (res?.matches || []).filter((m) => !m.remake);
+  _games = { acc, matches: list, version: res?.version || "", selected: matchId || list[0]?.id || null };
+  document.getElementById("gamesAccount").textContent = acc.label || acc.riotId;
+  showGamesTab("games");
+  renderGamesList();
+  renderGameDetail();
+  renderChampionStats();
+  openLayer(document.getElementById("gamesModal"), { onEscape: closeGamesDialog });
+}
+
+function closeGamesDialog() {
+  closeLayer(document.getElementById("gamesModal"));
+  _games = null;
+}
+
+function showGamesTab(tab) {
+  document.querySelectorAll("[data-games-tab]").forEach((b) => {
+    const on = b.dataset.gamesTab === tab;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+  });
+  document.getElementById("gamesPane").hidden = tab !== "games";
+  document.getElementById("championsPane").hidden = tab !== "champions";
+}
+
+function renderGamesList() {
+  const el = document.getElementById("gamesList");
+  if (!_games.matches.length) {
+    el.innerHTML = '<p class="games-empty">No games stored yet. They are saved each time the account is opened.</p>';
+    return;
+  }
+  el.innerHTML = _games.matches
+    .map((m) => {
+      const on = m.id === _games.selected;
+      return `
+        <button type="button" class="games-row ${m.win ? "is-win" : "is-loss"}${on ? " active" : ""}" data-match-id="${escapeHtml(m.id)}" aria-pressed="${on}">
+            ${m.championIcon ? `<img class="games-row-icon" src="${escapeHtml(m.championIcon)}" alt="">` : '<span class="games-row-icon"></span>'}
+            <span class="games-row-main">
+                <span class="games-row-kda">${escapeHtml(m.kda || "")}</span>
+                <span class="games-row-sub">${escapeHtml(m.queue || "")}${m.createdAt ? `, ${escapeHtml(timeAgo(m.createdAt))}` : ""}</span>
+            </span>
+            <span class="games-row-result">${m.win ? "Win" : "Loss"}</span>
+        </button>`;
+    })
+    .join("");
+}
+
+function playerRow(p, version) {
+  return `
+    <div class="game-player${p.isSelf ? " is-self" : ""}">
+        ${p.championIcon ? `<img class="game-player-icon" src="${escapeHtml(p.championIcon)}" alt="" data-tooltip="${escapeHtml(p.champion)}">` : '<span class="game-player-icon"></span>'}
+        <span class="game-player-name">${escapeHtml(p.name || "Unknown")}${p.tag ? `<span class="game-player-tag">#${escapeHtml(p.tag)}</span>` : ""}</span>
+        <span class="game-player-kda">${escapeHtml([p.kills, p.deaths, p.assists].join("/"))}</span>
+        <span class="game-player-num">${escapeHtml(p.cs)} CS</span>
+        <span class="game-player-num">${escapeHtml(Math.round(p.damage / 100) / 10)}k</span>
+        <span class="game-player-items">${itemIcons(p.items, version)}</span>
+    </div>`;
+}
+
+async function renderGameDetail() {
+  const el = document.getElementById("gameDetail");
+  const m = _games?.matches.find((x) => x.id === _games.selected);
+  if (!m) {
+    el.innerHTML = "";
+    return;
+  }
+  const head = `
+    <div class="game-detail-head">
+        <span class="game-result ${m.win ? "is-win" : "is-loss"}">${m.win ? "Victory" : "Defeat"}</span>
+        <span>${escapeHtml(m.queue || "")}</span>
+        <span>${escapeHtml(formatDuration(m.duration))}</span>
+        <span class="game-detail-date">${m.createdAt ? escapeHtml(new Date(m.createdAt).toLocaleString()) : ""}</span>
+    </div>
+    <div class="game-self">
+        ${m.championIcon ? `<img class="game-self-icon" src="${escapeHtml(m.championIcon)}" alt="">` : ""}
+        <div class="game-self-stats">
+            <div class="game-self-kda">${escapeHtml(m.kda || "")} <span>${escapeHtml(kdaRatio(m))} KDA</span></div>
+            <div class="game-self-sub">${escapeHtml(m.champion || "")}, ${escapeHtml(m.cs)} CS${m.duration ? ` (${escapeHtml((m.cs / (m.duration / 60)).toFixed(1))}/min)` : ""}, ${escapeHtml(Math.round(m.gold / 100) / 10)}k gold, ${escapeHtml(Math.round(m.damage / 100) / 10)}k damage</div>
+            <div class="game-self-items">${itemIcons(m.items, _games.version)}</div>
+        </div>
+    </div>`;
+  const teams = (players) => {
+    const side = (team, title) => {
+      const rows = players.filter((p) => p.team === team);
+      if (!rows.length) return "";
+      const won = rows[0].win;
+      return `<div class="game-team"><div class="game-team-title">${title}, ${won ? "won" : "lost"}</div>${rows.map((p) => playerRow(p, _games.version)).join("")}</div>`;
+    };
+    return side("blue", "Blue team") + side("red", "Red team");
+  };
+  if (m.players) {
+    el.innerHTML = head + teams(m.players);
+    return;
+  }
+  el.innerHTML = head + '<div class="game-teams-loading">Loading both teams...</div>';
+  const res = await window.electronAPI.getMatchDetail(_games.acc.region, _games.acc.riotId, m.id);
+  if (!_games || _games.selected !== m.id) return;
+  if (res?.success && res.match?.players) {
+    m.players = res.match.players;
+    el.innerHTML = head + teams(m.players);
+  } else {
+    el.querySelector(".game-teams-loading").textContent = res?.message || "The teams for this game could not be loaded.";
+  }
+}
+
+function renderChampionStats() {
+  const el = document.getElementById("championStatsTable");
+  const stats = championStats(_games.matches);
+  document.getElementById("championsNote").textContent = _games.matches.length
+    ? `From the last ${_games.matches.length} stored games.`
+    : "No games stored yet.";
+  el.innerHTML = stats.length
+    ? `<div class="champion-stats-head"><span></span><span>Champion</span><span>Games</span><span>Win rate</span><span>KDA</span><span>CS/min</span></div>` +
+      stats
+        .map(
+          (c) => `
+        <div class="champion-stats-row">
+            ${c.icon ? `<img src="${escapeHtml(c.icon)}" alt="">` : "<span></span>"}
+            <span class="champion-stats-name">${escapeHtml(c.champion)}</span>
+            <span>${escapeHtml(c.games)}</span>
+            <span class="${c.winRate >= 50 ? "is-good" : "is-bad"}">${escapeHtml(c.winRate)}%</span>
+            <span>${c.kda === null ? "Perfect" : escapeHtml(c.kda.toFixed(2))}</span>
+            <span>${c.csPerMin === null ? "" : escapeHtml(c.csPerMin.toFixed(1))}</span>
+        </div>`,
+        )
+        .join("")
+    : "";
+}
+
+function initGamesDialog() {
+  document.getElementById("profileMatchHistoryStrip")?.addEventListener("click", (e) => {
+    const pill = e.target.closest(".match-pill");
+    const acc = selectedAccount();
+    if (pill && acc) openGamesDialog(acc, pill.dataset.matchId || null);
+  });
+  document.getElementById("profileGamesBtn")?.addEventListener("click", () => {
+    const acc = selectedAccount();
+    if (acc) openGamesDialog(acc);
+  });
+  document.getElementById("closeGamesBtn")?.addEventListener("click", closeGamesDialog);
+  document.getElementById("gamesModal")?.addEventListener("click", (e) => {
+    if (e.target.id === "gamesModal") closeGamesDialog();
+  });
+  document.querySelectorAll("[data-games-tab]").forEach((b) =>
+    b.addEventListener("click", () => showGamesTab(b.dataset.gamesTab)),
+  );
+  document.getElementById("gamesList")?.addEventListener("click", (e) => {
+    const row = e.target.closest(".games-row");
+    if (!row || !_games) return;
+    _games.selected = row.dataset.matchId;
+    renderGamesList();
+    renderGameDetail();
+  });
 }
 
 // Shows one account in the panel beside the list: rank, history, recent
