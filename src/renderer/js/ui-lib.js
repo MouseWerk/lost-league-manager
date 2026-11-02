@@ -413,6 +413,53 @@
     return Math.max(1, Math.ceil((Number(ms) || 0) / 1000));
   }
 
+  // ── Account row ────────────────────────────────────────────────────────────
+  // The line under the rank: LP and win rate when ranked in solo queue, the
+  // flex rank when only that exists, else nothing.
+  function rankDetail(stats) {
+    const tier = String(stats?.tier || "");
+    if (tier && tier !== "Unranked" && tier !== "N/A") {
+      return [stats.lp, stats.ratio ? `${stats.ratio} WR` : ""].filter(Boolean).join(", ");
+    }
+    const flex = String(stats?.flexTier || "");
+    if (flex && flex !== "Unranked" && flex !== "N/A") {
+      return ["Flex", flex, stats.flexLp].filter(Boolean).join(" ");
+    }
+    return "";
+  }
+
+  // 41250 -> "41.3k", 650 -> "650".
+  function compactNumber(n) {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return "";
+    if (Math.abs(v) >= 1e6) return `${(v / 1e6).toFixed(1).replace(/\.0$/, "")}M`;
+    if (Math.abs(v) >= 1e3) return `${(v / 1e3).toFixed(1).replace(/\.0$/, "")}k`;
+    return String(Math.round(v));
+  }
+
+  // "today", "yesterday", "3d ago", "5w ago".
+  function shortAgo(ts, now) {
+    if (!ts || ts > now) return "today";
+    const d = Math.floor((now - ts) / 86400000);
+    if (d < 1) return "today";
+    if (d === 1) return "yesterday";
+    if (d < 14) return `${d}d ago`;
+    if (d < 60) return `${Math.floor(d / 7)}w ago`;
+    return `${Math.floor(d / 30)}mo ago`;
+  }
+
+  // Facts next to the Riot ID: when the account last played (or was last
+  // signed in by the app) and its Blue Essence from the last sign-in.
+  function cardFacts(acc, now) {
+    const out = [];
+    const played = acc?.status?.lastPlayed;
+    if (played) out.push({ kind: "played", text: `Played ${shortAgo(played, now)}` });
+    else if (acc?.lastUsed) out.push({ kind: "played", text: `Signed in ${shortAgo(acc.lastUsed, now)}` });
+    const be = acc?.status?.wallet?.be;
+    if (be != null && Number.isFinite(Number(be))) out.push({ kind: "be", text: compactNumber(be) });
+    return out;
+  }
+
   // ── Game modes ─────────────────────────────────────────────────────────────
   // One table for every place that names a queue: the Live view, saved games,
   // today's session, Discord. Queue ids from Riot's queues.json, game modes as
@@ -509,6 +556,10 @@
 
   const api = {
     escapeHtml,
+    rankDetail,
+    compactNumber,
+    shortAgo,
+    cardFacts,
     QUEUE_NAMES,
     queueName,
     gameModeName,

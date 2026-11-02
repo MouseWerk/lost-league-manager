@@ -132,8 +132,9 @@
         --bg: #0F1624;
         --surface: #151E2F;
         --surface-raised: #1A2437;
-        --bg-hover: #1A2538;
-        --bg-active: #1E2A40;
+        /* A clear step above --surface-raised, so buttons on the panel show hover */
+        --bg-hover: #243149;
+        --bg-active: #2A3852;
         --scrim: rgba(5, 9, 16, 0.62);
 
         --ink: #E6EBF2;

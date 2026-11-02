@@ -30,8 +30,17 @@
 .tag-chip i, .tag-suggestion i { font-size: 10px; opacity: 0.7; margin-right: 2px; }
 .tag-suggestions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .tag-suggestions[hidden] { display: none; }
-/* The Riot ID gives way first; the tags stay readable. */
-.card-meta:has(.card-tag) { display: flex; align-items: center; gap: 8px; }
+/* The Riot ID gives way first; the tags and facts stay readable. */
+.card-meta:has(.card-tag),
+.card-meta:has(.card-fact) { display: flex; align-items: center; gap: 8px; }
+/* The Riot ID keeps its room; the facts give way (and drop off) first. */
+.card-meta:has(.card-fact) .card-username { flex-shrink: 0; max-width: 60%; }
+/* One line high: a fact that does not fit wraps out of sight, never half cut. */
+.card-facts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 10px; height: 18px; line-height: 18px; min-width: 0; overflow: hidden; font-size: 12px; color: var(--subtle); }
+.card-facts:empty { display: none; }
+.card-fact { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; height: 18px; }
+.card-fact .currency-icon { width: 13px; height: 13px; }
+.card-fact-be { font-family: var(--font-display); }
 .card-meta .card-username { min-width: 48px; overflow: hidden; text-overflow: ellipsis; }
 .card-tags { display: inline-flex; gap: 4px; flex-shrink: 0; }
 .card-tags:empty { display: none; }
@@ -385,7 +394,9 @@
     justify-content: center;
 }
 button.match-pill { border: 0; padding: 0; cursor: pointer; font: inherit; }
-button.match-pill:hover { filter: brightness(0.96); }
+button.match-pill { transition: filter 0.15s ease, transform 0.15s ease; }
+button.match-pill:hover { filter: brightness(1.18); transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) { button.match-pill:hover { transform: none; } }
 .profile-match-history-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .link-btn { border: 0; padding: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .link-btn:hover { color: var(--ink); }

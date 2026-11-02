@@ -273,6 +273,8 @@ const {
   validateNewPassphrase,
   secondsUntil,
   queueName,
+  rankDetail,
+  cardFacts,
 } = window.UiLib;
 
 // Cached stats for an account, fresh or stale, or null when there is nothing
@@ -2311,7 +2313,8 @@ function applyStatsToCard(cardEl, stats) {
     else delete rankEl.dataset.tooltip;
     // Tier/LP can come from OP.GG or an imported backup's cached stats.
     const emblem = unavailable ? "" : tierEmblemSrc(stats.tier);
-    rankEl.innerHTML = `${emblem ? `<img class="card-emblem" src="${emblem}" alt="">` : ""}<span class="card-rank-text"><span class="card-tier">${escapeHtml(tierDisplay)}</span>${stats.lp ? `<span class="card-lp">${escapeHtml(stats.lp)}</span>` : ""}</span>`;
+    const detail = unavailable ? "" : rankDetail(stats);
+    rankEl.innerHTML = `${emblem ? `<img class="card-emblem" src="${emblem}" alt="">` : ""}<span class="card-rank-text"><span class="card-tier">${escapeHtml(tierDisplay)}</span>${detail ? `<span class="card-lp">${escapeHtml(detail)}</span>` : ""}</span>`;
   }
   if (acc && cardEl.dataset.username === _profileUsername) populateProfileModal(acc, stats);
   const iconEl = cardEl.querySelector(".summoner-icon");
@@ -3143,7 +3146,7 @@ function createAccountCard(account) {
                 ${account.honorFlagged ? '<span class="account-warning-badge" data-tooltip="Honor level has dropped since it was last seen"><i class="fas fa-arrow-trend-down"></i></span>' : ""}
                 <span class="status-badges">${accountWarnings(account).map(warningBadge).join("")}</span>
             </div>
-            <div class="card-meta"><span class="card-username"></span><span class="card-tags"></span></div>
+            <div class="card-meta"><span class="card-username"></span><span class="card-tags"></span><span class="card-facts"></span></div>
         </div>
         <span class="region-badge card-region"></span>
         <div class="rank card-rank"></div>
@@ -3168,6 +3171,21 @@ function createAccountCard(account) {
     chip.className = "card-tag";
     chip.textContent = t;
     tagsEl.appendChild(chip);
+  }
+  // Last played and Blue Essence, from the account's last sign-in.
+  const factsEl = card.querySelector(".card-facts");
+  for (const f of cardFacts(account, Date.now())) {
+    const span = document.createElement("span");
+    span.className = `card-fact card-fact-${f.kind}`;
+    if (f.kind === "be") {
+      const img = document.createElement("img");
+      img.className = "currency-icon";
+      img.src = "assets/currency/blue-essence.png";
+      img.alt = "Blue Essence";
+      span.appendChild(img);
+    }
+    span.appendChild(document.createTextNode(f.text));
+    factsEl.appendChild(span);
   }
   const regionEl = card.querySelector(".card-region");
   if (region) regionEl.textContent = region;
