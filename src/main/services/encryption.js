@@ -2,7 +2,9 @@ const crypto = require('crypto');
 const childProcess = require('child_process');
 
 const ALGORITHM  = 'aes-256-cbc';
-const LEGACY_KEY = crypto.scryptSync('lost-league-manager-secret', 'salt', 32);
+// Derived on first use (scrypt takes tens of milliseconds, at start-up too).
+let _legacyKey = null;
+const legacyKey = () => _legacyKey || (_legacyKey = crypto.scryptSync('lost-league-manager-secret', 'salt', 32));
 let _machineKey          = null;
 let _machineKeyFailedAt  = 0;
 let _legacyWmicKey       = null;
@@ -104,7 +106,7 @@ function decrypt(text) {
     if (isV3) {
         // Try the current key first; fall back to LEGACY_KEY for passwords
         // encrypted when machine key derivation previously failed.
-        return tryDecryptWith(raw, getMachineKey()) ?? tryDecryptWith(raw, LEGACY_KEY);
+        return tryDecryptWith(raw, getMachineKey()) ?? tryDecryptWith(raw, legacyKey());
     }
     if (isV2) {
         // Encrypted under the old wmic-derived key. Try reproducing that key
@@ -113,9 +115,9 @@ function decrypt(text) {
         // then the shared legacy key. If wmic is gone and neither of the other
         // two matches, this password is unrecoverable — the caller needs to
         // re-enter it, there's no way to reproduce the original key.
-        return tryDecryptWith(raw, getLegacyWmicKey()) ?? tryDecryptWith(raw, getMachineKey()) ?? tryDecryptWith(raw, LEGACY_KEY);
+        return tryDecryptWith(raw, getLegacyWmicKey()) ?? tryDecryptWith(raw, getMachineKey()) ?? tryDecryptWith(raw, legacyKey());
     }
-    return tryDecryptWith(raw, LEGACY_KEY);
+    return tryDecryptWith(raw, legacyKey());
 }
 
 // True when the value is stored the current way (v3 under the real machine
@@ -126,7 +128,7 @@ function isCurrentEncryption(text) {
 }
 
 function decryptLegacy(text) {
-    return tryDecryptWith(text, LEGACY_KEY);
+    return tryDecryptWith(text, legacyKey());
 }
 
 // ── Backups (.llem) ───────────────────────────────────────────────────────────
@@ -134,7 +136,8 @@ function decryptLegacy(text) {
 // Version 1 backups used a key derived from a constant in this repository,
 // so anyone with the file could read every password. They can still be
 // imported; new exports always use version 2.
-const EXPORT_KEY = crypto.scryptSync('lost-league-export-v1', 'export-salt-ll', 32);
+let _exportKey = null;
+const exportKey = () => _exportKey || (_exportKey = crypto.scryptSync('lost-league-export-v1', 'export-salt-ll', 32));
 
 function decryptExportV1(text) {
     try {
@@ -143,7 +146,7 @@ function decryptExportV1(text) {
         const sep = raw.indexOf(':');
         const iv  = Buffer.from(raw.slice(0, sep), 'hex');
         const enc = Buffer.from(raw.slice(sep + 1), 'hex');
-        const d = crypto.createDecipheriv(ALGORITHM, EXPORT_KEY, iv);
+        const d = crypto.createDecipheriv(ALGORITHM, exportKey(), iv);
         return JSON.parse(Buffer.concat([d.update(enc), d.final()]).toString());
     } catch {
         return null;

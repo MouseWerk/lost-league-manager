@@ -1,4 +1,4 @@
-const axios = require('axios');
+const axios = require('./http');
 const https = require('https');
 
 // Riot's Live Client Data API, served by the running game on this machine.

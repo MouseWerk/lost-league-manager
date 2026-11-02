@@ -1,4 +1,4 @@
-const axios = require('axios');
+const axios = require('./http');
 
 let championMap  = {};   // name.toLowerCase() → champId (int)
 let idToNameMap  = {};   // champId (int)  → DDragon key string  (e.g. "Ahri")

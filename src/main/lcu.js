@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const WebSocket = require('ws');
-const axios = require('axios');
+const axios = require('./services/http');
 const https = require('https');
 
 // One keep-alive agent for every LCU call instead of a new TLS agent per request.
