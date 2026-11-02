@@ -194,7 +194,10 @@ async function discordContext(phase) {
     const out = { rank, tier: rank ? tier : '' };
     if (GAME_CONTEXT_PHASES.has(phase)) {
         const session = await lcu.request('GET', '/lol-gameflow/v1/session');
-        out.queue = session?.gameData?.queue?.description || session?.gameData?.queue?.shortName || '';
+        const q = session?.gameData?.queue;
+        out.queue = q?.description || q?.shortName
+            || require('../renderer/js/ui-lib.js').queueName(q?.id, q?.gameMode);
+        if (out.queue === 'Other') out.queue = '';
         let championId = 0;
         if (phase === 'ChampSelect') {
             championId = await lcu.request('GET', '/lol-champ-select/v1/current-champion') || 0;
