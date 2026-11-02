@@ -176,8 +176,12 @@
 .status-badges { display: inline-flex; gap: 6px; }
 .status-badges:empty { display: none; }
 .profile-status { display: flex; flex-direction: column; gap: 4px; padding: 0 2px; }
-.profile-wallet { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 0 2px; font-size: 13px; color: var(--muted); }
+.profile-wallet { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 0 2px; font-size: 13px; color: var(--muted); }
 .profile-wallet b { font-family: var(--font-display); color: var(--ink); font-weight: 600; }
+.profile-signin-hint { margin: 2px 2px 0; font-size: 12px; color: var(--subtle); }
+.profile-wallet-item { display: inline-flex; align-items: center; gap: 5px; }
+/* The client's own currency icons (assets/currency) */
+.currency-icon { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; align-self: center; }
 .profile-wallet-when { font-size: 12px; color: var(--subtle); }
 .bulk-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; padding: 8px 10px 8px 14px; border-radius: var(--radius-lg); background: var(--surface); flex-shrink: 0; }
 .bulk-bar[hidden] { display: none; }
