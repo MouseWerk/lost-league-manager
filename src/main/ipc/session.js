@@ -8,7 +8,8 @@ const { getRankHistory } = require('../services/rank-history');
 // client's own match history, the streak, and today's LP from the rank
 // history. A pause hint after two losses in a row.
 
-const QUEUE_NAMES = { 420: 'Ranked Solo', 440: 'Ranked Flex', 400: 'Normal Draft', 430: 'Normal Blind', 490: 'Quickplay', 450: 'ARAM' };
+const { QUEUE_NAMES: ALL_QUEUES } = require('../../renderer/js/ui-lib.js');
+const QUEUE_NAMES = { ...ALL_QUEUES, 420: 'Ranked Solo', 440: 'Ranked Flex' };
 
 // games: the LCU match history list (legacy shape, newest first).
 function sessionFromGames(games, now = Date.now(), idToKey = {}) {

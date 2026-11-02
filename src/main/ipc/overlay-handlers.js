@@ -255,7 +255,7 @@ function register() {
         if (typeof champKey !== 'string' || !champKey) return { success: false, message: 'No champion yet' };
         try {
             const build = await opgg.getChampionBuild(champKey, OVERLAY_POSITIONS[String(position || '').toUpperCase()] || null,
-                String(gameMode || '').toUpperCase() === 'ARAM' ? 'aram' : 'ranked');
+                require('../../renderer/js/ui-lib.js').buildModeFor(gameMode) === 'aram' ? 'aram' : 'ranked');
             return { success: true, build };
         } catch (e) {
             return { success: false, message: e.message };

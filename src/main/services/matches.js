@@ -12,13 +12,16 @@
 
 const MAX_STORED = 30;
 
-const RIOT_QUEUES = {
-    420: 'Ranked Solo', 440: 'Ranked Flex', 400: 'Normal Draft', 430: 'Normal Blind',
-    490: 'Quickplay', 450: 'ARAM', 1700: 'Arena', 1900: 'URF', 900: 'ARURF', 700: 'Clash', 0: 'Custom',
-};
+const { QUEUE_NAMES, queueName, gameModeName } = require('../../renderer/js/ui-lib.js');
+
+// Short names for the ranked queues (the list is narrow); everything else
+// comes from the shared queue table in ui-lib.js.
+const RIOT_QUEUES = { ...QUEUE_NAMES, 420: 'Ranked Solo', 440: 'Ranked Flex' };
 const OPGG_QUEUES = {
     SOLORANKED: 'Ranked Solo', FLEXRANKED: 'Ranked Flex', NORMAL: 'Normal', ARAM: 'ARAM',
     ARENA: 'Arena', URF: 'URF', ARURF: 'ARURF', CLASH: 'Clash', CUSTOM: 'Custom', QUICKPLAY: 'Quickplay',
+    SWIFTPLAY: 'Swiftplay', ARAM_MAYHEM: 'ARAM Mayhem', KIWI: 'ARAM Mayhem', ONE_FOR_ALL: 'One for All',
+    NEXUS_BLITZ: 'Nexus Blitz', ULTBOOK: 'Ultimate Spellbook', BRAWL: 'Brawl', SWARM: 'Swarm', BOT: 'Co-op vs AI',
 };
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
@@ -61,7 +64,7 @@ function fromRiotMatch(matchId, info, puuid, maps) {
         source: 'riot-api',
         createdAt: num(info.gameStartTimestamp || info.gameCreation),
         duration: num(info.gameDuration),
-        queue: RIOT_QUEUES[info.queueId] || 'Other',
+        queue: RIOT_QUEUES[info.queueId] || queueName(info.queueId, info.gameMode),
         win: self.win,
         remake,
         champion: self.champion,
@@ -109,7 +112,7 @@ function opggMatch(g, self, extra, maps) {
         createdAt: Date.parse(g.created_at) || 0,
         createdAtIso: g.created_at || '',
         duration: num(g.game_length_second),
-        queue: OPGG_QUEUES[g.game_type] || 'Other',
+        queue: OPGG_QUEUES[String(g.game_type || '').toUpperCase()] || gameModeName(g.game_type) || 'Other',
         win: result === 'WIN',
         remake: !!result && result !== 'WIN' && result !== 'LOSE',
         champion: me.champion,

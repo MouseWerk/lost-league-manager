@@ -413,8 +413,106 @@
     return Math.max(1, Math.ceil((Number(ms) || 0) / 1000));
   }
 
+  // ── Game modes ─────────────────────────────────────────────────────────────
+  // One table for every place that names a queue: the Live view, saved games,
+  // today's session, Discord. Queue ids from Riot's queues.json, game modes as
+  // the client reports them (gameData.queue.gameMode).
+  const QUEUE_NAMES = {
+    0: "Custom",
+    400: "Normal Draft",
+    420: "Ranked Solo/Duo",
+    430: "Normal Blind",
+    440: "Ranked Flex",
+    450: "ARAM",
+    480: "Swiftplay",
+    490: "Quickplay",
+    600: "Blood Hunt",
+    700: "Clash",
+    720: "ARAM Clash",
+    76: "URF",
+    830: "Co-op vs AI",
+    840: "Co-op vs AI",
+    850: "Co-op vs AI",
+    870: "Co-op vs AI",
+    880: "Co-op vs AI",
+    890: "Co-op vs AI",
+    900: "ARURF",
+    1010: "Snow ARURF",
+    1020: "One for All",
+    1090: "Teamfight Tactics",
+    1300: "Nexus Blitz",
+    1400: "Ultimate Spellbook",
+    1700: "Arena",
+    1710: "Arena",
+    1810: "Swarm",
+    1820: "Swarm",
+    1830: "Swarm",
+    1840: "Swarm",
+    1900: "URF",
+    2000: "Tutorial",
+    2010: "Tutorial",
+    2020: "Tutorial",
+    2300: "Brawl",
+    2400: "ARAM Mayhem",
+    3100: "Custom",
+  };
+
+  const GAME_MODE_NAMES = {
+    CLASSIC: "Summoner's Rift",
+    ARAM: "ARAM",
+    KIWI: "ARAM Mayhem",
+    CHERRY: "Arena",
+    URF: "URF",
+    ARURF: "ARURF",
+    ONEFORALL: "One for All",
+    NEXUSBLITZ: "Nexus Blitz",
+    ULTBOOK: "Ultimate Spellbook",
+    STRAWBERRY: "Swarm",
+    BRAWL: "Brawl",
+    SWIFTPLAY: "Swiftplay",
+    PRACTICETOOL: "Practice Tool",
+    TUTORIAL: "Tutorial",
+    TUTORIAL_MODULE_1: "Tutorial",
+    TUTORIAL_MODULE_2: "Tutorial",
+    TUTORIAL_MODULE_3: "Tutorial",
+    DOOMBOTSTEEMO: "Doom Bots",
+    ODYSSEY: "Odyssey",
+    NEXUSBLITZ_2: "Nexus Blitz",
+    TFT: "Teamfight Tactics",
+  };
+
+  // "Ranked Solo/Duo" for a queue id; the game mode's name or, for a queue
+  // the table does not know yet, "Other".
+  function queueName(queueId, gameMode) {
+    const id = Number(queueId);
+    if (Number.isInteger(id) && QUEUE_NAMES[id]) return QUEUE_NAMES[id];
+    return gameModeName(gameMode) || "Other";
+  }
+
+  // The name of a client game mode; unknown modes are shown readable
+  // ("NEW_MODE" -> "New Mode") rather than hidden.
+  function gameModeName(gameMode) {
+    const key = String(gameMode || "").toUpperCase();
+    if (!key) return "";
+    if (GAME_MODE_NAMES[key]) return GAME_MODE_NAMES[key];
+    return key.toLowerCase().split(/[_\s]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join(" ");
+  }
+
+  // Which OP.GG builds fit a game mode: 'ranked' on Summoner's Rift, 'aram'
+  // for ARAM and ARAM Mayhem (same map and items), null where OP.GG has none.
+  function buildModeFor(gameMode) {
+    const key = String(gameMode || "").toUpperCase();
+    if (!key || key === "CLASSIC" || key === "SWIFTPLAY" || key === "PRACTICETOOL") return "ranked";
+    if (key === "ARAM" || key === "KIWI") return "aram";
+    return null;
+  }
+
   const api = {
     escapeHtml,
+    QUEUE_NAMES,
+    queueName,
+    gameModeName,
+    buildModeFor,
     TIER_ORDER,
     rankScore,
     reorderList,

@@ -29,9 +29,10 @@ async function currentPick(session) {
     const pick = pickFromSession(session || await lcu.request('GET', '/lol-champ-select/v1/session'));
     if (!pick?.championId) return pick;
     const flow = await lcu.request('GET', '/lol-gameflow/v1/session');
-    // OP.GG builds exist for Summoner's Rift and ARAM only (not Arena, URF, ...).
-    const gameMode = flow?.gameData?.queue?.gameMode;
-    return { ...pick, mode: gameMode === 'ARAM' ? 'aram' : gameMode === 'CLASSIC' || !gameMode ? 'ranked' : null };
+    // OP.GG builds exist for Summoner's Rift and ARAM (ARAM Mayhem uses them
+    // too), not for Arena, URF, ...
+    const { buildModeFor } = require('../../renderer/js/ui-lib.js');
+    return { ...pick, mode: buildModeFor(flow?.gameData?.queue?.gameMode) };
 }
 
 function championInfo(championId) {
