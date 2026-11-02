@@ -11,6 +11,7 @@ const { loadAccounts, updateAccounts } = require('../services/storage');
 const { decrypt } = require('../services/encryption');
 const { broadcastAccountsUpdate } = require('../windows');
 const lcu = require('../lcu');
+const riotSessions = require('../services/riot-sessions');
 
 // Everything that has to be gone before another account can sign in. Current
 // Riot Client builds run their UI as "Riot Client.exe", older ones as
@@ -41,6 +42,9 @@ const LEAGUE_START_RETRY_MS = 12000;
 const LEAGUE_START_MAX_TRIES = 3;
 const LEAGUE_START_TIMEOUT_MS = 90000;
 const AUTH_POLL_MS = 1000;
+// How long a restored sign-in may take before the password is typed instead,
+// and how long the user has to sign in by hand ("Sign in yourself").
+const SIGNIN_TIMEOUTS = { saved: 25000, manual: 180000 };
 
 function send(channel, ...args) {
     if (state.mainWindow && !state.mainWindow.isDestroyed()) {
@@ -378,6 +382,7 @@ async function onLoginScriptExit(launch, code, signal) {
             fail(launch, `Signed in as ${check.actual}, not ${launch.label}. Sign out in the Riot Client and try again.`, 'wrong-account');
             return;
         }
+        if (check.ok) riotSessions.captureSignIn(launch.username);
         succeed(launch, 'Done!');
         notify('League Launched!', `${launch.label} is ready to play.`);
         return;
@@ -398,6 +403,76 @@ async function onLoginScriptExit(launch, code, signal) {
     else if (code === null) message = `The login was interrupted${signal ? ` (${signal})` : ''}. Try again.`;
     else message = 'Login failed. Check the Riot Client window and try again.';
     fail(launch, message, 'failed');
+}
+
+// Waits until the Riot Client reports a signed-in player, the launch is
+// cancelled or the time is up. Returns true when signed in.
+async function waitForSignIn(launch, timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+    while (isCurrent(launch) && Date.now() < deadline) {
+        if (await riotClientAuthState() === 'signed-in') return true;
+        await sleep(AUTH_POLL_MS);
+    }
+    return false;
+}
+
+// After a sign-in without typing: start League, check the account in the
+// League client and keep the (refreshed) sign-in for next time.
+async function finishSignedIn(launch) {
+    status(launch, 'Launching League...', 88);
+    await riotClientStartLeague();
+    let session = null;
+    for (let i = 0; i < 2 && isCurrent(launch) && !session; i++) {
+        session = await waitForSession(launch);
+        if (!session && isCurrent(launch)) await riotClientStartLeague();
+    }
+    if (!isCurrent(launch)) return;
+    const check = verifyLoggedInAccount(launch.username, session);
+    if (check.ok === false) {
+        // The saved sign-in belongs to someone else: never use it again.
+        riotSessions.forgetSignIn(launch.username);
+        fail(launch, `Signed in as ${check.actual}, not ${launch.label}. Sign out in the Riot Client and try again.`, 'wrong-account');
+        return;
+    }
+    if (check.ok === null) {
+        fail(launch, NEEDS_ACTION_MESSAGES['signed-in'], 'needs-action');
+        return;
+    }
+    const kept = riotSessions.captureSignIn(launch.username);
+    succeed(launch, launch.manual && !kept
+        ? 'Signed in. "Stay signed in" was not ticked, so the password is typed next time.'
+        : 'Done!');
+    notify('League Launched!', `${launch.label} is ready to play.`);
+}
+
+// The Riot Client starts with this account's saved sign-in. When it is not
+// signed in after a short wait (the sign-in expired or was revoked), the
+// saved copy is dropped and the password is typed instead.
+async function signInWithSaved(launch, account, password, riotClientPath, notBefore) {
+    status(launch, 'Signing in with the saved sign-in...', 60);
+    if (await waitForSignIn(launch, SIGNIN_TIMEOUTS.saved)) {
+        await finishSignedIn(launch);
+        return;
+    }
+    if (!isCurrent(launch)) return;
+    riotSessions.forgetSignIn(launch.username);
+    if (!password) {
+        fail(launch, 'The saved sign-in expired. Use "Sign in yourself" or save the password for this account.', 'needs-action');
+        return;
+    }
+    status(launch, 'The saved sign-in expired. Typing the password...', 62);
+    startLoginScript(launch, account, password, riotClientPath, notBefore);
+}
+
+// "Sign in yourself": the user signs in in the Riot Client (with "Stay signed
+// in" ticked); the app starts League and keeps that sign-in for next time.
+async function signInByHand(launch) {
+    status(launch, 'Sign in to this account in the Riot Client and tick "Stay signed in".', 55);
+    if (await waitForSignIn(launch, SIGNIN_TIMEOUTS.manual)) {
+        await finishSignedIn(launch);
+        return;
+    }
+    if (isCurrent(launch)) fail(launch, 'No sign-in in the Riot Client. Try again when you are ready.', 'needs-action');
 }
 
 function startLoginScript(launch, account, password, riotClientPath, notBefore) {
@@ -460,8 +535,9 @@ async function executeAccountLaunch(username, opts = {}) {
 
     // Checked before hiding the window: with minimizeOnLaunch on, failing
     // after the hide left the user with no visible window or error.
+    const manual = !!opts.manual;
     const password = decrypt(account.password);
-    if (!password) {
+    if (!password && !manual && !riotSessions.hasSignIn(account.username)) {
         // Usually means this password was encrypted under a key tied to
         // machine state that's since changed (e.g. a Windows update removing
         // wmic): the ciphertext can't be recovered, but re-saving the
@@ -476,6 +552,7 @@ async function executeAccountLaunch(username, opts = {}) {
         child: null,
         hidWindow: false,
         progress: 0,
+        manual,
     };
     // Claimed before the first await: a second launch (tray, jump list,
     // another click) now gets `busy` instead of running in parallel and
@@ -504,6 +581,11 @@ async function executeAccountLaunch(username, opts = {}) {
                 activeLaunch = null;
                 return { success: false, needsConfirm: true, message: 'You are in a game. Launching another account closes League.' };
             }
+            // The signed-in account's sign-in is the freshest copy there is:
+            // keep it before the clients close (only for saved accounts).
+            if (session?.username && accounts.some(a => sameUsername(a.username, session.username))) {
+                riotSessions.captureSignIn(session.username);
+            }
         }
 
         updateAccounts((fresh) => {
@@ -522,6 +604,10 @@ async function executeAccountLaunch(username, opts = {}) {
         await runPowerShell(killProcessesCommand(CLIENT_PROCESS_NAMES));
         if (!isCurrent(launch)) return CANCELLED;
 
+        // The Riot Client reads its kept sign-in at start: put this account's
+        // in place (or clear another account's) while it is closed.
+        const restored = riotSessions.restoreSignIn(manual ? null : account.username);
+
         status(launch, 'Launching Riot Client...', 30);
         const riotClientPath = discoverRiotClientPath();
         // The login script only accepts Riot Client windows created after this
@@ -535,8 +621,15 @@ async function executeAccountLaunch(username, opts = {}) {
             return { success: false, message, reported: true };
         }
 
-        status(launch, 'Waiting for the Riot Client window...', 50);
-        startLoginScript(launch, account, password, riotClientPath, notBefore);
+        if (manual) {
+            signInByHand(launch).catch(e => fail(launch, `Login failed: ${e.message}`, 'failed'));
+        } else if (restored) {
+            signInWithSaved(launch, account, password, riotClientPath, notBefore)
+                .catch(e => fail(launch, `Login failed: ${e.message}`, 'failed'));
+        } else {
+            status(launch, 'Waiting for the Riot Client window...', 50);
+            startLoginScript(launch, account, password, riotClientPath, notBefore);
+        }
         return { success: true };
     } catch (e) {
         console.error('[Launch] Unexpected error:', e);
@@ -592,7 +685,7 @@ async function launchFromOutside(username) {
 
 function register() {
     ipcMain.handle('launch-account', (event, username, opts) =>
-        executeAccountLaunch(username, { confirmed: !!opts?.confirmed }));
+        executeAccountLaunch(username, { confirmed: !!opts?.confirmed, manual: !!opts?.manual }));
 
     // Plain "open the client" for the Live page's empty state: no account
     // login, just gets League/Riot Client running so the LCU can connect.
@@ -624,4 +717,5 @@ module.exports = {
     runPowerShell,
     CLIENT_PROCESS_NAMES,
     LEAGUE_PROCESS_NAMES,
+    SIGNIN_TIMEOUTS,
 };
