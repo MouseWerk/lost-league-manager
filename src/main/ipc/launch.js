@@ -3,7 +3,7 @@ const path = require('path');
 const fs   = require('fs');
 const os   = require('os');
 const https = require('https');
-const axios = require('axios');
+const axios = require('../services/http');
 // Called as childProcess.spawn (not destructured) so tests can stand in a fake.
 const childProcess = require('child_process');
 const state = require('../state');

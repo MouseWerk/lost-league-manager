@@ -1,4 +1,3 @@
-const { Client } = require('@xhayper/discord-rpc');
 const state = require('../state');
 
 const CLIENT_ID = '1523021601606602902';
@@ -64,6 +63,8 @@ function connect() {
 
     // A dead instance from an earlier connection must not keep its listeners.
     discard(client);
+    // Loaded here: the library takes about half a second to require.
+    const { Client } = require('@xhayper/discord-rpc');
     const c = new Client({ clientId: CLIENT_ID });
     client = c;
 

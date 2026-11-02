@@ -1,5 +1,7 @@
 const { ipcMain, app } = require('electron');
-const { autoUpdater } = require('electron-updater');
+// electron-updater takes about a quarter second to require: loaded on first use.
+let _autoUpdater = null;
+const updater = () => _autoUpdater || (_autoUpdater = require('electron-updater').autoUpdater);
 const state = require('../state');
 
 function send(channel, ...args) {
@@ -17,23 +19,23 @@ let _downloading = false;
 function initAutoUpdater() {
     if (!app.isPackaged) return;
 
-    autoUpdater.autoDownload        = true;
-    autoUpdater.autoInstallOnAppQuit = true;
-    autoUpdater.logger              = console;
+    updater().autoDownload        = true;
+    updater().autoInstallOnAppQuit = true;
+    updater().logger              = console;
 
-    autoUpdater.on('checking-for-update', () => console.log('[Updater] Checking...'));
+    updater().on('checking-for-update', () => console.log('[Updater] Checking...'));
 
-    autoUpdater.on('update-available', (info) => {
+    updater().on('update-available', (info) => {
         console.log('[Updater] Update available:', info.version);
         _downloading = true;
         send('update-available', { version: info.version, releaseNotes: info.releaseNotes });
     });
 
-    autoUpdater.on('update-not-available', (info) => {
+    updater().on('update-not-available', (info) => {
         console.log('[Updater] Up to date:', info.version);
     });
 
-    autoUpdater.on('download-progress', (progress) => {
+    updater().on('download-progress', (progress) => {
         send('update-progress', {
             percent:     Math.round(progress.percent),
             transferred: progress.transferred,
@@ -41,13 +43,13 @@ function initAutoUpdater() {
         });
     });
 
-    autoUpdater.on('update-downloaded', (info) => {
+    updater().on('update-downloaded', (info) => {
         console.log('[Updater] Downloaded:', info.version);
         _downloading = false;
         send('update-downloaded', { version: info.version });
     });
 
-    autoUpdater.on('error', (err) => {
+    updater().on('error', (err) => {
         console.error('[Updater] Error:', err.message);
         if (_downloading) send('update-error', err.message);
         _downloading = false;
@@ -55,7 +57,7 @@ function initAutoUpdater() {
 
     if (state.config.checkUpdatesOnStartup !== false) {
         setTimeout(() => {
-            autoUpdater.checkForUpdates().catch(e =>
+            updater().checkForUpdates().catch(e =>
                 console.error('[Updater] startup check failed:', e.message)
             );
         }, 10000);
@@ -66,7 +68,7 @@ function register() {
     ipcMain.handle('check-for-updates', async () => {
         if (!app.isPackaged) return { updateAvailable: false, currentVersion: app.getVersion() };
         try {
-            const result  = await autoUpdater.checkForUpdates();
+            const result  = await updater().checkForUpdates();
             const latest  = result?.updateInfo?.version;
             return {
                 // electron-updater decides this (newer than the running
@@ -86,7 +88,7 @@ function register() {
         // The main window's close handler hides to the tray unless isQuiting
         // is set, which vetoed the quit and left the installer waiting.
         app.isQuiting = true;
-        autoUpdater.quitAndInstall(true, true);
+        updater().quitAndInstall(true, true);
     });
 
     ipcMain.handle('get-version', () => app.getVersion());

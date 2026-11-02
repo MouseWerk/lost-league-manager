@@ -1,4 +1,4 @@
-const axios = require('axios');
+const axios = require('./http');
 const championData = require('./champion-data');
 
 let itemList = []; // processed, purchasable items sorted by name

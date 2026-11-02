@@ -74,12 +74,6 @@ app.whenReady().then(async () => {
         try { saveConfig(); } catch (e) { console.error('[Boot] Could not save the detected League path:', e.message); }
     }
 
-    // Non-blocking: the window shows immediately instead of waiting on Data
-    // Dragon. Handlers that need the champion maps await championData.whenReady().
-    fetchChampionData()
-        .catch(e => console.error('[Boot] fetchChampionData failed:', e.message))
-        .then(() => fetchItemData());
-
     try {
         windows.createMainWindow();
         windows.createTray();
@@ -96,11 +90,23 @@ app.whenReady().then(async () => {
             if (win && !win.isDestroyed()) win.webContents.send('data-file-problem', dataFileProblemText(notice));
         });
         jsonStore.markBooted();
-        initAutoUpdater();
         initOverwolf();
         // The overlay window and its hotkey come from overlay-manager.js once
         // Overwolf's overlay package is ready (or failed), if the overlay is on.
-        discordRpc.init();
+        // The update check and Discord load large libraries: they start once
+        // the window shows its content, so they never hold up the first paint.
+        state.mainWindow.webContents.once('did-finish-load', () => setTimeout(() => {
+            initAutoUpdater();
+            discordRpc.init();
+        }, 1500));
+        // Data Dragon is fetched once the window has its content, so the
+        // download (and its HTTP library) never delays the first paint.
+        // Handlers that need the champion maps await championData.whenReady().
+        state.mainWindow.webContents.once('did-finish-load', () => {
+            fetchChampionData()
+                .catch(e => console.error('[Boot] fetchChampionData failed:', e.message))
+                .then(() => fetchItemData());
+        });
     } catch (e) {
         console.error('[Boot] Failed to initialize application window:', e.message);
         dialog.showErrorBox('Lost League Manager', `Failed to start:\n${e.message}`);
