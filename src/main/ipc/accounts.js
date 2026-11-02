@@ -111,12 +111,15 @@ function register() {
         // O(N) sync disk reads on every get-accounts call).
         const honorWatch = loadHonorWatch();
         const statusMap = getStatusMap();
+        const signIns = require('../services/riot-sessions').signInKeys();
         return loadAccounts().map(a => ({
             ...a,
             password: '',
             passwordOk: decrypt(a.password) !== null,
             honorFlagged: isFlaggedRecord(getHonorRecord(honorWatch, a.username)),
             status: statusFor(statusMap, a.username),
+            // A saved Riot sign-in: this account starts without typing.
+            savedSignIn: signIns.has(String(a.username).toLowerCase()),
         }));
     });
 
@@ -194,6 +197,7 @@ function register() {
             // Re-adding the same username later must not inherit an old honor flag.
             forgetHonor(removed.username);
             forgetStatus(removed.username);
+            require('../services/riot-sessions').forgetSignIn(removed.username);
             // Games and rank history are kept per Riot ID; drop them with the
             // last account that has it.
             const riotId = (removed.riotId || '').trim().toLowerCase();

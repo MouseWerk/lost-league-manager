@@ -272,6 +272,7 @@ const {
   MIN_PASSPHRASE_LENGTH,
   validateNewPassphrase,
   secondsUntil,
+  queueName,
 } = window.UiLib;
 
 // Cached stats for an account, fresh or stale, or null when there is nothing
@@ -2407,6 +2408,7 @@ function fillProfileRank(
 }
 
 function populateProfileModal(acc, stats) {
+  renderSignInHint(acc);
   const defaultIcon = "assets/logo.png";
   // Mirror applyStatsToCard()'s precedence — a custom avatar should win here too,
   // otherwise the profile modal shows a different icon than the account card.
@@ -2628,6 +2630,18 @@ function renderStatus(acc) {
     list.appendChild(row);
   }
   wrap.hidden = list.childElementCount === 0;
+}
+
+// How Play signs this account in: with its saved Riot sign-in, or by typing.
+function signInHintText(acc) {
+  return acc?.savedSignIn
+    ? "Signs in without typing, with the saved Riot sign-in."
+    : 'Play types the password. Sign in yourself once with "Stay signed in" ticked to skip that.';
+}
+
+function renderSignInHint(acc) {
+  const el = document.getElementById("profileSignInHint");
+  if (el) el.textContent = signInHintText(acc);
 }
 
 // Blue Essence and RP as the client showed them at the last sign-in.
@@ -3524,6 +3538,11 @@ function initAccountDetail() {
   on("profileLaunchBtn", () => {
     if (_profileUsername) launchAccount(_profileUsername);
   });
+  // Sign in by hand once (with "Stay signed in"): later launches reuse that
+  // sign-in instead of typing the password.
+  on("profileSignInBtn", () => {
+    if (_profileUsername) launchAccount(_profileUsername, { manual: true });
+  });
   on("profileEditBtn", () => {
     if (_profileUsername) editAccount(_profileUsername);
   });
@@ -4315,26 +4334,6 @@ async function launchAccount(username, options) {
 // Live View
 // ─────────────────────────────────────────────
 
-const QUEUE_NAMES = {
-  420: "Ranked Solo/Duo",
-  440: "Ranked Flex",
-  450: "ARAM",
-  400: "Normal Draft",
-  430: "Normal Blind",
-  900: "URF",
-  1020: "One for All",
-  1900: "URF",
-  76: "URF",
-  830: "Co-op vs AI",
-  840: "Co-op vs AI",
-  850: "Co-op vs AI",
-  700: "Clash",
-  600: "Blood Hunt",
-  1400: "Ultimate Spellbook",
-  1700: "Arena",
-  1710: "Arena",
-};
-
 const PHASE_CONFIG = {
   None: { label: "Idle", cls: "gameflow-idle" },
   Lobby: { label: "In lobby", cls: "gameflow-lobby" },
@@ -4906,7 +4905,7 @@ async function loadLiveView() {
   if (phase === "Lobby" && data.lobby) {
     ctxEl.style.display = "";
     ctxLobby.style.display = "";
-    const qName = QUEUE_NAMES[data.lobby.gameConfig?.queueId] || "Custom Game";
+    const qName = queueName(data.lobby.gameConfig?.queueId, data.lobby.gameConfig?.gameMode);
     document.getElementById("ovCtxLobbyQueue").textContent = qName;
     const membersEl = document.getElementById("ovCtxLobbyMembers");
     membersEl.innerHTML = "";
@@ -4919,7 +4918,7 @@ async function loadLiveView() {
   } else if (phase === "Matchmaking" && data.queueSearch) {
     ctxEl.style.display = "";
     ctxQueue.style.display = "";
-    const qName = QUEUE_NAMES[data.queueSearch.queueId] || "Queue";
+    const qName = queueName(data.queueSearch.queueId);
     document.getElementById("ovCtxQueueName").textContent = qName;
     const elapsed = Math.floor(data.queueSearch.timeInQueue || 0);
     const timerEl = document.getElementById("ovCtxQueueTimer");
@@ -5054,7 +5053,7 @@ async function loadLiveView() {
         game.gameDuration > 0
           ? (cs / (game.gameDuration / 60)).toFixed(1)
           : null;
-      const queue = QUEUE_NAMES[game.queueId] || "Custom";
+      const queue = queueName(game.queueId, game.gameMode);
       if (win) totalW++;
       else totalL++;
       totalK += k;

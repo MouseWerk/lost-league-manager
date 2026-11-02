@@ -60,6 +60,7 @@ const state = {
         honorWatch:  path.join(APP_DATA_PATH, 'honor-watch.json'),
         accountStatus: path.join(APP_DATA_PATH, 'account-status.json'),
         matchStore:  path.join(APP_DATA_PATH, 'match-store.json'),
+        riotSessions: path.join(APP_DATA_PATH, 'riot-sessions.json'),
     },
 
     RESOURCES_PATH,
