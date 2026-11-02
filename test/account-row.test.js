@@ -64,3 +64,32 @@ test('dark theme: hover stands out from buttons and the panel', () => {
     assert.ok(contrast(tok('bg-hover'), tok('surface-raised')) >= 1.15, 'hover vs button background');
     assert.ok(contrast(tok('bg-hover'), tok('surface')) >= 1.2, 'hover vs panel');
 });
+
+test('the panel tools are six even tiles, each with an icon and a label', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'index.html'), 'utf8');
+    const block = html.match(/<div class="profile-tools">([\s\S]*?)<\/div>/);
+    assert.ok(block, 'profile-tools grid');
+    const tools = [...block[1].matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)];
+    assert.equal(tools.length, 6);
+    for (const [, attrs, inner] of tools) {
+        assert.match(attrs, /class="profile-tool\b/, 'same tile for every tool, delete included');
+        assert.match(inner, /<i class="fas [\w-]+"/);
+        assert.match(inner, /<span>[A-Z][^<]+<\/span>/);
+    }
+    const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'css', 'accounts.css'), 'utf8');
+    assert.match(css, /\.profile-tools \{[^}]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+});
+
+test('What\'s new for 1.11.0 opens with the steps for signing in without typing', () => {
+    const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'js', 'app.js'), 'utf8');
+    const pkg = require('../package.json');
+    const intros = app.slice(app.indexOf('const PATCH_INTROS = {'), app.indexOf('const PATCH_NOTES = {'));
+    assert.match(intros, new RegExp(`"${pkg.version.replace(/\./g, '\.')}": \{`), 'an intro for this version');
+    assert.match(intros, /title: "Sign in without typing"/);
+    assert.match(intros, /Stay signed in/);
+    assert.match(app, /renderPatchIntro\(PATCH_INTROS\[version\]\)/);
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'index.html'), 'utf8');
+    assert.match(html, /<div id="patchNotesIntro" class="patch-intro" hidden><\/div>\s*<ul id="patchNotesList"/);
+    // The panel button the steps name exists with that label.
+    assert.match(html, /id="profileSignInBtn"[^>]*>[\s\S]*?<span>Sign in<\/span>/);
+});

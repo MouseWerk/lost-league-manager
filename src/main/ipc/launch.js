@@ -43,7 +43,7 @@ const LEAGUE_START_MAX_TRIES = 3;
 const LEAGUE_START_TIMEOUT_MS = 90000;
 const AUTH_POLL_MS = 1000;
 // How long a restored sign-in may take before the password is typed instead,
-// and how long the user has to sign in by hand ("Sign in yourself").
+// and how long the user has to sign in by hand (Sign in in the account panel).
 const SIGNIN_TIMEOUTS = { saved: 25000, manual: 180000 };
 
 function send(channel, ...args) {
@@ -457,14 +457,14 @@ async function signInWithSaved(launch, account, password, riotClientPath, notBef
     if (!isCurrent(launch)) return;
     riotSessions.forgetSignIn(launch.username);
     if (!password) {
-        fail(launch, 'The saved sign-in expired. Use "Sign in yourself" or save the password for this account.', 'needs-action');
+        fail(launch, 'The saved sign-in expired. Click Sign in in the account panel, or save the password for this account.', 'needs-action');
         return;
     }
     status(launch, 'The saved sign-in expired. Typing the password...', 62);
     startLoginScript(launch, account, password, riotClientPath, notBefore);
 }
 
-// "Sign in yourself": the user signs in in the Riot Client (with "Stay signed
+// Sign in (account panel): the user signs in in the Riot Client (with "Stay signed
 // in" ticked); the app starts League and keeps that sign-in for next time.
 async function signInByHand(launch) {
     status(launch, 'Sign in to this account in the Riot Client and tick "Stay signed in".', 55);

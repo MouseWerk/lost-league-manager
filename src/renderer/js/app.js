@@ -46,7 +46,44 @@ const OPGG_ICON_SVG = `<svg viewBox="0 0 16 16" width="1em" height="1em" aria-hi
 // config.lastSeenPatchNotesVersion so it doesn't show again for this version.
 // Keyed by exact package.json version string; a version with no entry here
 // (or one the user has already seen) shows nothing.
+// A version's headline feature, shown as steps above its notes in What's new.
+const PATCH_INTROS = {
+  "1.11.0": {
+    icon: "fas fa-right-to-bracket",
+    title: "Sign in without typing",
+    lead: "Play no longer has to type your password into the Riot Client. Set it up once per account:",
+    steps: [
+      "Open an account and click Sign in in its panel.",
+      'Sign in to that account in the Riot Client yourself and tick "Stay signed in".',
+      "From then on Play signs this account in by itself: no typing, mouse and keyboard stay free.",
+    ],
+    note: "The sign-in is kept encrypted on this PC. If it expires, Play types the password as before.",
+  },
+};
+
 const PATCH_NOTES = {
+  "1.11.0": [
+    {
+      icon: "fas fa-gauge-high",
+      title: "Faster start",
+      body: "The window opens in about half the time, and the icons no longer need the internet.",
+    },
+    {
+      icon: "fas fa-list",
+      title: "More in the account list",
+      body: "LP and win rate, the flex rank of accounts without a solo rank, when each account last played and its Blue Essence.",
+    },
+    {
+      icon: "fas fa-dice",
+      title: "Every game mode",
+      body: "ARAM Mayhem, Arena, Swarm, Brawl and more are named everywhere; ARAM Mayhem gets the ARAM runes in champion select.",
+    },
+    {
+      icon: "fas fa-gem",
+      title: "League's own icons",
+      body: "Blue Essence and RP show the client's currency icons, and the account tools in the panel are laid out evenly.",
+    },
+  ],
   "1.10.0": [
     {
       icon: "fas fa-user-plus",
@@ -1030,6 +1067,7 @@ function showPatchNotesModal(version) {
 
   document.getElementById("patchNotesVersion").textContent =
     `Version ${version}`;
+  renderPatchIntro(PATCH_INTROS[version]);
   // items are hardcoded above; escaped anyway so the markup guard stays simple.
   document.getElementById("patchNotesList").innerHTML = items
     .map(
@@ -1048,6 +1086,19 @@ function showPatchNotesModal(version) {
     onEscape: () => dismissPatchNotesModal(version),
     focus: "#patchNotesGotItBtn",
   });
+}
+
+// The steps box above the notes; hidden for versions without an intro.
+function renderPatchIntro(intro) {
+  const el = document.getElementById("patchNotesIntro");
+  if (!el) return;
+  el.hidden = !intro;
+  if (!intro) return;
+  el.innerHTML = `
+    <div class="patch-intro-title"><i class="${escapeHtml(intro.icon)}" aria-hidden="true"></i> ${escapeHtml(intro.title)}</div>
+    <p class="patch-intro-lead">${escapeHtml(intro.lead)}</p>
+    <ol class="patch-intro-steps">${intro.steps.map((s) => `<li>${escapeHtml(s)}</li>`).join("")}</ol>
+    <p class="patch-intro-note">${escapeHtml(intro.note)}</p>`;
 }
 
 function dismissPatchNotesModal(version) {
@@ -2639,7 +2690,7 @@ function renderStatus(acc) {
 function signInHintText(acc) {
   return acc?.savedSignIn
     ? "Signs in without typing, with the saved Riot sign-in."
-    : 'Play types the password. Sign in yourself once with "Stay signed in" ticked to skip that.';
+    : 'Play types the password. Use Sign in once, with "Stay signed in" ticked, to skip that.';
 }
 
 function renderSignInHint(acc) {
