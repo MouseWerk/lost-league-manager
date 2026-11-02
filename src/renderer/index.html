@@ -199,13 +199,14 @@
 
                             <div class="profile-actions">
                                 <button id="profileLaunchBtn" class="primary-btn profile-play"><i class="fas fa-play" aria-hidden="true"></i> <span id="profileLaunchLabel">Play</span></button>
-                                <div class="profile-secondary-actions">
-                                    <button id="profileCopyUserBtn" class="secondary-btn"><i class="fas fa-user" aria-hidden="true"></i> Copy login</button>
-                                    <button id="profileCopyPassBtn" class="secondary-btn"><i class="fas fa-key" aria-hidden="true"></i> Copy password</button>
-                                    <button id="profileOpggBtn" class="secondary-btn">OP.GG</button>
-                                    <button id="profileSignInBtn" class="secondary-btn"><i class="fas fa-right-to-bracket" aria-hidden="true"></i> Sign in yourself</button>
-                                    <button id="profileEditBtn" class="secondary-btn"><i class="fas fa-pen" aria-hidden="true"></i> Edit</button>
-                                    <button id="profileDeleteBtn" class="icon-btn delete-btn" aria-label="Delete account" data-tooltip="Delete account" data-tooltip-pos="left"><i class="fas fa-trash"></i></button>
+                                <!-- Six even tools, icon over label: they never wrap unevenly. -->
+                                <div class="profile-tools">
+                                    <button id="profileCopyUserBtn" class="profile-tool" aria-label="Copy login name" data-tooltip="Copy login name"><i class="fas fa-user" aria-hidden="true"></i><span>Login</span></button>
+                                    <button id="profileCopyPassBtn" class="profile-tool" aria-label="Copy password" data-tooltip="Copy password"><i class="fas fa-key" aria-hidden="true"></i><span>Password</span></button>
+                                    <button id="profileOpggBtn" class="profile-tool"><i class="fas fa-chart-simple" aria-hidden="true"></i><span>OP.GG</span></button>
+                                    <button id="profileSignInBtn" class="profile-tool" data-tooltip="Sign in yourself in the Riot Client; Play then reuses that sign-in"><i class="fas fa-right-to-bracket" aria-hidden="true"></i><span>Sign in</span></button>
+                                    <button id="profileEditBtn" class="profile-tool"><i class="fas fa-pen" aria-hidden="true"></i><span>Edit</span></button>
+                                    <button id="profileDeleteBtn" class="profile-tool is-danger" aria-label="Delete account"><i class="fas fa-trash" aria-hidden="true"></i><span>Delete</span></button>
                                 </div>
                                 <p id="profileSignInHint" class="profile-signin-hint"></p>
                             </div>
@@ -1100,6 +1101,7 @@
                     <div id="patchNotesVersion" class="patch-notes-version"></div>
                 </div>
             </div>
+            <div id="patchNotesIntro" class="patch-intro" hidden></div>
             <ul id="patchNotesList" class="patch-notes-list"></ul>
             <div class="modal-actions">
                 <button id="patchNotesDiscordBtn" class="secondary-btn" data-tooltip="Join our Discord">

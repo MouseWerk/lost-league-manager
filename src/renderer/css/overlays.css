@@ -96,13 +96,41 @@
 .form-dialog-content .modal-actions { margin-top: 12px; }
 
 /* What's new */
-.patch-notes-content { width: 460px; }
+/* Header, intro and buttons stay in view; only the notes list scrolls. */
+.patch-notes-content { width: 460px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.patch-notes-content .patch-notes-list { flex: 1 1 auto; min-height: 72px; }
+.patch-notes-content > :not(.patch-notes-list) { flex-shrink: 0; }
 .patch-notes-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; padding-right: 36px; }
 .patch-notes-badge { width: 48px; height: 48px; flex-shrink: 0; border-radius: var(--radius-lg); background: var(--logo-tile); box-shadow: var(--logo-ring); display: flex; align-items: center; justify-content: center; }
 .patch-notes-badge img { width: 40px; height: 40px; }
 .patch-notes-badge i { color: var(--primary); font-size: 20px; }
 .patch-notes-header h2 { margin: 0; }
 .patch-notes-version { color: var(--muted); font-size: 13px; }
+/* A version's headline feature as numbered steps, above the notes. */
+.patch-intro { margin-bottom: 18px; padding: 14px 16px; border-radius: var(--radius-lg); background: var(--bg-active); }
+.patch-intro[hidden] { display: none; }
+.patch-intro-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; color: var(--ink); }
+.patch-intro-title i { color: var(--primary); }
+.patch-intro-lead { margin: 6px 0 10px; font-size: 13px; color: var(--muted); }
+.patch-intro-steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 8px; }
+.patch-intro-steps li { counter-increment: step; position: relative; padding-left: 30px; font-size: 13px; line-height: 1.45; color: var(--ink); }
+.patch-intro-steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: -1px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--surface-raised);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+}
+.patch-intro-note { margin: 10px 0 0; font-size: 12px; color: var(--subtle); }
 .patch-notes-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; max-height: 340px; overflow-y: auto; }
 .patch-notes-list li { display: flex; gap: 12px; }
 .patch-notes-list li i { width: 18px; margin-top: 3px; color: var(--primary); text-align: center; flex-shrink: 0; }

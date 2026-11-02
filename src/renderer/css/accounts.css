@@ -417,10 +417,34 @@ button.match-pill:hover { filter: brightness(1.18); transform: translateY(-1px);
 .profile-actions { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
 .profile-play { height: 46px; border-radius: var(--radius-lg); font-size: 15px; }
 .profile-play span { overflow: hidden; text-overflow: ellipsis; }
-.profile-secondary-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.profile-secondary-actions .secondary-btn { flex: 1 1 auto; height: var(--control-sm); padding: 0 10px; font-size: 13px; font-weight: 500; }
-.profile-secondary-actions .secondary-btn[hidden] { display: none; }
-.profile-secondary-actions .delete-btn { width: var(--control-sm); height: var(--control-sm); border: 1px solid var(--line); }
+/* The account's tools: a 3 x 2 grid of equal tiles, icon over label. */
+.profile-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.profile-tool {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-width: 0;
+    height: 54px;
+    padding: 0 6px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
+    color: var(--muted);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+.profile-tool[hidden] { display: none; }
+.profile-tool i { font-size: 14px; }
+.profile-tool span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-tool:hover { background: var(--bg-hover); color: var(--ink); }
+.profile-tool.copied,
+.profile-tool.copied:hover { color: var(--success); }
+.profile-tool.is-danger:hover { background: var(--danger-soft); color: var(--danger); }
 
 /* ── Add / edit form ──────────────────────────────────────────────────────── */
 #accountFormView { position: relative; }

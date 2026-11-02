@@ -669,12 +669,9 @@ select option { background: var(--surface-raised); color: var(--ink); }
 :root[data-density="roomy"] .card-rank { font-size: 14px; }
 :root[data-density="roomy"] .card-emblem { width: 40px; height: 40px; }
 :root[data-density="roomy"] .profile-play { height: var(--control-lg); font-size: 16px; }
-/* Copy buttons share the first row, OP.GG, Edit and Delete the second, so the
-   larger buttons do not wrap unevenly. */
-:root[data-density="roomy"] .profile-secondary-actions { gap: 8px; }
-:root[data-density="roomy"] .profile-secondary-actions .secondary-btn { flex: 1 1 30%; padding: 0 10px; font-size: 14px; }
-:root[data-density="roomy"] .profile-secondary-actions #profileCopyUserBtn,
-:root[data-density="roomy"] .profile-secondary-actions #profileCopyPassBtn { flex-basis: 40%; }
+:root[data-density="roomy"] .profile-tools { gap: 8px; }
+:root[data-density="roomy"] .profile-tool { height: 62px; font-size: 13px; gap: 6px; }
+:root[data-density="roomy"] .profile-tool i { font-size: 16px; }
 :root[data-density="roomy"] .setting-row { padding: 18px 0; }
 :root[data-density="roomy"] .setting-row-info p { font-size: 14px; }
 
