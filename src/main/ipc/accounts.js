@@ -12,6 +12,11 @@ const state = require('../state');
 // characters, the first spelling of a tag kept when it repeats in other case.
 const MAX_TAGS = 8;
 const MAX_TAG_LENGTH = 24;
+function normalizeBanUntil(text) {
+    const t = Date.parse(String(text || '').trim());
+    return Number.isFinite(t) ? new Date(t).toISOString() : '';
+}
+
 function normalizeTags(text) {
     const seen = new Set();
     const out = [];
@@ -45,6 +50,8 @@ const ACCOUNT_FIELDS = {
     goalRank:         { type: 'string',  def: '', max: 32 },
     // Comma-separated, cleaned up by normalizeTags before it is stored.
     tags:             { type: 'string',  def: '', max: 400, normalize: normalizeTags },
+    // A ban entered by hand: an ISO time, or '' for none.
+    banUntil:         { type: 'string',  def: '', max: 40, normalize: normalizeBanUntil },
 };
 const ACCOUNT_DEFAULTS = Object.fromEntries(Object.entries(ACCOUNT_FIELDS).map(([k, s]) => [k, s.def]));
 const MAX_USERNAME = 256;
