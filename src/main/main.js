@@ -1,6 +1,10 @@
 const { app, globalShortcut, dialog } = require('electron');
 const lcu = require('./lcu');
 
+// The interface is English, so dates, numbers and the date picker are too,
+// whatever language Windows uses (they read "Mi., 4. Nov." on a German PC).
+app.commandLine.appendSwitch('lang', 'en-US');
+
 // ── Shared state must be required before anything that imports it ────────────
 const state = require('./state');
 

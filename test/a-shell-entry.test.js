@@ -104,6 +104,10 @@ test('a jump-list launch while the vault is locked only opens the lock screen', 
     assert.equal(fx.spawned.length, 0);
 });
 
+test('the app runs in English, whatever language Windows uses', () => {
+    assert.equal(require('electron').app.commandLine.switches.lang, 'en-US');
+});
+
 test('a second start without --launch just shows the window', () => {
     setup();
     appHandlers['second-instance']({}, ['app.exe']);

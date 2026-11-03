@@ -400,6 +400,11 @@
 .games-pane[hidden], .champions-pane[hidden] { display: none; }
 .games-list { overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px; }
 .games-empty, .games-note { color: var(--muted); font-size: 13px; margin: 0; }
+/* No games: the message in the middle of the dialog, no empty detail column. */
+.games-pane.is-empty { grid-template-columns: minmax(0, 1fr); place-items: center; }
+.games-pane.is-empty .game-detail { display: none; }
+.games-empty-state { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 320px; padding: 40px 0; text-align: center; }
+.games-empty-state i { font-size: 24px; color: var(--subtle); }
 .games-row {
     display: grid;
     grid-template-columns: 36px minmax(0, 1fr) auto;

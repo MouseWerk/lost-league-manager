@@ -16,6 +16,7 @@ const fakeElectron = {
         setLoginItemSettings: () => {},
         getVersion: () => '0.0.0-test',
         setUserTasks: () => {},
+        commandLine: { switches: {}, appendSwitch(name, value) { this.switches[name] = value; } },
     },
     ipcMain: {
         handle: (channel, fn) => handlers.set(channel, fn),

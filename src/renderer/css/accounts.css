@@ -184,7 +184,8 @@
     white-space: nowrap;
 }
 
-.text-content { min-width: 0; }
+.text-content { min-width: 0; container-type: inline-size; }
+@container (max-width: 190px) { .card-facts { display: none; } }
 .card-title-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .card-label {
     margin: 0;
@@ -226,6 +227,8 @@
 }
 .accounts-list.is-selecting .account-card.is-picked .select-mark { display: flex; }
 .accounts-list.is-selecting .account-card.is-picked { background: var(--bg-active); }
+.accounts-list.is-selecting .account-card.is-selected:not(.is-picked) { background: transparent; }
+.accounts-list.is-selecting .account-card.is-selected:not(.is-picked):hover { background: var(--bg-hover); }
 .accounts-list.is-selecting .account-card .play-btn { visibility: hidden; }
 .notice-banner { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 10px 12px 10px 14px; border-radius: var(--radius-lg); background: var(--surface); font-size: 14px; flex-shrink: 0; }
 .notice-banner[hidden] { display: none; }
@@ -391,7 +394,11 @@
 .profile-rank-history-wrap,
 .profile-match-history-wrap,
 .profile-notes-wrap { display: flex; flex-direction: column; gap: 8px; }
-.profile-rank-history-header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.profile-rank-history-wrap { container-type: inline-size; }
+.profile-rank-history-header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 8px; }
+.profile-rank-history-label, .profile-rank-history-header .link-btn { white-space: nowrap; }
+.profile-rank-history-range { order: 3; flex-basis: 100%; }
+@container (min-width: 300px) { .profile-rank-history-range { order: 0; flex-basis: auto; } }
 .profile-rank-history-label,
 .profile-match-history-label,
 .profile-notes-label { color: var(--muted); font-size: 13px; }
@@ -682,6 +689,7 @@ button.match-pill:hover { filter: brightness(1.18); transform: translateY(-1px);
 
 @media (max-width: 980px) {
     .ov-main { grid-template-columns: minmax(0, 1fr); }
+    .ov-attention { order: -1; }
     .ov-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .ov-summary-cell:nth-child(3) { border-left: 0; }
     .ov-summary-cell:nth-child(n + 3) { border-top: 1px solid var(--line); }

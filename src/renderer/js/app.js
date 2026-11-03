@@ -2684,7 +2684,7 @@ function renderStatus(acc) {
     row.className = `profile-status-row${w.urgent ? " is-urgent" : ""}`;
     row.innerHTML = `<i class="fas ${escapeHtml(WARNING_ICONS[w.kind])}" aria-hidden="true"></i><span></span>`;
     row.querySelector("span").textContent = w.until
-      ? `Suspended until ${new Date(w.until).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}, ${w.short.replace(/^Banned /, "")} left`
+      ? `Suspended until ${new Date(w.until).toLocaleString([], { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}, ${w.short.replace(/^Banned /, "")} left`
       : w.text;
     list.appendChild(row);
   }
@@ -2861,7 +2861,8 @@ async function openSeasonReview(acc) {
     seasonTile("Peak rank", label(r.peak), r.peak ? new Date(r.peak.ts).toLocaleDateString() : "no rank saved yet", r.peak?.tier || "") +
     seasonTile("Now", label(r.current), "", r.current?.tier || "") +
     seasonTile("Season", r.seasonRecord || "-", r.seasonRatio ? `${r.seasonRatio} win rate (solo/duo)` : "") +
-    seasonTile("Longest win streak", r.longestWinStreak ? plural(r.longestWinStreak, "win") : "-", `in ${plural(r.rankedGamesSaved, "saved ranked game")}`);
+    seasonTile("Longest win streak", r.longestWinStreak ? plural(r.longestWinStreak, "win") : "-",
+      r.rankedGamesSaved ? `in ${plural(r.rankedGamesSaved, "saved ranked game")}` : "No ranked games saved yet");
   let chart = "";
   if (r.history.length > 1) {
     const from = r.history[0].ts;
@@ -2977,8 +2978,10 @@ function renderMatchups(note) {
 
 function renderGamesList() {
   const el = document.getElementById("gamesList");
+  document.getElementById("gamesPane")?.classList.remove("is-empty");
   if (!_games.matches.length) {
-    el.innerHTML = '<p class="games-empty">No games stored yet. They are saved each time the account is opened.</p>';
+    el.innerHTML = '<div class="games-empty-state"><i class="fas fa-clock-rotate-left" aria-hidden="true"></i><p class="games-empty">No games stored yet. They are saved each time the account is opened.</p></div>';
+    document.getElementById("gamesPane")?.classList.add("is-empty");
     return;
   }
   el.innerHTML = _games.matches
@@ -3444,7 +3447,8 @@ function overviewAccountCard(r, seriesIndex, from) {
   const last = r.history[r.history.length - 1];
   const tier = r.stats?.tier && r.stats.tier !== "N/A" ? r.stats.tier : last ? formatRankHistoryLabel(last) : "";
   const tierWord = (tier || "").split(" ")[0];
-  const rankLp = r.stats?.lp || (last ? `${last.lp} LP` : "");
+  const fromHistory = !(r.stats?.tier && r.stats.tier !== "N/A");
+  const rankLp = r.stats?.lp || (fromHistory && last ? `${last.lp} LP` : "");
   const lpCls = !r.week ? "" : r.week.lp > 0 ? "is-up" : r.week.lp < 0 ? "is-down" : "";
   const lpText = r.week ? `${signed(r.week.lp)} LP` : "";
   const record = r.week && r.week.wins !== null ? `${r.week.wins}W ${r.week.losses}L` : "";
