@@ -336,3 +336,15 @@ test('the overlay window ignores impossible sizes', () => {
     }
     state.overlayWindow = null;
 });
+
+test('the overlay has an Items panel with the build options, shown with the Build button setting', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'overlay.html'), 'utf8');
+    const js = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'js', 'overlay.js'), 'utf8');
+    assert.match(html, /id="ovItemsToggle"/);
+    assert.match(html, /id="ovItems" hidden/);
+    assert.match(js, /ovItemsToggle\.addEventListener\('click', \(\) => showPanel\('items'\)\)/);
+    assert.match(js, /itemChoicesRow\('4th item', opts\.fourth, owned\)/);
+    assert.match(js, /showButton\(ovItemsToggle, 'items', ovShowBuildsToggle\.checked\)/);
+});

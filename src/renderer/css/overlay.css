@@ -63,7 +63,7 @@ html, body {
 img { display: block; }
 [hidden] { display: none !important; }
 
-.ov-root { width: 360px; display: flex; flex-direction: column; gap: 6px; padding: 2px; }
+.ov-root { width: 384px; display: flex; flex-direction: column; gap: 6px; padding: 2px; }
 
 /* ── Bar ─────────────────────────────────────────────────────────────────── */
 .ov-bar {
@@ -297,3 +297,17 @@ img { display: block; }
         transition-duration: 0.01ms !important;
     }
 }
+
+/* ── Items panel: core build and the choices for each later slot ── */
+.ov-core { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.ov-core-items { display: flex; align-items: center; gap: 4px; }
+.ov-core-arrow { width: 8px; height: 8px; border-top: 1.5px solid var(--muted); border-right: 1.5px solid var(--muted); transform: rotate(45deg); margin: 0 3px 0 1px; opacity: 0.7; }
+.ov-core-stats { color: var(--muted); font-size: 11px; text-align: right; }
+.ov-choices-row { margin-bottom: 8px; }
+.ov-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+/* Icon on the left, win rate and pick rate beside it: one short line per slot. */
+.ov-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 6px; align-items: center; padding: 4px 6px; border-radius: 6px; background: var(--raised); }
+.ov-choice > .ov-item-wrap { grid-row: 1 / 3; }
+.ov-choice-wr { font-family: var(--font-display); font-size: 12px; font-weight: 700; color: var(--ink); line-height: 1.2; }
+.ov-choice-pick { font-size: 10px; color: var(--muted); line-height: 1.2; white-space: nowrap; }
+.ov-choices-row .ov-label { margin-top: 2px; }

@@ -21,9 +21,11 @@ test('the games dialog without games shows one centered message', () => {
     assert.match(overlaysCss, /\.games-pane\.is-empty \.game-detail \{ display: none; \}/);
 });
 
-test('the overlay description names only settings that exist', () => {
+test('the overlay description names the settings the overlay has', () => {
     const desc = html.match(/A small bar over the game[^<]+/)[0];
-    assert.doesNotMatch(desc, /opacity/i);
+    const overlay = read('overlay.html');
+    if (/opacity/i.test(desc)) assert.match(overlay, /id="ovOpacity/);
+    assert.match(overlay, /id="ovItemsToggle"/, 'the Items panel button');
 });
 
 test('narrow rows drop the facts instead of cutting them', () => {

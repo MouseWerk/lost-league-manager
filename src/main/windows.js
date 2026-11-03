@@ -60,7 +60,7 @@ function createMainWindow() {
 
 function createOverlayWindow(owOverlay, onReady = null) {
     const { width: sw } = screen.getPrimaryDisplay().workAreaSize;
-    const w = 364; // .ov-root in overlay.css plus its padding; the page sets the height
+    const w = 388; // .ov-root in overlay.css plus its padding; the page sets the height
     // The last place the player dragged it to, else the top right.
     const saved = Number.isInteger(state.config.overlayX) && Number.isInteger(state.config.overlayY);
     const opts = {
