@@ -225,3 +225,25 @@ test('draft: enemy picks with their lane, and party members as duo', async (t) =
     assert.equal(d.laneOpponent, 'Zed');
     assert.deepEqual(d.duo.map((x) => [x.key, x.position]), [['Lulu', 'support']]);
 });
+
+test('the build keeps the choices for every later item slot with win and pick rate', async (t) => {
+    const text = [
+        'class LolGetChampionAnalysis: data',
+        'class Data: core_items,boots,starter_items,fourth_items,fifth_items,sixth_items,skill_masteries',
+        'class CoreItems: ids,play,win,pick_rate',
+        'class SkillMasteries: ids',
+        '',
+        'LolGetChampionAnalysis(Data(CoreItems([3118,4645,3157],17974,9471,0.13),CoreItems([3020],132853,69027,0.59),CoreItems([1056,2003,2003],228208,117296,0.99),'
+            + '[CoreItems([3089],18842,11074,0.32),CoreItems([3157],14748,8779,0.25),CoreItems([3135],5005,2661,0.09),CoreItems([3102],100,50,0.01)],'
+            + '[CoreItems([3089],3076,1950,0.2)],[],SkillMasteries(["Q","W","E"])))',
+    ].join('\n');
+    t.mock.method(axios, 'post', async () => mcp(text));
+    const b = await opgg.getChampionBuild('Ahri', 'mid');
+    assert.deepEqual(b.items.coreStats, { ids: [3118, 4645, 3157], games: 17974, winRate: 52.7, pickRate: 13 });
+    assert.equal(b.items.bootsStats.pickRate, 59);
+    assert.equal(b.items.options.fourth.length, 3, 'at most three choices');
+    assert.deepEqual(b.items.options.fourth[0], { ids: [3089], games: 18842, winRate: 58.8, pickRate: 32 });
+    assert.deepEqual(b.items.options.fifth.map(c => c.ids[0]), [3089]);
+    assert.deepEqual(b.items.options.sixth, []);
+    assert.deepEqual(b.items.late, [3089], 'the most picked of each slot, as before');
+});

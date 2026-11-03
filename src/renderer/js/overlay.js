@@ -86,6 +86,9 @@ const ovGameContent = $('ovGameContent');
 const ovCsGoalSeg = $('ovCsGoalSeg');
 const ovToggle = $('ovToggle');
 const ovBuildToggle = $('ovBuildToggle');
+const ovItemsToggle = $('ovItemsToggle');
+const ovItems = $('ovItems');
+const ovItemsContent = $('ovItemsContent');
 const ovSettingsBtn = $('ovSettingsBtn');
 const ovRanked = $('ovRanked');
 const ovRankedContent = $('ovRankedContent');
@@ -282,10 +285,12 @@ function showPanel(name) {
     ovGame.hidden = openPanel !== 'game';
     ovRanked.hidden = openPanel !== 'players';
     ovBuilds.hidden = openPanel !== 'build';
+    ovItems.hidden = openPanel !== 'items';
     ovSettingsPanel.hidden = openPanel !== 'settings';
     ovGameToggle.setAttribute('aria-pressed', String(openPanel === 'game'));
     ovToggle.setAttribute('aria-pressed', String(openPanel === 'players'));
     ovBuildToggle.setAttribute('aria-pressed', String(openPanel === 'build'));
+    ovItemsToggle.setAttribute('aria-pressed', String(openPanel === 'items'));
     ovSettingsBtn.setAttribute('aria-pressed', String(openPanel === 'settings'));
     if (openPanel === 'game') renderGamePanel();
     if (openPanel === 'players') {
@@ -293,15 +298,17 @@ function showPanel(name) {
         renderRankedPanel();
         // (Opening the panel by hand still looks the ranks up.)
     }
-    if (openPanel === 'build') {
+    if (openPanel === 'build' || openPanel === 'items') {
         if (!buildFetched && myChampKey) triggerBuildFetch();
         renderBuildPanel();
+        renderItemsPanel();
     }
 }
 
 ovGameToggle.addEventListener('click', () => showPanel('game'));
 ovToggle.addEventListener('click', () => showPanel('players'));
 ovBuildToggle.addEventListener('click', () => showPanel('build'));
+ovItemsToggle.addEventListener('click', () => showPanel('items'));
 ovSettingsBtn.addEventListener('click', () => showPanel('settings'));
 
 // ── Game panel ────────────────────────────────────────────────────────────────
@@ -383,11 +390,13 @@ function triggerBuildFetch() {
             if (res?.success) buildData = res.build;
             else buildError = res?.message || 'No build for this champion yet';
             if (openPanel === 'build') renderBuildPanel();
+            if (openPanel === 'items') renderItemsPanel();
         })
         .catch(() => {
             buildFetched = false; // try again next time
             buildLoading = false;
             if (openPanel === 'build') renderBuildPanel();
+            if (openPanel === 'items') renderItemsPanel();
         });
 }
 
@@ -425,6 +434,62 @@ function renderBuildPanel() {
             ${itemRow('Start', b.items.starter)}${itemRow('Boots', b.items.boots)}${itemRow('Core', b.items.core)}${itemRow('Later', b.items.late)}
         </div>
         ${skills}`;
+}
+
+// Items panel: the core build, boots, and the choices for the 4th, 5th and
+// 6th item with how often each is picked and won. Bought items are ticked.
+function itemIcon(id, owned) {
+    return `<span class="ov-item-wrap${owned.has(id) ? ' is-owned' : ''}"><img class="ov-item" src="${escHtml(itemIconUrl(id))}" alt="" data-tip="${escHtml((itemNames[id] || id) + (owned.has(id) ? ', bought' : ''))}" data-fallback="hide"></span>`;
+}
+
+function pickText(c) {
+    return c?.pickRate === null || c?.pickRate === undefined ? '' : String(c.pickRate) + '% pick';
+}
+
+function rateText(c) {
+    return c?.winRate === null || c?.winRate === undefined ? '' : `${c.winRate}%`;
+}
+
+function itemChoicesRow(label, list, owned) {
+    if (!list?.length) return '';
+    const cells = list.map((c) => `
+        <span class="ov-choice">
+            ${c.ids.map((id) => itemIcon(id, owned)).join('')}
+            <span class="ov-choice-wr">${escHtml(rateText(c))}</span>
+            <span class="ov-choice-pick">${escHtml(pickText(c))}</span>
+        </span>`).join('');
+    return `<div class="ov-choices-row"><p class="ov-label">${escHtml(label)}</p><div class="ov-choices">${cells}</div></div>`;
+}
+
+function renderItemsPanel() {
+    if (!myChampKey) { ovItemsContent.innerHTML = '<p class="ov-msg">Waiting for your champion...</p>'; return; }
+    if (buildLoading) { ovItemsContent.innerHTML = '<p class="ov-msg">Loading the builds from OP.GG...</p>'; return; }
+    if (!buildData) { ovItemsContent.innerHTML = `<p class="ov-msg">${escHtml(buildError || 'No build for this champion yet')}</p>`; return; }
+    const items = buildData.items || {};
+    const owned = ownedItems();
+    const opts = items.options || {};
+    const core = items.core?.length
+        ? `<div class="ov-core">
+            <div class="ov-core-items">${items.core.map((id) => itemIcon(id, owned)).join('<span class="ov-core-arrow" aria-hidden="true"></span>')}</div>
+            <div class="ov-core-stats">${escHtml([rateText(items.coreStats) && `${rateText(items.coreStats)} won`, items.coreStats?.games ? `${items.coreStats.games.toLocaleString('en-US')} games` : ''].filter(Boolean).join(', '))}</div>
+        </div>`
+        : '';
+    const boots = items.boots?.length
+        ? `<div class="ov-choices-row"><p class="ov-label">Boots</p><div class="ov-choices"><span class="ov-choice">${items.boots.map((id) => itemIcon(id, owned)).join('')}<span class="ov-choice-wr">${escHtml(rateText(items.bootsStats))}</span><span class="ov-choice-pick">${escHtml(pickText(items.bootsStats))}</span></span></div></div>`
+        : '';
+    const anyOptions = ['fourth', 'fifth', 'sixth'].some((k) => opts[k]?.length);
+    ovItemsContent.innerHTML = `
+        <div class="ov-build-head">
+            <img src="${escHtml(champIconUrlFromKey(myChampKey))}" alt="" data-fallback="logo">
+            <span class="ov-build-title">Item builds</span>
+            <span class="ov-build-sub">OP.GG</span>
+        </div>
+        ${core ? `<p class="ov-label">Core build</p>${core}` : ''}
+        ${boots}
+        ${itemChoicesRow('4th item', opts.fourth, owned)}
+        ${itemChoicesRow('5th item', opts.fifth, owned)}
+        ${itemChoicesRow('6th item', opts.sixth, owned)}
+        ${!anyOptions && items.late?.length ? itemRow('Later', items.late) : ''}`;
 }
 
 // ── Players panel ─────────────────────────────────────────────────────────────
@@ -680,6 +745,7 @@ ovShowRankedToggle.addEventListener('change', () => {
 });
 ovShowBuildsToggle.addEventListener('change', () => {
     showButton(ovBuildToggle, 'build', ovShowBuildsToggle.checked);
+    showButton(ovItemsToggle, 'items', ovShowBuildsToggle.checked);
     window.overlayAPI.saveSettings({ showBuilds: ovShowBuildsToggle.checked });
 });
 
@@ -697,7 +763,7 @@ function showButton(btn, panel, on) {
 // Settings changed in the app's Settings page.
 window.overlayAPI.onSettingsUpdate((s) => {
     if (s.showRanked !== undefined) { ovShowRankedToggle.checked = s.showRanked; showButton(ovToggle, 'players', s.showRanked); }
-    if (s.showBuilds !== undefined) { ovShowBuildsToggle.checked = s.showBuilds; showButton(ovBuildToggle, 'build', s.showBuilds); }
+    if (s.showBuilds !== undefined) { ovShowBuildsToggle.checked = s.showBuilds; showButton(ovBuildToggle, 'build', s.showBuilds); showButton(ovItemsToggle, 'items', s.showBuilds); }
     if (s.locked !== undefined) setLocked(s.locked);
 });
 
@@ -811,6 +877,7 @@ window.overlayAPI.onInit((initData) => {
     ovShowBuildsToggle.checked = showBuilds;
     showButton(ovToggle, 'players', showRanked);
     showButton(ovBuildToggle, 'build', showBuilds);
+    showButton(ovItemsToggle, 'items', showBuilds);
 });
 
 updateBar();

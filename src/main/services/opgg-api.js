@@ -330,6 +330,19 @@ const BUILD_POSITIONS = ['top', 'jungle', 'mid', 'adc', 'support'];
 const ids = (v) => (Array.isArray(v) ? v.filter((n) => Number.isInteger(n) && n > 0) : []);
 const firstIds = (list) => (Array.isArray(list) && list[0] ? ids(list[0].ids) : []);
 
+// One item choice with how it does: { ids, games, winRate (%), pickRate (%) }.
+function itemChoice(o) {
+    const games = Number.isInteger(o?.play) ? o.play : 0;
+    return {
+        ids: ids(o?.ids),
+        games,
+        winRate: games && Number.isFinite(o?.win) ? Math.round((o.win / games) * 1000) / 10 : null,
+        pickRate: Number.isFinite(o?.pick_rate) ? Math.round(o.pick_rate * 1000) / 10 : null,
+    };
+}
+// The choices for one slot (4th, 5th, 6th item), most picked first, at most three.
+const choices = (list) => (Array.isArray(list) ? list.map(itemChoice).filter((c) => c.ids.length).slice(0, 3) : []);
+
 // The most played runes and items for a champion, from OP.GG's statistics.
 // champKey is the DDragon key ("MonkeyKing"); position one of BUILD_POSITIONS
 // or null for the champion's main position; mode 'ranked' or 'aram'.
@@ -347,17 +360,17 @@ async function getChampionBuild(champKey, position, mode = 'ranked') {
         const name = String(main?.data?.summary?.positions?.[0]?.name || 'MID').toLowerCase();
         pos = BUILD_POSITIONS.includes(name) ? name : 'mid';
     }
-    return cached(`build:${gameMode}:${champion}:${pos}`, async () => {
+    return cached(`build2:${gameMode}:${champion}:${pos}`, async () => {
         const parsed = await callTool('lol_get_champion_analysis', {
             game_mode: gameMode, champion, position: pos,
             desired_output_fields: [
                 'data.runes.{primary_page_id,primary_page_name,primary_rune_ids[],primary_rune_names[],secondary_page_id,secondary_page_name,secondary_rune_ids[],secondary_rune_names[],stat_mod_ids[],play,win}',
                 'data.starter_items.{ids[]}',
-                'data.boots.{ids[]}',
-                'data.core_items.{ids[]}',
-                'data.fourth_items[].{ids[]}',
-                'data.fifth_items[].{ids[]}',
-                'data.sixth_items[].{ids[]}',
+                'data.boots.{ids[],play,win,pick_rate}',
+                'data.core_items.{ids[],play,win,pick_rate}',
+                'data.fourth_items[].{ids[],play,win,pick_rate}',
+                'data.fifth_items[].{ids[],play,win,pick_rate}',
+                'data.sixth_items[].{ids[],play,win,pick_rate}',
                 'data.skill_masteries.{ids[]}',
             ],
         });
@@ -383,6 +396,11 @@ async function getChampionBuild(champKey, position, mode = 'ranked') {
             boots: ids(d.boots?.ids),
             core: ids(d.core_items?.ids),
             late,
+            // For the overlay's Items panel: how the core and boots do, and
+            // the choices for the 4th, 5th and 6th item.
+            coreStats: itemChoice(d.core_items),
+            bootsStats: itemChoice(d.boots),
+            options: { fourth: choices(d.fourth_items), fifth: choices(d.fifth_items), sixth: choices(d.sixth_items) },
         };
         const skills = (Array.isArray(d.skill_masteries?.ids) ? d.skill_masteries.ids : []).filter((s) => /^[QWER]$/.test(s));
         if (!runes && !items.core.length) throw new Error('OP.GG has no build for this champion yet');
