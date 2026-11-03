@@ -285,6 +285,25 @@
   const DECAY_BANK_DAYS = { diamond: 28, master: 14, grandmaster: 14, challenger: 14 };
   const INACTIVE_DAYS = 30;
 
+  // "1d 6h", "5h 20m", "12m": what is left of a suspension.
+  function timeLeft(ms) {
+    const m = Math.max(1, Math.ceil(ms / 60000));
+    const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), min = m % 60;
+    if (d > 0) return h ? `${d}d ${h}h` : `${d}d`;
+    if (h > 0) return min ? `${h}h ${min}m` : `${h}h`;
+    return `${min}m`;
+  }
+
+  // The ban that applies: the one the Riot Client reported at the last
+  // sign-in, or one entered by hand (banUntil), whichever ends later.
+  function effectiveBan(account) {
+    const seen = account?.status?.ban || null;
+    const manual = Date.parse(account?.banUntil || "");
+    if (seen?.permanent) return seen;
+    if (Number.isFinite(manual) && !(seen?.until >= manual)) return { permanent: false, until: manual, manual: true };
+    return seen;
+  }
+
   // Warnings for an account row and panel, most urgent first:
   // [{ kind: 'restriction'|'decay'|'inactive', text, urgent }].
   // status is the record from account-status.js, tier the solo tier text.
@@ -293,6 +312,11 @@
     const s = status || {};
     const days = (ms) => Math.floor(ms / DAY_MS);
     const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+    if (s.ban && (s.ban.permanent || s.ban.until > now)) {
+      out.push(s.ban.permanent
+        ? { kind: "ban", text: "Permanently banned", short: "Banned", urgent: true }
+        : { kind: "ban", text: `Suspended, ${timeLeft(s.ban.until - now)} left`, short: `Banned ${timeLeft(s.ban.until - now)}`, until: s.ban.until, urgent: true });
+    }
     if (s.restriction && s.restriction.gamesLeft > 0) {
       out.push({ kind: "restriction", text: `Ranked restricted, ${plural(s.restriction.gamesLeft, "normal game")} left`, urgent: true });
     }
@@ -411,6 +435,48 @@
 
   function secondsUntil(ms) {
     return Math.max(1, Math.ceil((Number(ms) || 0) / 1000));
+  }
+
+  // ── Overview ───────────────────────────────────────────────────────────────
+  // The week of all accounts in four numbers: ranked games and record, win
+  // rate, net LP and the Blue Essence of every account added up.
+  // rows: [{ week: weeklySummary(...) | null, acc }].
+  function overviewTotals(rows) {
+    let wins = 0, losses = 0, lp = 0, tracked = 0, be = 0, beKnown = false;
+    for (const r of rows) {
+      const w = r.week;
+      if (w) {
+        lp += w.lp;
+        tracked += 1;
+        if (w.wins !== null) { wins += w.wins; losses += w.losses; }
+      }
+      const b = Number(r.acc?.status?.wallet?.be);
+      if (Number.isFinite(b)) { be += b; beKnown = true; }
+    }
+    const games = wins + losses;
+    return {
+      games, wins, losses,
+      winRate: games ? Math.round((wins / games) * 100) : null,
+      lp: tracked ? lp : null,
+      tracked,
+      be: beKnown ? be : null,
+    };
+  }
+
+  // The accounts that need a look, most urgent first, each once with all its
+  // warnings: [{ username, name, kind, urgent, items: [{ kind, text, urgent }] }].
+  // kind is the account's most pressing warning. Bans lead, then other urgent
+  // warnings, then the quiet ones (not played for a while).
+  function attentionList(rows) {
+    const rank = (w) => (w.kind === "ban" ? 0 : w.urgent ? 1 : 2);
+    const out = [];
+    for (const r of rows) {
+      const items = (r.warnings || []).map((w) => ({ kind: w.kind, text: w.text, urgent: !!w.urgent }))
+        .sort((a, b) => rank(a) - rank(b));
+      if (!items.length) continue;
+      out.push({ username: r.acc.username, name: r.acc.label || r.acc.riotId || r.acc.username, kind: items[0].kind, urgent: items.some((i) => i.urgent), order: rank(items[0]), items });
+    }
+    return out.sort((a, b) => a.order - b.order).map(({ order, ...e }) => e);
   }
 
   // ── Account row ────────────────────────────────────────────────────────────
@@ -556,6 +622,10 @@
 
   const api = {
     escapeHtml,
+    overviewTotals,
+    attentionList,
+    timeLeft,
+    effectiveBan,
     rankDetail,
     compactNumber,
     shortAgo,

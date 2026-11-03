@@ -95,7 +95,7 @@ test('the game overlay is marked Beta and off by default', () => {
 });
 
 test('an Overview row clears the list filters before it opens the account', () => {
-    const fn = app.slice(app.indexOf('A row opens that account'), app.indexOf('selectAccount(row.dataset.username)'));
+    const fn = app.slice(app.indexOf('opens that account in the Accounts view'), app.indexOf('selectAccount(row.dataset.username)'));
     assert.match(fn, /currentRegion = "";[\s\S]*currentTag = "";[\s\S]*currentQuery = "";/);
 });
 

@@ -2,6 +2,7 @@ const { invoke } = require('./helpers/fake-electron');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
+const path = require('path');
 const state = require('../src/main/state');
 const { weeklySummary, rankChart, scoreLabel, ladderScore } = require('../src/renderer/js/ui-lib.js');
 require('../src/main/ipc/stats').register();
@@ -69,4 +70,37 @@ test('season review: peak, current, longest ranked win streak, champions', async
     assert.equal(r.longestWinStreak, 3, 'ranked only');
     assert.deepEqual(r.champions.map((c) => [c.name, c.games, c.winRate]), [['Ahri', 40, 65]]);
     assert.equal(longestWinStreak([]), 0);
+});
+
+test('the summary band adds up the week of every account and their Blue Essence', () => {
+    const { overviewTotals } = require('../src/renderer/js/ui-lib.js');
+    const t = overviewTotals([
+        { acc: { status: { wallet: { be: 100000 } } }, week: { lp: 134, wins: 7, losses: 3 } },
+        { acc: { status: { wallet: { be: 41250 } } }, week: { lp: -10, wins: 4, losses: 2 } },
+        { acc: {}, week: { lp: 18, wins: null, losses: null } },
+        { acc: {}, week: null },
+    ]);
+    assert.deepEqual(t, { games: 16, wins: 11, losses: 5, winRate: 69, lp: 142, tracked: 3, be: 141250 });
+    const none = overviewTotals([{ acc: {}, week: null }]);
+    assert.equal(none.winRate, null);
+    assert.equal(none.lp, null);
+    assert.equal(none.be, null);
+});
+
+test('needs attention lists each account once, bans first, its warnings inside', () => {
+    const { attentionList } = require('../src/renderer/js/ui-lib.js');
+    const list = attentionList([
+        { acc: { username: 'a', label: 'NA alt' }, warnings: [{ kind: 'inactive', text: 'Not played for 40 days', urgent: false }, { kind: 'decay', text: 'Decays in 2 days', urgent: true }] },
+        { acc: { username: 'b', label: 'Fresh' }, warnings: [] },
+        { acc: { username: 'c', label: 'Smurf' }, warnings: [{ kind: 'ban', text: 'Suspended, 1d 6h left', urgent: true }] },
+    ]);
+    assert.deepEqual(list.map(e => e.name), ['Smurf', 'NA alt']);
+    assert.deepEqual(list[1].items.map(i => i.kind), ['decay', 'inactive'], 'the urgent warning first');
+    assert.equal(list[1].kind, 'decay');
+});
+
+test('the Overview is cards and an attention list, no longer a table', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'index.html'), 'utf8');
+    for (const id of ['overviewSummary', 'overviewAccounts', 'overviewAttention', 'overviewChart']) assert.match(html, new RegExp(`id="${id}"`), id);
+    assert.doesNotMatch(html, /id="overviewTable"|id="overviewTiles"/);
 });
