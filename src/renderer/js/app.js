@@ -62,6 +62,28 @@ const PATCH_INTROS = {
 };
 
 const PATCH_NOTES = {
+  "1.12.0": [
+    {
+      icon: "fas fa-gavel",
+      title: "Time left on a suspension",
+      body: "Suspended accounts show how long the ban still runs, in the list and the panel. Read from the Riot Client at sign-in, or entered by hand.",
+    },
+    {
+      icon: "fas fa-chart-line",
+      title: "A new Overview",
+      body: "The week of all accounts in one band, a card per account with its rank and the last 30 days, and a list of what needs attention.",
+    },
+    {
+      icon: "fas fa-bag-shopping",
+      title: "Items in the overlay",
+      body: "The overlay's new Items panel shows the OP.GG core build and the choices for the 4th, 5th and 6th item, with win and pick rate.",
+    },
+    {
+      icon: "fas fa-language",
+      title: "Dates in English",
+      body: "Dates, numbers and the date picker follow the app's language, plus many small fixes for narrow windows.",
+    },
+  ],
   "1.11.0": [
     {
       icon: "fas fa-gauge-high",
