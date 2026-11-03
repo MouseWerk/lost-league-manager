@@ -12,6 +12,7 @@ const { decrypt } = require('../services/encryption');
 const { broadcastAccountsUpdate } = require('../windows');
 const lcu = require('../lcu');
 const riotSessions = require('../services/riot-sessions');
+const accountStatus = require('../services/account-status');
 
 // Everything that has to be gone before another account can sign in. Current
 // Riot Client builds run their UI as "Riot Client.exe", older ones as
@@ -258,6 +259,10 @@ async function startLeagueAfterSignIn(launch) {
     while (isCurrent(launch) && launch.child && Date.now() < deadline && tries < LEAGUE_START_MAX_TRIES) {
         if (Date.now() - lastTry >= LEAGUE_START_RETRY_MS && await riotClientAuthState() === 'signed-in') {
             if (!isCurrent(launch) || !launch.child) return;
+            if (!launch.banChecked) {
+                launch.banChecked = true;
+                if (await checkBan(launch)) return;
+            }
             lastTry = Date.now();
             tries++;
             if (await riotClientStartLeague()) status(launch, 'Launching League...', 88);
@@ -405,6 +410,27 @@ async function onLoginScriptExit(launch, code, signal) {
     fail(launch, message, 'failed');
 }
 
+// Once the Riot Client is signed in: reads whether the account is banned,
+// stores it for the list, and stops the launch while a ban runs (League
+// would only show its ban screen). Returns true when the launch stopped.
+async function checkBan(launch) {
+    let info;
+    try {
+        info = (await riotClientRequest('GET', '/riot-client-auth/v1/userinfo'))?.data;
+    } catch {
+        return false; // no user info: nothing known, the launch goes on
+    }
+    const ban = accountStatus.parseBan(info);
+    if (ban === undefined || !isCurrent(launch)) return false;
+    accountStatus.recordBan(launch.username, ban);
+    broadcastAccountsUpdate();
+    if (!ban || (!ban.permanent && ban.until <= Date.now())) return false;
+    fail(launch, ban.permanent
+        ? `${launch.label} is permanently banned.`
+        : `${launch.label} is suspended until ${new Date(ban.until).toLocaleString()}.`, 'banned');
+    return true;
+}
+
 // Waits until the Riot Client reports a signed-in player, the launch is
 // cancelled or the time is up. Returns true when signed in.
 async function waitForSignIn(launch, timeoutMs) {
@@ -419,6 +445,7 @@ async function waitForSignIn(launch, timeoutMs) {
 // After a sign-in without typing: start League, check the account in the
 // League client and keep the (refreshed) sign-in for next time.
 async function finishSignedIn(launch) {
+    if (await checkBan(launch)) return;
     status(launch, 'Launching League...', 88);
     await riotClientStartLeague();
     let session = null;
