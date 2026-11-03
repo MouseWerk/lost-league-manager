@@ -225,6 +225,8 @@ function stopWatcher() {
     }
     watcher = null;
     gameInFront = false;
+    // Its Tab release will not come any more: let go of the players peek now.
+    if (tabHeld) sendToOverlay('overlay-tab', false);
     tabHeld = false;
 }
 

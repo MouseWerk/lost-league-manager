@@ -260,6 +260,28 @@ test('Tab held in League shows the overlay even when hidden; the hotkey works on
     state.config.overlayEnabled = false;
 });
 
+test('Tab held when the game ends or the keys change is let go in the overlay', () => {
+    state.config.overlayEnabled = true;
+    state.overlayViaOverwolf = false;
+    const sent = [];
+    state.overlayWindow = {
+        isDestroyed: () => false, isVisible: () => false, showInactive() {}, hide() {},
+        webContents: { send: (ch, v) => sent.push([ch, v]) },
+    };
+    for (const stop of [() => manager.onGameflowPhase('EndOfGame'), () => manager.setHotkey('Ctrl+Shift+O')]) {
+        manager.onGameflowPhase('InProgress');
+        manager.onWatchLine('fg|1|League of Legends');
+        manager.onWatchLine('tab|1');
+        sent.length = 0;
+        stop();
+        assert.deepEqual(sent.filter(([ch]) => ch === 'overlay-tab'), [['overlay-tab', false]]);
+    }
+    manager.onGameflowPhase('EndOfGame');
+    manager.setHotkey('Ctrl+Shift+H');
+    state.overlayWindow = null;
+    state.config.overlayEnabled = false;
+});
+
 test('the show-or-hide keys become virtual-key codes for the watcher', () => {
     assert.deepEqual(manager.hotkeyToVks('Ctrl+Shift+H'), [0x11, 0x10, 0x48]);
     assert.deepEqual(manager.hotkeyToVks('F9'), [0x78]);
