@@ -312,6 +312,10 @@ const {
   queueName,
   rankDetail,
   cardFacts,
+  effectiveBan,
+  overviewTotals,
+  attentionList,
+  compactNumber,
 } = window.UiLib;
 
 // Cached stats for an account, fresh or stale, or null when there is nothing
@@ -2650,13 +2654,19 @@ function initBulkActions() {
 }
 
 // ── Status warnings (decay, restriction, inactivity) ──────────────────────
-const WARNING_ICONS = { restriction: "fa-ban", decay: "fa-hourglass-half", inactive: "fa-moon" };
+const WARNING_ICONS = { ban: "fa-gavel", restriction: "fa-ban", decay: "fa-hourglass-half", inactive: "fa-moon" };
 
 function accountWarnings(account) {
-  return statusWarnings(account.status, getCachedStats(account)?.tier, Date.now());
+  const status = { ...(account.status || {}), ban: effectiveBan(account) };
+  return statusWarnings(status, getCachedStats(account)?.tier, Date.now());
 }
 
 function warningBadge(w) {
+  // A ban is the one warning shown in words in the row: the time left matters.
+  if (w.kind === "ban") {
+    const tip = w.until ? `Suspended until ${new Date(w.until).toLocaleString()}` : w.text;
+    return `<span class="account-ban-badge" data-tooltip="${escapeHtml(tip)}" aria-label="${escapeHtml(w.text)}"><i class="fas fa-gavel" aria-hidden="true"></i>${escapeHtml(w.short)}</span>`;
+  }
   const cls = w.kind === "inactive" ? "account-info-badge" : "account-warning-badge";
   return `<span class="${cls}" data-tooltip="${escapeHtml(w.text)}" aria-label="${escapeHtml(w.text)}"><i class="fas ${escapeHtml(WARNING_ICONS[w.kind])}" aria-hidden="true"></i></span>`;
 }
@@ -2673,7 +2683,9 @@ function renderStatus(acc) {
     const row = document.createElement("div");
     row.className = `profile-status-row${w.urgent ? " is-urgent" : ""}`;
     row.innerHTML = `<i class="fas ${escapeHtml(WARNING_ICONS[w.kind])}" aria-hidden="true"></i><span></span>`;
-    row.querySelector("span").textContent = w.text;
+    row.querySelector("span").textContent = w.until
+      ? `Suspended until ${new Date(w.until).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}, ${w.short.replace(/^Banned /, "")} left`
+      : w.text;
     list.appendChild(row);
   }
   if (lastPlayed && !warnings.some((w) => w.kind === "inactive")) {
@@ -2685,6 +2697,32 @@ function renderStatus(acc) {
   }
   wrap.hidden = list.childElementCount === 0;
 }
+
+// <input type="datetime-local"> works in local time without a zone.
+function toLocalInput(iso) {
+  const t = Date.parse(iso || "");
+  if (!Number.isFinite(t)) return "";
+  const d = new Date(t - new Date(t).getTimezoneOffset() * 60000);
+  return d.toISOString().slice(0, 16);
+}
+
+function fromLocalInput(value) {
+  const t = value ? new Date(value).getTime() : NaN;
+  return Number.isFinite(t) ? new Date(t).toISOString() : "";
+}
+
+// The remaining time of a ban counts down while the app is open.
+setInterval(() => {
+  const now = Date.now();
+  for (const acc of allAccounts) {
+    const ban = effectiveBan(acc);
+    if (!ban || ban.permanent || ban.until < now - 60000) continue;
+    const card = document.querySelector(`#accountsList .account-card[data-username="${CSS.escape(acc.username)}"]`);
+    const el = card?.querySelector(".status-badges");
+    if (el) el.innerHTML = accountWarnings(acc).map(warningBadge).join("");
+    if (acc.username === _profileUsername) renderStatus(acc);
+  }
+}, 60000);
 
 // How Play signs this account in: with its saved Riot sign-in, or by typing.
 function signInHintText(acc) {
@@ -3382,37 +3420,86 @@ function overviewRows(histories, now) {
   });
 }
 
-function overviewTile(label, value, sub = "") {
-  return `<div class="overview-tile"><div class="overview-tile-label">${escapeHtml(label)}</div><div class="overview-tile-value">${escapeHtml(value)}</div>${sub ? `<div class="overview-tile-sub">${escapeHtml(sub)}</div>` : ""}</div>`;
-}
-
 function signed(n) {
   return n > 0 ? `+${n}` : String(n);
 }
+
+// One number of the summary band.
+function summaryCell(label, value, sub = "", cls = "") {
+  return `<div class="ov-summary-cell"><div class="ov-summary-label">${escapeHtml(label)}</div><div class="ov-summary-value ${escapeHtml(cls)}">${value}</div>${sub ? `<div class="ov-summary-sub">${escapeHtml(sub)}</div>` : ""}</div>`;
+}
+
+// The 30-day line of one account inside its card; empty without history.
+function overviewSpark(history, from) {
+  const recent = history.filter((e) => e.ts >= from);
+  const before = history.filter((e) => e.ts < from).pop();
+  const list = before ? [before, ...recent] : recent;
+  if (list.length < 2) return '<div class="ov-spark-empty">No rank changes in 30 days</div>';
+  const pts = sparklinePoints(list, 200, 36, 3).map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  return `<svg class="ov-spark" viewBox="0 0 200 36" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}"></polyline></svg>`;
+}
+
+// A card per account: rank, the month as a line, the week, the goal.
+function overviewAccountCard(r, seriesIndex, from) {
+  const last = r.history[r.history.length - 1];
+  const tier = r.stats?.tier && r.stats.tier !== "N/A" ? r.stats.tier : last ? formatRankHistoryLabel(last) : "";
+  const tierWord = (tier || "").split(" ")[0];
+  const rankLp = r.stats?.lp || (last ? `${last.lp} LP` : "");
+  const lpCls = !r.week ? "" : r.week.lp > 0 ? "is-up" : r.week.lp < 0 ? "is-down" : "";
+  const lpText = r.week ? `${signed(r.week.lp)} LP` : "";
+  const record = r.week && r.week.wins !== null ? `${r.week.wins}W ${r.week.losses}L` : "";
+  const week = r.week
+    ? `<span class="ov-week-lp ${lpCls}">${escapeHtml(lpText)}</span>${record ? `<span>${escapeHtml(record)}</span>` : ""}`
+    : '<span class="ov-muted">No ranked games this week</span>';
+  const goalPct = r.goal ? r.goal.pct : 0;
+  const goalText = r.goal ? (r.goal.reached ? "Reached" : `${goalPct}%`) : "";
+  const goal = r.goal
+    ? `<div class="ov-goal"><span>Goal ${escapeHtml(r.acc.goalRank)}</span><span class="ov-goal-bar"><span style="width:${escapeHtml(goalPct)}%"></span></span><span>${escapeHtml(goalText)}</span></div>`
+    : "";
+  const dot = seriesIndex >= 0 ? `<i class="series-dot series-${seriesIndex + 1}" aria-hidden="true"></i>` : "";
+  return `
+    <button type="button" class="ov-account" data-username="${escapeHtml(r.acc.username)}">
+        <span class="ov-account-head">
+            <span class="ov-account-emblem" data-tier="${escapeHtml(tier)}"></span>
+            <span class="ov-account-name"><b>${dot}${escapeHtml(r.acc.label || r.acc.username)}</b><span>${escapeHtml(r.acc.riotId || "")}</span></span>
+        </span>
+        <span class="ov-account-rank ${escapeHtml(tierClass(tierWord))}"><b>${escapeHtml(tier || "Unranked")}</b>${rankLp ? `<span>${escapeHtml(rankLp)}</span>` : ""}</span>
+        <span class="ov-spark-wrap ${escapeHtml(tierClass(tierWord))}">${overviewSpark(r.history, from)}</span>
+        <span class="ov-week">${week}<span class="ov-account-flags">${r.warnings.filter((w) => w.kind === "ban").map(warningBadge).join("")}</span></span>
+        ${goal}
+    </button>`;
+}
+
+const ATTENTION_ICONS = { ban: "fa-gavel", restriction: "fa-ban", decay: "fa-hourglass-half", inactive: "fa-moon" };
 
 async function renderOverview() {
   const now = Date.now();
   const histories = (await window.electronAPI.getAllRankHistory()) || {};
   const rows = overviewRows(histories, now);
 
-  // Tiles
-  let wins = 0, losses = 0, lp = 0, counted = 0;
-  for (const r of rows) {
-    if (!r.week) continue;
-    lp += r.week.lp;
-    counted += 1;
-    if (r.week.wins !== null) {
-      wins += r.week.wins;
-      losses += r.week.losses;
-    }
-  }
-  const games = wins + losses;
-  const attention = rows.filter((r) => r.warnings.some((w) => w.kind !== "inactive")).length;
-  document.getElementById("overviewTiles").innerHTML =
-    overviewTile("Ranked games this week", String(games), games ? `${wins} won, ${losses} lost (solo/duo)` : "solo/duo") +
-    overviewTile("Ranked win rate", games ? `${Math.round((wins / games) * 100)}%` : "-", "solo/duo") +
-    overviewTile("LP this week", counted ? signed(lp) : "-", counted ? `over ${plural(counted, "account")}` : "") +
-    overviewTile("Need attention", String(attention), attention ? "decay or restriction" : "nothing to do");
+  // Summary band
+  const t = overviewTotals(rows);
+  document.getElementById("overviewSub").textContent =
+    `The last seven days of ${plural(rows.length, "account")}.`;
+  const beIcon = '<img class="currency-icon" src="assets/currency/blue-essence.png" alt="">';
+  document.getElementById("overviewSummary").innerHTML =
+    summaryCell("Ranked games", escapeHtml(String(t.games)), t.games ? `${t.wins} won, ${t.losses} lost` : "solo/duo, this week") +
+    summaryCell("Win rate", escapeHtml(t.winRate === null ? "-" : `${t.winRate}%`), "solo/duo, this week") +
+    summaryCell("LP", escapeHtml(t.lp === null ? "-" : signed(t.lp)), t.tracked ? `over ${plural(t.tracked, "account")}` : "no ranked games this week",
+      t.lp > 0 ? "is-up" : t.lp < 0 ? "is-down" : "") +
+    summaryCell("Blue Essence", t.be === null ? "-" : `${beIcon}${escapeHtml(compactNumber(t.be))}`, "all accounts, at last sign-in");
+
+  // Needs attention
+  const attention = attentionList(rows);
+  document.getElementById("overviewAttention").innerHTML = attention.length
+    ? attention
+        .map((a) => `
+        <button type="button" class="ov-attention-item${a.urgent ? " is-urgent" : ""}" data-username="${escapeHtml(a.username)}">
+            <i class="fas ${escapeHtml(ATTENTION_ICONS[a.kind] || "fa-circle-info")}" aria-hidden="true"></i>
+            <span><b>${escapeHtml(a.name)}</b>${a.items.map((i) => `<span class="${i.urgent ? "is-urgent" : ""}">${escapeHtml(i.text)}</span>`).join("")}</span>
+        </button>`)
+        .join("")
+    : '<p class="ov-attention-empty"><i class="fas fa-check" aria-hidden="true"></i> Nothing needs attention: no bans, decay or restrictions.</p>';
 
   // Chart: the accounts in your order that have a rank saved, at most six.
   const svg = document.getElementById("overviewChart");
@@ -3445,34 +3532,12 @@ async function renderOverview() {
     .join("");
   _overview = { chart, rows: charted, from, now, box };
 
-  // Table: every account.
-  document.getElementById("overviewTable").innerHTML =
-    `<div class="overview-row overview-head"><span></span><span>Account</span><span>Rank</span><span>LP</span><span>Games</span><span>Goal</span><span></span></div>` +
-    rows
-      .map((r) => {
-        // Without fresh stats, the last saved rank.
-        const last = r.history[r.history.length - 1];
-        const tier = r.stats?.tier || (last ? formatRankHistoryLabel(last) : "");
-        const rankLp = r.stats?.lp || (last ? `${last.lp} LP` : "");
-        const lpText = r.week ? signed(r.week.lp) : "-";
-        const lpCls = r.week ? (r.week.lp > 0 ? "is-up" : r.week.lp < 0 ? "is-down" : "") : "";
-        const gamesText = r.week && r.week.wins !== null ? `${r.week.wins}W ${r.week.losses}L` : "-";
-        const goal = r.goal
-          ? `<span class="overview-goal"><span class="overview-goal-bar"><span style="width:${escapeHtml(r.goal.pct)}%"></span></span>${escapeHtml(r.goal.reached ? "Reached" : r.goal.pct + "%")}</span>`
-          : '<span class="overview-muted">-</span>';
-        return `
-        <button type="button" class="overview-row" data-username="${escapeHtml(r.acc.username)}">
-            <span class="overview-emblem" data-tier="${escapeHtml(tier)}"></span>
-            <span class="overview-name">${escapeHtml(r.acc.label || r.acc.username)}<span class="overview-sub">${escapeHtml(r.acc.riotId || "")}</span></span>
-            <span class="overview-rank ${escapeHtml(tierClass(tier))}">${escapeHtml(tier || "Unknown")}${rankLp ? ` <span class="overview-muted">${escapeHtml(rankLp)}</span>` : ""}</span>
-            <span class="overview-lp ${lpCls}">${escapeHtml(lpText)}</span>
-            <span>${escapeHtml(gamesText)}</span>
-            ${goal}
-            <span class="overview-flags">${r.warnings.map(warningBadge).join("")}</span>
-        </button>`;
-      })
-      .join("");
-  document.querySelectorAll("#overviewTable .overview-emblem").forEach((el) => setTierEmblem(el, el.dataset.tier, ""));
+  // Account cards, in your order; the first six carry their chart color.
+  const chartedSet = new Map(charted.map((r, i) => [r.acc.username, i]));
+  document.getElementById("overviewAccounts").innerHTML = rows
+    .map((r) => overviewAccountCard(r, chartedSet.has(r.acc.username) ? chartedSet.get(r.acc.username) : -1, from))
+    .join("");
+  document.querySelectorAll("#overviewAccounts .ov-account-emblem").forEach((el) => setTierEmblem(el, el.dataset.tier, ""));
 }
 
 // Crosshair and tooltip: every charted account's rank at the hovered day.
@@ -3506,9 +3571,9 @@ function initOverview() {
     document.getElementById("overviewChartTip").hidden = true;
     document.getElementById("overviewCross")?.setAttribute("visibility", "hidden");
   });
-  // A row opens that account in the Accounts view.
-  document.getElementById("overviewTable")?.addEventListener("click", (e) => {
-    const row = e.target.closest(".overview-row[data-username]");
+  // A card or an attention item opens that account in the Accounts view.
+  document.getElementById("overviewScrollRoot")?.addEventListener("click", (e) => {
+    const row = e.target.closest(".ov-account[data-username], .ov-attention-item[data-username]");
     if (!row) return;
     // A server, tag or search filter could hide the account in the list.
     currentRegion = "";
@@ -3828,6 +3893,7 @@ function openModal(account = null) {
     document.getElementById("newCustomRank").value = account.customRank || "";
     document.getElementById("newGoalRank").value = account.goalRank || "";
     document.getElementById("newTags").value = account.tags || "";
+    document.getElementById("newBanUntil").value = toLocalInput(account.banUntil);
     document.getElementById("newCustomAvatar").value =
       account.customAvatar || "";
 
@@ -3850,6 +3916,7 @@ function openModal(account = null) {
     document.getElementById("newCustomRank").value = "";
     document.getElementById("newGoalRank").value = "";
     document.getElementById("newTags").value = "";
+    document.getElementById("newBanUntil").value = "";
     document.getElementById("newCustomAvatar").value = "";
 
     document.getElementById("newUsername").disabled = false;
@@ -4110,6 +4177,7 @@ async function saveAccountForm() {
     customRank: document.getElementById("newCustomRank").value.trim(),
     goalRank: document.getElementById("newGoalRank").value,
     tags: document.getElementById("newTags").value,
+    banUntil: fromLocalInput(document.getElementById("newBanUntil").value),
     customAvatar: document.getElementById("newCustomAvatar").value.trim(),
   };
 

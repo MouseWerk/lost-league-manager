@@ -221,10 +221,21 @@
                     <div class="view-title-row">
                         <h1 class="view-title">Overview</h1>
                     </div>
-                    <p class="view-sub">The last seven days of all your accounts.</p>
+                    <p id="overviewSub" class="view-sub">The last seven days of all your accounts.</p>
                 </div>
-                <div class="overview-scroll">
-                    <div id="overviewTiles" class="overview-tiles"></div>
+                <div id="overviewScrollRoot" class="overview-scroll">
+                    <!-- The week in four numbers, one band. -->
+                    <div id="overviewSummary" class="ov-summary"></div>
+                    <div class="ov-main">
+                        <section class="ov-accounts" aria-labelledby="ovAccountsTitle">
+                            <h2 id="ovAccountsTitle" class="ov-section-title">Accounts</h2>
+                            <div id="overviewAccounts" class="ov-account-grid"></div>
+                        </section>
+                        <aside class="ov-attention" aria-labelledby="ovAttentionTitle">
+                            <h2 id="ovAttentionTitle" class="ov-section-title">Needs attention</h2>
+                            <div id="overviewAttention" class="ov-attention-list"></div>
+                        </aside>
+                    </div>
                     <section class="overview-card">
                         <div class="overview-card-head">
                             <h2>Rank, last 30 days</h2>
@@ -235,10 +246,6 @@
                             <div id="overviewChartTip" class="overview-tip" hidden></div>
                         </div>
                         <p id="overviewChartEmpty" class="overview-empty" hidden>No rank changes saved yet. Ranks are saved each time the app looks them up.</p>
-                    </section>
-                    <section class="overview-card">
-                        <div class="overview-card-head"><h2>This week</h2></div>
-                        <div id="overviewTable" class="overview-table"></div>
                     </section>
                 </div>
             </div>
@@ -935,6 +942,10 @@
                             <label for="newTags">Tags <span class="field-hint">comma-separated, for example Main, Duo</span></label>
                             <input type="text" id="newTags" maxlength="400" placeholder="Main, Duo" autocomplete="off">
                             <div id="tagSuggestions" class="tag-suggestions" hidden></div>
+                        </div>
+                        <div class="form-group">
+                            <label for="newBanUntil">Suspended until <span class="field-hint">optional; found by itself at sign-in</span></label>
+                            <input type="datetime-local" id="newBanUntil">
                         </div>
                         <div class="form-group">
                             <label for="newGoalRank">Goal rank <span class="field-hint">progress shows beside the account</span></label>
