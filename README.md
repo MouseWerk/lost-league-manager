@@ -43,10 +43,12 @@
 - **Account panel.** Rank history, recent games, notes, today's LP and games, and a goal rank with
   the LP still to go. Open any game to see both teams, items, CS and damage, and a champion table
   with win rate, KDA and CS per minute.
-- **Warnings.** Ranked decay ("Decays in 3 days"), a ranked restriction with the games left, and
-  accounts you have not played for a while.
-- **Overview.** The week of all your accounts: ranked games, win rate, LP, a 30-day rank chart and
-  each account's goal.
+- **Warnings.** Ranked decay ("Decays in 3 days"), a ranked restriction with the games left,
+  accounts you have not played for a while, and the time left on a suspension ("Banned 1d 6h"),
+  read from the Riot Client at sign-in or entered by hand.
+- **Overview.** The week of all your accounts in one place: ranked games, win rate, LP and Blue
+  Essence, a card per account with its rank, 30-day line and goal, a 30-day rank chart, and a list
+  of everything that needs attention.
 - **Season review.** Peak rank, the season's rank curve, most played champions and the longest win
   streak for each account; your record against each lane opponent.
 - **Stays up to date.** Offers to add the account signed into the client, follows Riot ID changes,
@@ -69,7 +71,8 @@
   matchup against an enemy pick and how well you go with your duo.
 - **In-game overlay (beta).** On the loading screen and while you hold Tab: both teams with rank,
   win rate and tags such as One-trick or New on champ. In the game: your score, team gold and
-  objectives, timers for taken objectives, and your build. Off until you switch it on.
+  objectives, timers for taken objectives, your build, and the item choices for every slot with
+  their win and pick rate. Off until you switch it on.
 - **Auto-accept**, a random owned skin in champion select, appear offline, dodge, a notification
   when a match is found, and a Discord status with your rank and champion (never your name).
 
