@@ -412,6 +412,21 @@ function register() {
     // On-demand only (profile modal), not per-card.
     ipcMain.handle('get-match-history', (event, { region, riotId } = {}) => (locked() ? { matches: [] } : getMatchHistory(region, riotId)));
     // The games dialog: every stored game, and one in detail.
+    // One account's champions, skins and shards, with the Data Dragon champion
+    // key for the champion icons and the skin tiles.
+    ipcMain.handle('get-collection', (event, username) => {
+        if (locked() || typeof username !== 'string') return null;
+        const rec = require('../services/collection').getCollection(username);
+        if (!rec) return null;
+        const keys = championData.getIdToNameMap();
+        return {
+            ...rec,
+            champions: (rec.champions || []).map((c) => ({ ...c, key: keys[c.id] || null })),
+            skins: (rec.skins || []).map((s) => ({ ...s, key: keys[s.championId] || null })),
+            skins: (rec.skins || []).map((s) => ({ ...s, key: keys[s.championId] || null })),
+            version: championData.getLatestVersion(),
+        };
+    });
     ipcMain.handle('get-stored-matches', (event, riotId) => ({ matches: locked() ? [] : matches.getStoredMatches(riotId), version: championData.getLatestVersion() }));
     ipcMain.handle('get-match-detail', async (event, { region, riotId, matchId } = {}) => (locked()
         ? { success: false, locked: true, message: 'Vault is locked' }

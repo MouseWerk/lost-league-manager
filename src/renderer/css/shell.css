@@ -1,5 +1,13 @@
 /* ── App shell: window frame, top bar, views ─────────────────────────────── */
 
+/* League / Valorant switch: a quiet segmented control, the picked side tinted. */
+.game-switch { display: inline-flex; gap: 2px; padding: 2px; margin-right: 12px; border-radius: var(--radius-sm); background: var(--bg-hover); -webkit-app-region: no-drag; }
+.game-switch-btn { display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; padding: 4px 10px; border-radius: var(--radius-xs); cursor: pointer; transition: background-color 0.12s ease, opacity 0.12s ease; opacity: 0.45; }
+.game-switch-btn img { width: 22px; height: 22px; display: block; }
+.game-switch-btn:hover { opacity: 0.8; }
+.game-switch-btn.active { background: var(--surface-raised); opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .game-switch-btn { transition: none; } }
+
 .app-container {
     display: flex;
     flex-direction: column;

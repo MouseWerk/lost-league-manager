@@ -40,7 +40,12 @@
 
             <div class="topbar-drag"></div>
 
-            <label class="auto-accept-control" data-tooltip="Accept every match the client finds" data-tooltip-pos="bottom">
+            <div class="game-switch" role="group" aria-label="Game">
+                <button type="button" class="game-switch-btn active" data-game="lol" aria-pressed="true" aria-label="League of Legends" data-tooltip="League of Legends" data-tooltip-pos="bottom"><img src="assets/games/league.png" alt=""></button>
+                <button type="button" class="game-switch-btn" data-game="valorant" aria-pressed="false" aria-label="Valorant" data-tooltip="Valorant" data-tooltip-pos="bottom"><img src="assets/games/valorant.png" alt=""></button>
+            </div>
+
+            <label class="auto-accept-control lol-only" data-tooltip="Accept every match the client finds" data-tooltip-pos="bottom">
                 <span class="auto-accept-switch">
                     <input type="checkbox" id="autoAcceptToggle">
                     <span class="slider"></span>
@@ -77,7 +82,7 @@
                         <div class="accounts-toolbar">
                             <div class="search-box">
                                 <i class="fas fa-magnifying-glass search-icon" aria-hidden="true"></i>
-                                <input type="text" id="accountSearch" class="search-input" aria-label="Search accounts" placeholder="Search by name or Riot ID">
+                                <input type="text" id="accountSearch" class="search-input" aria-label="Search accounts" placeholder="Search by name, Riot ID or skin">
                                 <button id="searchClearBtn" class="search-clear" style="display:none" aria-label="Clear search"><i class="fas fa-xmark"></i></button>
                             </div>
                             <select id="accountSort" class="sort-select" aria-label="Sort accounts">
@@ -132,7 +137,7 @@
                                 <button id="profileFavBtn" class="icon-btn fav-toggle" aria-pressed="false" aria-label="Add to favourites" data-tooltip="Add to favourites" data-tooltip-pos="left"><i class="fas fa-star"></i></button>
                             </div>
 
-                            <div class="profile-rank-card is-solo">
+                            <div class="profile-rank-card is-solo lol-only">
                                 <div class="profile-rank-top">
                                     <div id="profileSoloEmblem" class="profile-rank-emblem"></div>
                                     <div id="profileSoloTier" class="profile-rank-tier rank-unranked">Unranked</div>
@@ -141,7 +146,7 @@
                                 <div class="profile-lp-track"><div id="profileSoloLpBar" class="profile-lp-fill"></div></div>
                                 <div class="profile-rank-label">Solo/Duo<span id="profileSoloRecord" class="profile-rank-record"></span></div>
                             </div>
-                            <div class="profile-rank-card is-flex">
+                            <div class="profile-rank-card is-flex lol-only">
                                 <div class="profile-rank-top">
                                     <div id="profileFlexEmblem" class="profile-rank-emblem"></div>
                                     <div id="profileFlexTier" class="profile-rank-tier rank-unranked">Unranked</div>
@@ -150,23 +155,60 @@
                                 <div class="profile-rank-label">Flex<span id="profileFlexRecord" class="profile-rank-record"></span></div>
                             </div>
 
-                            <div id="profileStatusWrap" class="profile-status" hidden>
+                            <!-- Valorant: filled by valorant-view.js from the last sign-in. -->
+                            <div id="valorantPanel" class="val-panel val-only">
+                                <div class="val-rank-card">
+                                    <img id="valRankIcon" class="val-rank-icon" alt="" hidden>
+                                    <div class="val-rank-text">
+                                        <div id="valRankName" class="val-rank-name">Not read yet</div>
+                                        <div id="valRankSub" class="val-rank-sub"></div>
+                                        <div id="valRankWhen" class="val-rank-when"></div>
+                                    </div>
+                                    <button id="valRefreshBtn" type="button" class="icon-btn" data-tooltip="Read again" data-tooltip-pos="left" aria-label="Read Valorant again"><i class="fas fa-rotate" aria-hidden="true"></i></button>
+                                </div>
+                                <div id="valWallet" class="profile-wallet" hidden></div>
+                                <div id="valStoreWrap" class="val-store" hidden>
+                                    <div class="val-head"><span class="val-head-label">Store</span><span id="valStoreWhen" class="val-head-when"></span></div>
+                                    <div id="valStoreGrid" class="val-store-grid"></div>
+                                    <div id="valNightWrap" hidden>
+                                        <div class="val-head"><span class="val-head-label">Night Market</span><span id="valNightWhen" class="val-head-when"></span></div>
+                                        <div id="valNightGrid" class="val-store-grid"></div>
+                                    </div>
+                                </div>
+                                <div id="valMatchesWrap" class="val-matches-wrap" hidden>
+                                    <div class="val-head"><span class="val-head-label">Last games</span></div>
+                                    <div id="valMatches" class="val-matches"></div>
+                                </div>
+                                <div class="val-actions">
+                                    <button id="valLoadoutBtn" type="button" class="secondary-btn"><i class="fas fa-shirt" aria-hidden="true"></i> Loadout</button>
+                                    <button id="valSkinsBtn" type="button" class="link-btn">Skins</button>
+                                </div>
+                                <p id="valHint" class="val-hint"></p>
+                            </div>
+
+                            <div id="profileStatusWrap" class="lol-only profile-status" hidden>
                                 <div id="profileStatusList"></div>
                             </div>
 
-                            <div id="profileWalletWrap" class="profile-wallet" hidden>
+                            <div id="profileWalletWrap" class="lol-only profile-wallet" hidden>
                                 <span class="profile-wallet-item"><img class="currency-icon" src="assets/currency/blue-essence.png" alt=""> <b id="profileWalletBe"></b> Blue Essence</span>
                                 <span class="profile-wallet-item"><img class="currency-icon" src="assets/currency/rp.png" alt=""> <b id="profileWalletRp"></b> RP</span>
                                 <span id="profileWalletWhen" class="profile-wallet-when"></span>
                             </div>
 
-                            <div id="profileTodayWrap" class="profile-today" hidden>
+                            <div id="profileCollectionWrap" class="lol-only profile-collection" hidden>
+                                <span class="profile-collection-label">Collection</span>
+                                <span id="profileCollectionText" class="profile-collection-text"></span>
+                                <button id="profileCollectionBtn" type="button" class="link-btn">Show all</button>
+                            </div>
+
+                            <div id="profileTodayWrap" class="lol-only profile-today" hidden>
                                 <span class="profile-today-label">Today</span>
                                 <span id="profileTodayLp" class="profile-today-lp"></span>
                                 <span id="profileTodayRecord" class="profile-today-record"></span>
                             </div>
 
-                            <div id="profileGoalWrap" class="profile-goal" hidden>
+                            <div id="profileGoalWrap" class="lol-only profile-goal" hidden>
                                 <div class="profile-goal-head">
                                     <span class="profile-goal-label">Goal</span>
                                     <span id="profileGoalRank" class="profile-goal-rank"></span>
@@ -175,7 +217,7 @@
                                 <div class="profile-lp-track"><div id="profileGoalBar" class="profile-lp-fill"></div></div>
                             </div>
 
-                            <div id="profileRankHistoryWrap" class="profile-rank-history-wrap" style="display:none">
+                            <div id="profileRankHistoryWrap" class="profile-rank-history-wrap lol-only" style="display:none">
                                 <div class="profile-rank-history-header">
                                     <span class="profile-rank-history-label">Rank history</span>
                                     <span id="profileRankHistoryRange" class="profile-rank-history-range"></span>
@@ -184,7 +226,7 @@
                                 <svg id="profileRankSparkline" class="profile-rank-sparkline" viewBox="0 0 300 48" preserveAspectRatio="none"></svg>
                             </div>
 
-                            <div id="profileMatchHistoryWrap" class="profile-match-history-wrap" style="display:none">
+                            <div id="profileMatchHistoryWrap" class="profile-match-history-wrap lol-only" style="display:none">
                                 <div class="profile-match-history-head">
                                     <span class="profile-match-history-label">Last games</span>
                                     <button id="profileGamesBtn" type="button" class="link-btn">All games and champions</button>
@@ -751,6 +793,17 @@
                                     <button id="cancelRiotApiKeyBtn" class="action-btn" style="display:none">Cancel</button>
                                 </div>
                             </div>
+                            <h3 class="settings-subtitle">HenrikDev key for Valorant <span class="optional-tag">optional</span></h3>
+                            <p class="desc">Valorant ranks are read from the game at each sign-in. A free key from HenrikDev's community API also reads the rank of accounts that are not signed in.</p>
+                            <div class="setting-row">
+                                <input type="password" id="henrikKeyInput" class="form-control api-key-input"
+                                    placeholder="HDEV-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" aria-label="HenrikDev key"
+                                    autocomplete="off" spellcheck="false">
+                                <div class="setting-inline">
+                                    <button id="saveHenrikKeyBtn" class="action-btn">Save</button>
+                                    <button id="clearHenrikKeyBtn" class="action-btn">Clear</button>
+                                </div>
+                            </div>
                         </section>
 
                         <section id="settingsVault" class="settings-section">
@@ -1074,6 +1127,71 @@
         </div>
     </div>
 
+    <!-- Valorant loadout of one account. Filled by openLoadout() in valorant-view.js. -->
+    <div id="loadoutModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="loadoutTitle">
+        <div class="modal-content games-content loadout-content">
+            <button id="closeLoadoutBtn" class="modal-close-x" data-tooltip="Close" aria-label="Close"><i class="fas fa-times"></i></button>
+            <div class="games-head">
+                <h2 id="loadoutTitle">Loadout</h2>
+                <span id="loadoutAccount" class="games-account"></span>
+            </div>
+            <p id="loadoutReadOnly" class="games-note loadout-readonly" hidden>Read only: play this account with Valorant selected to change its loadout.</p>
+            <div class="loadout-body">
+                <div id="loadoutWeapons" class="loadout-weapons" role="list"></div>
+                <div class="loadout-main">
+                    <div class="loadout-main-head">
+                        <h3 id="loadoutWeaponTitle" class="loadout-weapon-title"></h3>
+                        <div class="search-box collection-search">
+                            <i class="fas fa-magnifying-glass search-icon" aria-hidden="true"></i>
+                            <input type="text" id="loadoutFilter" class="search-input" aria-label="Filter skins" placeholder="Filter">
+                        </div>
+                    </div>
+                    <div id="loadoutSkins" class="collection-grid loadout-skins"></div>
+                    <div id="loadoutDetail" class="loadout-detail"></div>
+                </div>
+            </div>
+            <div class="loadout-sets-wrap">
+                <div class="val-head"><span class="val-head-label">Saved sets</span></div>
+                <div id="loadoutSets" class="loadout-sets"></div>
+                <div class="loadout-set-new">
+                    <input type="text" id="loadoutSetName" class="form-control" maxlength="40" placeholder="Set name" aria-label="Set name">
+                    <select id="loadoutSetAgent" class="form-control" aria-label="Agent">
+                        <option value="">Any agent</option>
+                    </select>
+                    <button id="loadoutSaveSetBtn" type="button" class="action-btn">Save current loadout</button>
+                </div>
+                <label class="loadout-auto">
+                    <input type="checkbox" id="loadoutAutoSets">
+                    Equip an agent's set when I lock that agent
+                </label>
+                <p class="games-note">The loadout is changed through Valorant's own servers, the way the game does it. Riot does not offer this officially.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Champions and skins of one account. Filled by openCollectionDialog() in app.js. -->
+    <div id="collectionModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="collectionTitle">
+        <div class="modal-content games-content">
+            <button id="closeCollectionBtn" class="modal-close-x" data-tooltip="Close" aria-label="Close"><i class="fas fa-times"></i></button>
+            <div class="games-head">
+                <h2 id="collectionTitle">Collection</h2>
+                <span id="collectionAccount" class="games-account"></span>
+            </div>
+            <div class="collection-bar">
+                <div class="games-tabs" role="tablist" aria-label="Skins or champions">
+                    <button class="games-tab active" data-collection-tab="skins" role="tab" aria-selected="true">Skins <span id="collectionSkinCount" class="collection-count"></span></button>
+                    <button class="games-tab" data-collection-tab="champions" role="tab" aria-selected="false">Champions <span id="collectionChampCount" class="collection-count"></span></button>
+                </div>
+                <div class="search-box collection-search">
+                    <i class="fas fa-magnifying-glass search-icon" aria-hidden="true"></i>
+                    <input type="text" id="collectionFilter" class="search-input" aria-label="Filter the collection" placeholder="Filter">
+                </div>
+            </div>
+            <p id="collectionNote" class="games-note"></p>
+            <div id="collectionGrid" class="collection-grid"></div>
+        </div>
+    </div>
+
     <!-- Games of one account. Filled by openGamesDialog() in app.js. -->
     <div id="gamesModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="gamesTitle">
         <div class="modal-content games-content">
@@ -1242,6 +1360,7 @@
     <script src="js/ui-lib.js"></script>
     <script src="js/select-menu.js"></script>
     <script src="js/app.js"></script>
+    <script src="js/valorant-view.js"></script>
 </body>
 
 </html>

@@ -13,6 +13,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getConfig: () => ipcRenderer.invoke('get-config'),
     setConfig: (config) => ipcRenderer.invoke('set-config', config),
     setRiotApiKey: (key) => ipcRenderer.invoke('set-riot-api-key', key),
+    setHenrikKey: (key) => ipcRenderer.invoke('set-henrik-key', key),
+
+    // Valorant (same Riot accounts; data from the last sign-in)
+    valorantAccount: (username) => ipcRenderer.invoke('valorant-account', username),
+    valorantRefresh: (username) => ipcRenderer.invoke('valorant-refresh', username),
+    valorantLoadout: (username) => ipcRenderer.invoke('valorant-loadout', username),
+    valorantEquip: (username, guns) => ipcRenderer.invoke('valorant-equip', { username, guns }),
+    valorantSaveSet: (username, set) => ipcRenderer.invoke('valorant-save-set', { username, set }),
+    valorantDeleteSet: (username, id) => ipcRenderer.invoke('valorant-delete-set', { username, id }),
 
     launchAccount: (username, opts) => ipcRenderer.invoke('launch-account', username, opts),
     launchLeagueClient: () => ipcRenderer.invoke('launch-league-client'),
@@ -32,6 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getSeasonReview: (region, riotId) => ipcRenderer.invoke('get-season-review', { region, riotId }),
     getAllRankHistory: () => ipcRenderer.invoke('get-all-rank-history'),
     getStoredMatches: (riotId) => ipcRenderer.invoke('get-stored-matches', riotId),
+    getCollection: (username) => ipcRenderer.invoke('get-collection', username),
     getMatchDetail: (region, riotId, matchId) => ipcRenderer.invoke('get-match-detail', { region, riotId, matchId }),
     getRankHistory: (riotId) => ipcRenderer.invoke('get-rank-history', riotId),
 

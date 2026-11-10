@@ -516,8 +516,20 @@
 
   // Facts next to the Riot ID: when the account last played (or was last
   // signed in by the app) and its Blue Essence from the last sign-in.
-  function cardFacts(acc, now) {
+  // The champion or skin a search finds in an account's collection (names
+  // from its last sign-in), or null. From three letters on: shorter ones
+  // would match nearly every account.
+  function collectionMatch(acc, query) {
+    const q = String(query || "").trim().toLowerCase();
+    const names = [...(acc?.collection?.names || []), ...(acc?.valorant?.names || [])];
+    if (q.length < 3 || !names.length) return null;
+    return names.find((n) => String(n).toLowerCase().includes(q)) || null;
+  }
+
+  function cardFacts(acc, now, query = "") {
     const out = [];
+    const owns = collectionMatch(acc, query);
+    if (owns) out.push({ kind: "owns", text: `Owns ${owns}` });
     const played = acc?.status?.lastPlayed;
     if (played) out.push({ kind: "played", text: `Played ${shortAgo(played, now)}` });
     else if (acc?.lastUsed) out.push({ kind: "played", text: `Signed in ${shortAgo(acc.lastUsed, now)}` });
@@ -630,6 +642,7 @@
     compactNumber,
     shortAgo,
     cardFacts,
+    collectionMatch,
     QUEUE_NAMES,
     queueName,
     gameModeName,

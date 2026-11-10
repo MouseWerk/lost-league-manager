@@ -77,9 +77,9 @@ test('every parameter launch.js passes is declared by the script', { skip: !onWi
     const names = powershell(
         `$ast = [System.Management.Automation.Language.Parser]::ParseFile('${scriptPath}', [ref]$null, [ref]$null); `
         + '$ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath }');
-    assert.deepEqual(names.split(/\r?\n/).sort(), ['NotBefore', 'RiotClientPath', 'Username']);
+    assert.deepEqual(names.split(/\r?\n/).sort(), ['GameProcess', 'NotBefore', 'Product', 'RiotClientPath', 'Username']);
     const launchSrc = fs.readFileSync(path.join(__dirname, '../src/main/ipc/launch.js'), 'utf8');
-    for (const flag of ['-Username', '-RiotClientPath', '-NotBefore']) {
+    for (const flag of ['-Username', '-RiotClientPath', '-NotBefore', '-Product', '-GameProcess']) {
         assert.ok(launchSrc.includes(`'${flag}'`), `launch.js passes ${flag}`);
     }
 });

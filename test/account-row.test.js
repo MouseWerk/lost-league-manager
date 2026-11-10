@@ -42,7 +42,7 @@ test('facts next to the Riot ID: last played (or signed in) and Blue Essence', (
 test('the row renders the facts and the rank detail', () => {
     const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'js', 'app.js'), 'utf8');
     assert.match(app, /<span class="card-facts"><\/span>/);
-    assert.match(app, /cardFacts\(account, Date\.now\(\)\)/);
+    assert.match(app, /cardFacts\(account, Date\.now\(\), currentQuery\)/);
     assert.match(app, /rankDetail\(stats\)/);
 });
 

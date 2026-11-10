@@ -8,7 +8,7 @@ const path = require('path');
 
 const RENDERER = path.join(__dirname, '..', 'src', 'renderer');
 const PAGES = ['index.html', 'overlay.html'];
-const SOURCES = [...PAGES, 'js/app.js', 'js/ui-lib.js', 'js/overlay.js'];
+const SOURCES = [...PAGES, 'js/app.js', 'js/ui-lib.js', 'js/overlay.js', 'js/valorant-view.js'];
 const read = (rel) => fs.readFileSync(path.join(RENDERER, rel), 'utf8');
 
 test('no emojis in UI sources', () => {

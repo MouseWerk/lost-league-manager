@@ -70,7 +70,7 @@ function parseRestriction(data) {
 // can arrive as an object, a JSON string, { userInfo: "<json>" } or a JWT; a
 // restriction looks like { type: 'TIME_BAN'|'PERMANENT_BAN', scope: 'lol'|'riot',
 // dat: { expirationMillis } }. Chat restrictions and other games are ignored.
-function parseBan(info) {
+function decodeUserInfo(info) {
     let u = info;
     const fromJson = (s) => { try { return JSON.parse(s); } catch { return null; } };
     if (typeof u === 'string') {
@@ -80,13 +80,19 @@ function parseBan(info) {
             : fromJson(u);
     }
     if (u && typeof u.userInfo === 'string') u = fromJson(u.userInfo);
+    return u && typeof u === 'object' ? u : null;
+}
+
+// Valorant bans carry the scope 'valorant'; pass ['valorant', 'riot'] for them.
+function parseBan(info, scopes = ['lol', 'riot']) {
+    const u = decodeUserInfo(info);
     const list = u?.ban?.restrictions;
-    if (!Array.isArray(list)) return u && typeof u === 'object' ? null : undefined;
+    if (!Array.isArray(list)) return u ? null : undefined;
     let best = null;
     for (const r of list) {
         const type = String(r?.type || '').toUpperCase();
         const scope = String(r?.scope || '').toLowerCase();
-        if (!type.includes('BAN') || (scope && scope !== 'lol' && scope !== 'riot')) continue;
+        if (!type.includes('BAN') || (scope && !scopes.includes(scope))) continue;
         if (type.includes('PERMANENT')) return { permanent: true, until: null };
         const exp = r?.dat?.expirationMillis ?? r?.dat?.expiration ?? r?.expirationMillis;
         const until = typeof exp === 'number' ? exp : Date.parse(exp);
@@ -163,4 +169,4 @@ function forgetStatus(username) {
     saveStatus(data);
 }
 
-module.exports = { parseBan, recordBan, parseDecay, parseRestriction, parseWallet, captureStatus, recordLastPlayed, getStatusMap, statusFor, forgetStatus };
+module.exports = { decodeUserInfo, parseBan, recordBan, parseDecay, parseRestriction, parseWallet, captureStatus, recordLastPlayed, getStatusMap, statusFor, forgetStatus };

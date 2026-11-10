@@ -32,6 +32,7 @@ function encryptToBase64(text) {
 function loadSecrets(config) {
     let changed = false;
     _riotApiKey = '';
+    loadHenrikKey(config);
 
     if (typeof config.riotApiKeyEnc === 'string' && config.riotApiKeyEnc) {
         try {
@@ -93,4 +94,45 @@ function setRiotApiKey(config, key) {
     return { success: true };
 }
 
-module.exports = { loadSecrets, getRiotApiKey, hasRiotApiKey, setRiotApiKey };
+// The HenrikDev API key (Valorant ranks of accounts that are not signed in),
+// kept the same way as the Riot API key: `henrikKeyEnc` in config.json.
+let _henrikKey = '';
+
+function loadHenrikKey(config) {
+    _henrikKey = '';
+    if (typeof config.henrikKeyEnc !== 'string' || !config.henrikKeyEnc) return;
+    try {
+        _henrikKey = safeStorage().decryptString(Buffer.from(config.henrikKeyEnc, 'base64'));
+    } catch (e) {
+        console.warn('[Secrets] HenrikDev key could not be decrypted:', e.message);
+    }
+}
+
+function getHenrikKey() {
+    return _henrikKey;
+}
+
+function hasHenrikKey() {
+    return !!_henrikKey;
+}
+
+function setHenrikKey(config, key) {
+    if (typeof key !== 'string') return { success: false, message: 'Invalid key' };
+    const trimmed = key.trim();
+    if (!trimmed) {
+        delete config.henrikKeyEnc;
+        _henrikKey = '';
+        return { success: true };
+    }
+    if (!/^HDEV-[0-9a-f-]{20,60}$/i.test(trimmed)) {
+        return { success: false, message: 'This does not look like a HenrikDev key (HDEV-...)' };
+    }
+    if (!canEncrypt()) {
+        return { success: false, message: 'Windows could not encrypt the key, so it was not saved' };
+    }
+    config.henrikKeyEnc = encryptToBase64(trimmed);
+    _henrikKey = trimmed;
+    return { success: true };
+}
+
+module.exports = { loadSecrets, getRiotApiKey, hasRiotApiKey, setRiotApiKey, loadHenrikKey, getHenrikKey, hasHenrikKey, setHenrikKey };

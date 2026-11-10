@@ -4,6 +4,7 @@ const lcu   = require('./lcu');
 const state = require('./state');
 const discordRpc = require('./services/discord-rpc');
 const accountStatus = require('./services/account-status');
+const collection = require('./services/collection');
 const isVaultLocked = () => require('./services/vault').isVaultLocked();
 
 // The login/summoner endpoints 404 for a few seconds while the client boots.
@@ -161,6 +162,7 @@ function applyGameflowPhase(phase, { fromEvent = false } = {}) {
             })
             .catch(() => accountStatus.recordLastPlayed(username));
         accountStatus.captureStatus(username)
+            .then(() => collection.captureCollection(username))
             .then(() => require('./windows').broadcastAccountsUpdate())
             .catch((e) => console.log('[LCU] Status after game skipped:', e.message));
     }
@@ -232,6 +234,7 @@ async function onConnect() {
         await syncWithClient(username, conn);
         if (conn !== connectionSeq) return;
         await accountStatus.captureStatus(username);
+        await collection.captureCollection(username).catch((e) => console.log('[LCU] Collection skipped:', e.message));
         if (username) require('./windows').broadcastAccountsUpdate();
     })().catch(e => console.log('[LCU] Account detection skipped:', e.message));
 
@@ -395,6 +398,7 @@ async function onVaultUnlocked() {
     await syncWithClient(username, conn);
     if (conn !== connectionSeq) return;
     await accountStatus.captureStatus(username);
+    await collection.captureCollection(username).catch((e) => console.log('[LCU] Collection skipped:', e.message));
     require('./windows').broadcastAccountsUpdate();
 }
 
