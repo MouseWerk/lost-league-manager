@@ -1,7 +1,7 @@
 <div align="center">
   <img src="src/renderer/assets/logo.png" alt="Lost League Manager" width="80" />
   <h1>Lost League Manager</h1>
-  <p>Save your League of Legends logins once, then switch accounts in one click.</p>
+  <p>Save your League of Legends and Valorant logins once, then switch accounts in one click.</p>
 
   <a href="https://www.lostleague.com/">
     <img src="https://img.shields.io/badge/Website-lostleague.com-1F7F74?style=for-the-badge" alt="Official website">
@@ -56,8 +56,19 @@
 - **Find and sort.** Search by name, Riot ID or tag, filter by server or tag (Main, Duo, Smurf, ...),
   sort by rank, name, server, recently used or last played, or drag accounts into your own order.
   Select several accounts to tag, refresh, export or delete them together.
+- **Collection.** Champions, skins and shards of each account, read at sign-in. Search for a skin
+  and the list shows which accounts own it.
 - **Safe storage.** Passwords are encrypted on your PC. An optional vault password locks the app,
   and backups are protected with a password you choose.
+
+### Valorant
+- **Game switch.** The top bar switches between League and Valorant; Play then starts Valorant on
+  the chosen account.
+- **Rank, wallet and store.** Rank with emblem, RR and peak, Valorant Points, Radianite and Kingdom
+  Credits, the daily store, the Night Market and the last games. Ranks come from the Valorant client,
+  or from the HenrikDev API if you add a key.
+- **Loadout.** Every owned skin; equip a skin, chroma or level, and save a set per agent that is
+  equipped when you lock that agent (unofficial; uses Valorant's own servers).
 
 ### While you play
 - **Live view.** Your rank, champion mastery and recent games from the running client.
