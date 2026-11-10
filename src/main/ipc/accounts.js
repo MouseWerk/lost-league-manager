@@ -119,6 +119,18 @@ function register() {
         const honorWatch = loadHonorWatch();
         const statusMap = getStatusMap();
         const signIns = require('../services/riot-sessions').signInKeys();
+        const collections = require('../services/collection');
+        const collectionMap = collections.getCollectionMap();
+        // Read once; the Valorant catalogue only when an account has Valorant data.
+        const valorant = require('../services/valorant');
+        const valorantMap = valorant.getRecordMap();
+        let valorantContent = null;
+        const valorantOf = (username) => {
+            const rec = valorantMap[String(username).toLowerCase()];
+            if (!rec) return null;
+            valorantContent = valorantContent || valorant.cachedContent();
+            return require('./valorant').summaryFor(rec, valorantContent);
+        };
         return loadAccounts().map(a => ({
             ...a,
             password: '',
@@ -127,6 +139,10 @@ function register() {
             status: statusFor(statusMap, a.username),
             // A saved Riot sign-in: this account starts without typing.
             savedSignIn: signIns.has(String(a.username).toLowerCase()),
+            // Champions and skins from the last sign-in: counts and the names the search looks in.
+            collection: collections.summaryFor(collectionMap, a.username),
+            // Valorant rank, Valorant Points and owned skin names, from the last sign-in.
+            valorant: valorantOf(a.username),
         }));
     });
 
@@ -205,6 +221,8 @@ function register() {
             forgetHonor(removed.username);
             forgetStatus(removed.username);
             require('../services/riot-sessions').forgetSignIn(removed.username);
+            require('../services/collection').forgetCollection(removed.username);
+            require('../services/valorant').forgetAccount(removed.username);
             // Games and rank history are kept per Riot ID; drop them with the
             // last account that has it.
             const riotId = (removed.riotId || '').trim().toLowerCase();

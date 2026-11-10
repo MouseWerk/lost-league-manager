@@ -53,6 +53,8 @@
     line-height: 1.15;
 }
 .optional-tag { color: var(--muted); font-family: var(--font-ui); font-size: 13px; font-weight: 500; }
+/* A second key inside one section (HenrikDev under the Riot API key). */
+.settings-subtitle { display: flex; align-items: center; gap: 10px; margin: 22px 0 4px; font-size: 15px; font-weight: 600; }
 .settings-section.is-wip > *:not(.settings-section-title) { opacity: 0.6; }
 /* In development: the switches show off and cannot be used. */
 .settings-section.is-wip input:disabled + .slider { background: var(--line); cursor: not-allowed; }

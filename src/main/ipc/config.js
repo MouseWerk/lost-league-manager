@@ -30,6 +30,7 @@ const ALLOWED_CONFIG_KEYS = {
     discordShowDetails:    v => typeof v === 'boolean',
     lastSeenPatchNotesVersion: v => typeof v === 'string' && v.length <= 64,
     density:               v => DENSITIES.includes(v),
+    game:                  v => GAMES.includes(v),
     // Launch and repair start or delete files next to this path.
     lolPath:               isLeagueClientPath,
     minimizeOnGameStart:   v => typeof v === 'boolean',
@@ -43,16 +44,19 @@ const ALLOWED_CONFIG_KEYS = {
     toastOnQueuePop:       v => typeof v === 'boolean',
     theme:                 v => THEMES.includes(v),
     uiScale:               v => typeof v === 'number' && Number.isFinite(v) && v >= MIN_UI_SCALE && v <= MAX_UI_SCALE,
+    valorantAutoSets:      v => typeof v === 'boolean',
 };
+const GAMES = ['lol', 'valorant'];
 
 // Never sent to the renderer.
-const PRIVATE_CONFIG_KEYS = ['riotApiKey', 'riotApiKeyEnc', 'vaultPasswordHash', 'vaultHash', 'vaultSalt', 'vaultKdf'];
+const PRIVATE_CONFIG_KEYS = ['riotApiKey', 'riotApiKeyEnc', 'henrikKeyEnc', 'vaultPasswordHash', 'vaultHash', 'vaultSalt', 'vaultKdf'];
 
 function publicConfig() {
     const out = { ...state.config };
     for (const k of PRIVATE_CONFIG_KEYS) delete out[k];
     out.vaultEnabled  = isVaultEnabled();
     out.riotApiKeySet = secrets.hasRiotApiKey();
+    out.henrikKeySet  = secrets.hasHenrikKey();
     out.lolPathFound  = isLeagueClientPath(state.config.lolPath);
     return out;
 }
@@ -150,6 +154,12 @@ function register() {
         }
 
         if (state.config.theme !== prev.theme) applyTheme();
+
+        if (state.config.valorantAutoSets !== prev.valorantAutoSets) {
+            const valorant = require('../services/valorant');
+            if (state.config.valorantAutoSets) valorant.startAgentWatch();
+            else valorant.stopAgentWatch();
+        }
 
         if (state.config.discordShowDetails !== prev.discordShowDetails && state.config.discordShowDetails === false) {
             discordRpc.setContext({});

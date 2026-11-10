@@ -135,7 +135,7 @@ test('a different signed-in account is reported instead of Done', async () => {
 test('the right signed-in account ends in Done with one 100 % status', async () => {
     setup();
     const script = await startUntilScript('alice');
-    script.print('League client detected - done!\r\nLogin script complete\r\n');
+    script.print('Game client detected - done!\r\nLogin script complete\r\n');
     lcu.connected = true;
     lcu.request = async (m, ep) => (ep === '/lol-login/v1/session' ? { username: 'ALICE' } : null);
     script.exit(0);
@@ -284,7 +284,8 @@ test('progress follows the script line by line, ignores other lines and never go
 });
 
 test('statusForLine maps script lines and ignores unknown ones', () => {
-    assert.equal(launch.statusForLine('Polling for League client launch...').progress, 82);
+    assert.equal(launch.statusForLine('Polling for the game client launch...').progress, 82);
+    assert.equal(launch.statusForLine('Game client detected - done!', 'Valorant').message, 'Valorant is starting...');
     assert.equal(launch.statusForLine('Login script complete'), null, 'only the close handler reports 100');
     assert.equal(launch.statusForLine('ERROR: Lost focus'), null);
 });

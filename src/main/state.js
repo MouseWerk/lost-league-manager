@@ -36,6 +36,8 @@ const state = {
         overlayHotkey: 'Ctrl+Shift+H',
         overlayLocked: false,
         uiScale: 1.0,
+        game: 'lol', // which game Play starts: 'lol' or 'valorant' (top bar)
+        valorantAutoSets: false,
         theme: 'system', // 'system' follows Windows; 'light' / 'dark' force one
         density: 'compact', // 'roomy' gives the larger controls of 1.7
         autoImportBuild: false, // OP.GG runes and item set once a champion is locked
@@ -61,6 +63,8 @@ const state = {
         accountStatus: path.join(APP_DATA_PATH, 'account-status.json'),
         matchStore:  path.join(APP_DATA_PATH, 'match-store.json'),
         riotSessions: path.join(APP_DATA_PATH, 'riot-sessions.json'),
+        collection:  path.join(APP_DATA_PATH, 'collection.json'),
+        valorant:    path.join(APP_DATA_PATH, 'valorant.json'),
     },
 
     RESOURCES_PATH,

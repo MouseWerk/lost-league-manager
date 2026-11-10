@@ -209,6 +209,59 @@
 /* The client's own currency icons (assets/currency) */
 .currency-icon { width: 16px; height: 16px; object-fit: contain; flex-shrink: 0; align-self: center; }
 .profile-wallet-when { font-size: 12px; color: var(--subtle); }
+.profile-collection { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 0 2px; font-size: 13px; color: var(--muted); }
+.profile-collection-label { font-size: 12px; color: var(--subtle); }
+.profile-collection-text b { font-family: var(--font-display); color: var(--ink); font-weight: 600; }
+/* League or Valorant: the top bar switch sets body[data-game]. */
+.val-only { display: none !important; }
+/* Shown as a flex column: display: block here dropped the panel's gaps. */
+body[data-game="valorant"] .val-only { display: flex !important; }
+body[data-game="valorant"] .lol-only,
+body[data-game="valorant"] .card-mastery,
+body[data-game="valorant"] .card-fact-be,
+body[data-game="valorant"] .card-rank + .status-badges { display: none !important; }
+.card-fact-vp { font-family: var(--font-display); }
+.val-rank-none { color: var(--subtle); font-size: 12px; }
+
+.val-panel { display: flex; flex-direction: column; gap: 14px; }
+.val-rank-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius); background: var(--bg-hover); }
+.val-rank-icon { width: 52px; height: 52px; object-fit: contain; flex-shrink: 0; }
+.val-rank-text { flex: 1; min-width: 0; }
+.val-rank-name { font-family: var(--font-display); font-size: 18px; font-weight: 600; color: var(--ink); }
+.val-rank-sub { font-size: 13px; color: var(--muted); }
+.val-rank-when { font-size: 12px; color: var(--subtle); }
+.val-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.val-head-label { font-size: 12px; color: var(--subtle); }
+.val-head-when { font-size: 12px; color: var(--subtle); }
+.val-store-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#valNightWrap { margin-top: 12px; }
+.val-store-tile { display: flex; flex-direction: column; gap: 4px; padding: 8px; border-radius: var(--radius-sm); background: var(--bg-hover); min-width: 0; transition: background-color 0.12s ease; }
+.val-store-tile:hover { background: var(--bg-active); }
+.val-store-img { width: 100%; height: 44px; object-fit: contain; }
+.val-store-name { font-size: 12px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.val-store-price { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.val-store-price b { font-family: var(--font-display); color: var(--ink); font-weight: 600; }
+.val-store-price .currency-icon { width: 13px; height: 13px; }
+.val-store-was { color: var(--subtle); }
+.val-store-off { font-family: var(--font-display); color: var(--subtle); }
+.val-matches { display: flex; flex-direction: column; gap: 2px; }
+.val-match { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 5px 6px; border-radius: var(--radius-xs); font-size: 13px; transition: background-color 0.12s ease; }
+.val-match:hover { background: var(--bg-hover); }
+.val-match-agent { width: 28px; height: 28px; border-radius: var(--radius-xs); object-fit: cover; background: var(--bg-hover); }
+.val-match-main { display: flex; flex-direction: column; min-width: 0; }
+.val-match-map { color: var(--ink); font-weight: 600; }
+.val-match-sub { font-size: 12px; color: var(--subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.val-match-kda { font-family: var(--font-display); color: var(--muted); }
+.val-match-score { font-family: var(--font-display); font-weight: 600; min-width: 42px; text-align: right; }
+.val-match.is-win .val-match-score { color: var(--ink); }
+.val-match.is-loss .val-match-score { color: var(--subtle); }
+.val-actions { display: flex; align-items: center; gap: 12px; }
+.val-hint { margin: 0; font-size: 13px; color: var(--muted); }
+.val-hint:empty { display: none; }
+img.is-missing { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) { .val-store-tile, .val-match { transition: none; } }
+
+.card-fact-owns { color: var(--muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; }
 .bulk-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; padding: 8px 10px 8px 14px; border-radius: var(--radius-lg); background: var(--surface); flex-shrink: 0; }
 .bulk-bar[hidden] { display: none; }
 .bulk-count { font-weight: 600; font-size: 14px; }

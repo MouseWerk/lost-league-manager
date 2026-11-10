@@ -3,7 +3,13 @@ param (
     [string]$RiotClientPath = "",
     # Unix time in ms at which the app started the Riot Client; only windows
     # of processes started after it can receive the credentials.
-    [long]$NotBefore = 0
+    [long]$NotBefore = 0,
+    # What the Riot Client starts after the sign-in, and the process that shows
+    # it came up: League (default) or Valorant.
+    [ValidateSet("league_of_legends", "valorant")]
+    [string]$Product = "league_of_legends",
+    [ValidateSet("LeagueClient", "VALORANT-Win64-Shipping")]
+    [string]$GameProcess = "LeagueClient"
 )
 
 $ErrorActionPreference = "Stop"
@@ -286,7 +292,7 @@ finally {
 # is re-issued while polling. Only twice and with long gaps: each re-trigger
 # can pull the Riot Client window forward and interrupt someone typing a
 # verification code.
-Log "Polling for League client launch..."
+Log "Polling for the game client launch..."
 
 $rcExe = $RiotClientPath
 if (-not ($rcExe -and (Test-Path $rcExe))) {
@@ -300,7 +306,7 @@ if (-not ($rcExe -and (Test-Path $rcExe))) {
 function Trigger-LeagueLaunch {
     if ($rcExe -and (Test-Path $rcExe)) {
         Log "Launch triggered - retrying via RiotClientServices..."
-        try { Start-Process -FilePath $rcExe -ArgumentList "--launch-product=league_of_legends", "--launch-patchline=live" }
+        try { Start-Process -FilePath $rcExe -ArgumentList "--launch-product=$Product", "--launch-patchline=live" }
         catch { Log "Launch trigger failed: $_" }
     }
 }
@@ -315,8 +321,8 @@ while ($elapsedSeconds -lt $maxWaitSeconds) {
     Start-Sleep -Milliseconds 500
     $elapsedSeconds += 0.5
 
-    if (Get-Process -Name "LeagueClient" -ErrorAction SilentlyContinue) {
-        Log "League client detected - done!"
+    if (Get-Process -Name $GameProcess -ErrorAction SilentlyContinue) {
+        Log "Game client detected - done!"
         $leagueStarted = $true
         break
     }
@@ -332,6 +338,6 @@ if ($leagueStarted) {
     Exit-Script 0
 }
 else {
-    Log "League did not auto-start after $maxWaitSeconds seconds - manual launch required"
+    Log "The game did not auto-start after $maxWaitSeconds seconds - manual launch required"
     Exit-Script 3
 }

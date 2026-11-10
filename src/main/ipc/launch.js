@@ -20,7 +20,16 @@ const accountStatus = require('../services/account-status');
 const CLIENT_PROCESS_NAMES = [
     'LeagueClient', 'LeagueClientUx', 'LeagueClientUxRender',
     'RiotClientServices', 'RiotClientUx', 'Riot Client',
+    // Valorant goes with the Riot Client it was signed in through.
+    'VALORANT-Win64-Shipping', 'VALORANT',
 ];
+// The games the app starts: the Riot Client's product id, the process that
+// shows the game came up, and its name in messages.
+const GAMES = {
+    lol:      { product: 'league_of_legends', process: 'LeagueClient', name: 'League' },
+    valorant: { product: 'valorant', process: 'VALORANT-Win64-Shipping', name: 'Valorant' },
+};
+const gameOf = (launch) => GAMES[launch?.game] || GAMES.lol;
 const LEAGUE_PROCESS_NAMES = ['LeagueClient', 'LeagueClientUx', 'LeagueClientUxRender'];
 
 // Phases in which restarting the clients would throw the player out of a game.
@@ -141,13 +150,13 @@ function runPowerShell(command) {
 // and interpolating them into a shell command string is a command-injection
 // vector (a path containing `"; ...` would execute arbitrary commands).
 // Returns false when there is nothing to start; onError gets async spawn failures.
-function launchClient(riotClientPath, onError = () => {}) {
+function launchClient(riotClientPath, onError = () => {}, product = GAMES.lol.product) {
     let target = null;
     let args = [];
     if (riotClientPath) {
         target = riotClientPath;
-        args = ['--launch-product=league_of_legends', '--launch-patchline=live'];
-    } else if (state.config.lolPath && fs.existsSync(state.config.lolPath)) {
+        args = [`--launch-product=${product}`, '--launch-patchline=live'];
+    } else if (product === GAMES.lol.product && state.config.lolPath && fs.existsSync(state.config.lolPath)) {
         target = state.config.lolPath;
     }
     if (!target) return false;
@@ -168,13 +177,13 @@ function launchClient(riotClientPath, onError = () => {}) {
 // Maps one line of login.ps1 output to a progress update, or null for lines
 // that are not a progress step (debug output, errors: those are reported
 // through the exit code instead of as "Logging in...").
-function statusForLine(line) {
+function statusForLine(line, game = 'League') {
     if (line.includes('Waiting for Riot Client'))   return { message: 'Waiting for the Riot Client window...', progress: 55 };
     if (line.includes('Found window'))              return { message: 'Client found, entering login...', progress: 65 };
-    if (line.includes('Credentials submitted'))     return { message: 'Waiting for League to start...', progress: 80 };
-    if (line.includes('Polling for League'))        return { message: 'Waiting for League to start...', progress: 82 };
-    if (line.includes('Launch triggered'))          return { message: 'Launching League...', progress: 88 };
-    if (line.includes('League client detected'))    return { message: 'League is starting...', progress: 95 };
+    if (line.includes('Credentials submitted'))     return { message: `Waiting for ${game} to start...`, progress: 80 };
+    if (line.includes('Polling for the game'))      return { message: `Waiting for ${game} to start...`, progress: 82 };
+    if (line.includes('Launch triggered'))          return { message: `Launching ${game}...`, progress: 88 };
+    if (line.includes('Game client detected'))      return { message: `${game} is starting...`, progress: 95 };
     return null;
 }
 
@@ -235,12 +244,37 @@ async function riotClientAuthState() {
     }
 }
 
-// Starts League the way the Riot Client's Play button does.
-async function riotClientStartLeague() {
+// Starts a game the way the Riot Client's Play button does.
+async function riotClientStartProduct(product = GAMES.lol.product) {
     try {
-        return !!(await riotClientRequest('POST', '/product-launcher/v1/products/league_of_legends/patchlines/live'));
+        return !!(await riotClientRequest('POST', `/product-launcher/v1/products/${product}/patchlines/live`));
     } catch (e) {
-        console.log('[Launch] Riot Client did not start League:', e.response?.status || e.message);
+        console.log(`[Launch] Riot Client did not start ${product}:`, e.response?.status || e.message);
+        return false;
+    }
+}
+
+function riotClientStartLeague() {
+    return riotClientStartProduct(GAMES.lol.product);
+}
+
+// The Riot account signed into the Riot Client: { username, info } or null.
+async function riotClientUser() {
+    try {
+        const info = accountStatus.decodeUserInfo((await riotClientRequest('GET', '/riot-client-auth/v1/userinfo'))?.data);
+        const username = info?.username || info?.preferred_username || info?.acct?.username || '';
+        return info ? { username: String(username), info } : null;
+    } catch {
+        return null;
+    }
+}
+
+// Whether the Riot Client reports a running Valorant session.
+async function valorantRunning() {
+    try {
+        const sessions = (await riotClientRequest('GET', '/product-session/v1/external-sessions'))?.data;
+        return !!sessions && Object.values(sessions).some((s) => s?.productId === GAMES.valorant.product);
+    } catch {
         return false;
     }
 }
@@ -265,7 +299,7 @@ async function startLeagueAfterSignIn(launch) {
             }
             lastTry = Date.now();
             tries++;
-            if (await riotClientStartLeague()) status(launch, 'Launching League...', 88);
+            if (await riotClientStartProduct(gameOf(launch).product)) status(launch, `Launching ${gameOf(launch).name}...`, 88);
         }
         await sleep(AUTH_POLL_MS);
     }
@@ -381,7 +415,9 @@ async function onLoginScriptExit(launch, code, signal) {
 
     if (code === 0) {
         status(launch, 'Checking the signed-in account...', 98);
-        const check = verifyLoggedInAccount(launch.username, await waitForSession(launch));
+        const check = verifyLoggedInAccount(launch.username, launch.game === 'valorant'
+            ? await riotClientUser()
+            : await waitForSession(launch));
         if (!isCurrent(launch)) return;
         if (check.ok === false) {
             fail(launch, `Signed in as ${check.actual}, not ${launch.label}. Sign out in the Riot Client and try again.`, 'wrong-account');
@@ -389,7 +425,8 @@ async function onLoginScriptExit(launch, code, signal) {
         }
         if (check.ok) riotSessions.captureSignIn(launch.username);
         succeed(launch, 'Done!');
-        notify('League Launched!', `${launch.label} is ready to play.`);
+        notify(`${gameOf(launch).name} Launched!`, `${launch.label} is ready to play.`);
+        afterValorantSignIn(launch);
         return;
     }
 
@@ -420,10 +457,14 @@ async function checkBan(launch) {
     } catch {
         return false; // no user info: nothing known, the launch goes on
     }
-    const ban = accountStatus.parseBan(info);
+    const valorant = launch.game === 'valorant';
+    const ban = accountStatus.parseBan(info, valorant ? ['valorant', 'riot'] : undefined);
     if (ban === undefined || !isCurrent(launch)) return false;
-    accountStatus.recordBan(launch.username, ban);
-    broadcastAccountsUpdate();
+    // The list shows League bans; a Valorant ban only stops this launch.
+    if (!valorant) {
+        accountStatus.recordBan(launch.username, ban);
+        broadcastAccountsUpdate();
+    }
     if (!ban || (!ban.permanent && ban.until <= Date.now())) return false;
     fail(launch, ban.permanent
         ? `${launch.label} is permanently banned.`
@@ -442,10 +483,60 @@ async function waitForSignIn(launch, timeoutMs) {
     return false;
 }
 
+// Valorant has no League client to ask: the Riot Client says who is signed
+// in, and its session list shows when Valorant is up. Polls until then, the
+// launch is cancelled or the timeout passes (false).
+async function waitForValorant(launch) {
+    const deadline = Date.now() + SESSION_CHECK_TIMEOUT_MS;
+    while (isCurrent(launch) && Date.now() < deadline) {
+        if (await valorantRunning()) return true;
+        await sleep(SESSION_CHECK_INTERVAL_MS);
+    }
+    return false;
+}
+
+// After a Valorant sign-in: read rank, store, wallet and inventory in the
+// background; nothing waits for it.
+function afterValorantSignIn(launch) {
+    if (launch.game !== 'valorant') return;
+    require('../services/valorant').captureForAccount(launch.username)
+        .then((ok) => { if (ok) broadcastAccountsUpdate(); })
+        .catch((e) => console.log('[Valorant] Capture after sign-in skipped:', e.message));
+}
+
+async function finishSignedInValorant(launch) {
+    status(launch, 'Launching Valorant...', 88);
+    await riotClientStartProduct(GAMES.valorant.product);
+    const check = verifyLoggedInAccount(launch.username, await riotClientUser());
+    if (!isCurrent(launch)) return;
+    if (check.ok === false) {
+        riotSessions.forgetSignIn(launch.username);
+        fail(launch, `Signed in as ${check.actual}, not ${launch.label}. Sign out in the Riot Client and try again.`, 'wrong-account');
+        return;
+    }
+    let up = await waitForValorant(launch);
+    if (!up && isCurrent(launch)) {
+        await riotClientStartProduct(GAMES.valorant.product);
+        up = await waitForValorant(launch);
+    }
+    if (!isCurrent(launch)) return;
+    if (!up) {
+        fail(launch, 'Signed in, but Valorant did not start. Click Play in the Riot Client.', 'needs-action');
+        return;
+    }
+    const kept = riotSessions.captureSignIn(launch.username);
+    succeed(launch, launch.manual && !kept
+        ? 'Signed in. "Stay signed in" was not ticked, so the password is typed next time.'
+        : 'Done!');
+    notify('Valorant Launched!', `${launch.label} is ready to play.`);
+    afterValorantSignIn(launch);
+}
+
 // After a sign-in without typing: start League, check the account in the
 // League client and keep the (refreshed) sign-in for next time.
 async function finishSignedIn(launch) {
     if (await checkBan(launch)) return;
+    if (launch.game === 'valorant') return finishSignedInValorant(launch);
     status(launch, 'Launching League...', 88);
     await riotClientStartLeague();
     let session = null;
@@ -517,6 +608,8 @@ function startLoginScript(launch, account, password, riotClientPath, notBefore) 
         '-Username', account.username,
         '-RiotClientPath', riotClientPath || '',
         '-NotBefore', String(notBefore),
+        '-Product', gameOf(launch).product,
+        '-GameProcess', gameOf(launch).process,
     ], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     launch.child = child;
 
@@ -532,7 +625,7 @@ function startLoginScript(launch, account, password, riotClientPath, notBefore) 
     child.stdout.on('data', (data) => {
         for (const line of splitLines(data)) {
             console.log('[Login Script]:', line);
-            const step = statusForLine(line);
+            const step = statusForLine(line, gameOf(launch).name);
             if (step && step.progress >= launch.progress) status(launch, step.message, step.progress);
             if (line.includes('Credentials submitted') && !launch.startingLeague) {
                 launch.startingLeague = true;
@@ -580,6 +673,8 @@ async function executeAccountLaunch(username, opts = {}) {
         hidWindow: false,
         progress: 0,
         manual,
+        // Which game Play starts: the one picked in the top bar, or League.
+        game: GAMES[opts.game] ? opts.game : (GAMES[state.config.game] ? state.config.game : 'lol'),
     };
     // Claimed before the first await: a second launch (tray, jump list,
     // another click) now gets `busy` instead of running in parallel and
@@ -587,13 +682,30 @@ async function executeAccountLaunch(username, opts = {}) {
     activeLaunch = launch;
 
     try {
+        // Valorant: already running for this account, nothing to do.
+        if (launch.game === 'valorant' && await valorantRunning()) {
+            const user = await riotClientUser();
+            if (!isCurrent(launch)) return CANCELLED;
+            if (sameUsername(user?.username, account.username)) {
+                updateAccounts((fresh) => {
+                    const current = fresh.find(a => sameUsername(a.username, account.username));
+                    if (!current) return false;
+                    current.lastUsed = Date.now();
+                });
+                broadcastAccountsUpdate();
+                send('launch-account-info', accountMeta(account));
+                succeed(launch, 'Already logged in!');
+                afterValorantSignIn(launch);
+                return { success: true };
+            }
+        }
         if (lcu.connected) {
             const [session, phase] = await Promise.all([
                 lcu.request('GET', '/lol-login/v1/session', null, { timeout: 3000 }),
                 lcu.request('GET', '/lol-gameflow/v1/gameflow-phase', null, { timeout: 3000 }),
             ]);
             if (!isCurrent(launch)) return CANCELLED;
-            if (sameUsername(session?.username, account.username)) {
+            if (launch.game === 'lol' && sameUsername(session?.username, account.username)) {
                 updateAccounts((fresh) => {
                     const current = fresh.find(a => sameUsername(a.username, account.username));
                     if (!current) return false;
@@ -627,7 +739,7 @@ async function executeAccountLaunch(username, opts = {}) {
             state.mainWindow.hide();
             launch.hidWindow = true;
         }
-        status(launch, 'Closing League and the Riot Client...', 10);
+        status(launch, 'Closing the games and the Riot Client...', 10);
         await runPowerShell(killProcessesCommand(CLIENT_PROCESS_NAMES));
         if (!isCurrent(launch)) return CANCELLED;
 
@@ -641,9 +753,11 @@ async function executeAccountLaunch(username, opts = {}) {
         // point, never one that survived the kill above.
         const notBefore = Date.now();
         const started = launchClient(riotClientPath, (e) =>
-            fail(launch, `Could not start the Riot Client (${e.code || e.message}).`, 'failed'));
+            fail(launch, `Could not start the Riot Client (${e.code || e.message}).`, 'failed'), gameOf(launch).product);
         if (!started) {
-            const message = 'Could not find the Riot Client or League of Legends. Set the path in Settings.';
+            const message = launch.game === 'valorant'
+                ? 'Could not find the Riot Client. Install Valorant or start the Riot Client once.'
+                : 'Could not find the Riot Client or League of Legends. Set the path in Settings.';
             fail(launch, message, 'failed');
             return { success: false, message, reported: true };
         }
@@ -712,7 +826,11 @@ async function launchFromOutside(username) {
 
 function register() {
     ipcMain.handle('launch-account', (event, username, opts) =>
-        executeAccountLaunch(username, { confirmed: !!opts?.confirmed, manual: !!opts?.manual }));
+        executeAccountLaunch(username, {
+            confirmed: !!opts?.confirmed,
+            manual: !!opts?.manual,
+            game: opts?.game === 'valorant' || opts?.game === 'lol' ? opts.game : undefined,
+        }));
 
     // Plain "open the client" for the Live page's empty state: no account
     // login, just gets League/Riot Client running so the LCU can connect.
@@ -738,6 +856,11 @@ module.exports = {
     riotClientFromInstallsJson,
     riotClientAuthState,
     riotClientStartLeague,
+    riotClientStartProduct,
+    riotClientRequest,
+    riotClientUser,
+    valorantRunning,
+    GAMES,
     statusForLine,
     verifyLoggedInAccount,
     killProcessesCommand,

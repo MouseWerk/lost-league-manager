@@ -400,6 +400,56 @@
 .games-pane[hidden], .champions-pane[hidden] { display: none; }
 .games-list { overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-right: 4px; }
 .games-empty, .games-note { color: var(--muted); font-size: 13px; margin: 0; }
+/* Collection: tabs and filter in one row, then a grid of skin and champion tiles. */
+.collection-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.collection-search { width: 220px; }
+.collection-count { font-family: var(--font-display); color: var(--subtle); font-weight: 400; margin-left: 4px; }
+#collectionNote { margin-bottom: 10px; }
+.collection-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; align-content: start; padding-right: 4px; }
+.collection-tile { display: flex; flex-direction: column; gap: 6px; padding: 6px; border-radius: var(--radius-sm); transition: background-color 0.12s ease; }
+.collection-tile:hover { background: var(--bg-hover); }
+.collection-tile img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-xs); background: var(--bg-hover); }
+.collection-name { font-size: 12px; line-height: 1.3; color: var(--ink); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+@media (prefers-reduced-motion: reduce) { .collection-tile { transition: none; } }
+/* Loadout: weapons on the left, the owned skins of the picked one on the right, sets below. */
+.loadout-content { width: 940px; }
+.loadout-readonly { margin: 4px 0 8px; }
+.loadout-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 14px; margin-top: 10px; }
+.loadout-weapons { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-right: 4px; }
+.loadout-cat { font-size: 12px; color: var(--subtle); margin: 8px 0 2px 6px; }
+.loadout-weapon { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: inherit; text-align: left; padding: 5px 6px; border-radius: var(--radius-xs); cursor: pointer; transition: background-color 0.12s ease; }
+.loadout-weapon:hover { background: var(--bg-hover); }
+.loadout-weapon.active { background: var(--bg-active); }
+.loadout-weapon-img { width: 64px; height: 24px; object-fit: contain; flex-shrink: 0; }
+.loadout-weapon-text { display: flex; flex-direction: column; min-width: 0; }
+.loadout-weapon-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.loadout-weapon-skin { font-size: 12px; color: var(--subtle); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.loadout-main { display: flex; flex-direction: column; min-height: 0; gap: 10px; }
+.loadout-main-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.loadout-weapon-title { font-family: var(--font-display); font-size: 16px; }
+.loadout-skins { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.loadout-skin { border: 0; text-align: left; cursor: pointer; background: transparent; color: inherit; }
+.loadout-skin img { aspect-ratio: 2 / 1; object-fit: contain; background: var(--bg-hover); }
+.loadout-skin.active { background: var(--bg-active); }
+.loadout-skin.is-equipped .collection-name { font-weight: 600; }
+.loadout-detail { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.loadout-detail:empty { display: none; }
+.loadout-label { font-size: 12px; color: var(--subtle); margin-right: 6px; }
+.loadout-chromas, .loadout-levels { display: inline-flex; align-items: center; gap: 6px; }
+.loadout-chroma { width: 30px; height: 30px; padding: 2px; border: 0; border-radius: var(--radius-xs); background: transparent; cursor: pointer; }
+.loadout-chroma img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-xs); }
+.loadout-chroma.active { background: var(--bg-active); }
+.loadout-equip { margin-left: auto; }
+.loadout-sets-wrap { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.loadout-sets { display: flex; flex-direction: column; gap: 2px; max-height: 110px; overflow-y: auto; }
+.loadout-set { display: flex; align-items: center; gap: 10px; padding: 4px 6px; border-radius: var(--radius-xs); }
+.loadout-set:hover { background: var(--bg-hover); }
+.loadout-set-name { font-weight: 600; }
+.loadout-set-agent { flex: 1; font-size: 12px; color: var(--subtle); }
+.loadout-set-new { display: flex; gap: 8px; }
+.loadout-set-new .form-control { flex: 1; min-width: 0; }
+.loadout-auto { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .loadout-weapon { transition: none; } }
 /* No games: the message in the middle of the dialog, no empty detail column. */
 .games-pane.is-empty { grid-template-columns: minmax(0, 1fr); place-items: center; }
 .games-pane.is-empty .game-detail { display: none; }

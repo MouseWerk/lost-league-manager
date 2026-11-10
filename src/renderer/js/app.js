@@ -62,6 +62,23 @@ const PATCH_INTROS = {
 };
 
 const PATCH_NOTES = {
+  "1.13.0": [
+    {
+      icon: "fas fa-crosshairs",
+      title: "Valorant",
+      body: "Switch the top bar to Valorant: Play starts Valorant, and each account shows its rank, RR, wallet, daily store, Night Market and last games.",
+    },
+    {
+      icon: "fas fa-shirt",
+      title: "Loadout and sets",
+      body: "See an account's skins, equip a skin, chroma or level, and save a loadout per agent that can be equipped when you lock that agent.",
+    },
+    {
+      icon: "fas fa-magnifying-glass",
+      title: "Find the account with that skin",
+      body: "Search for a champion or skin and the list shows which accounts own it. The panel lists each account's champions, skins and shards.",
+    },
+  ],
   "1.12.0": [
     {
       icon: "fas fa-gavel",
@@ -334,6 +351,7 @@ const {
   queueName,
   rankDetail,
   cardFacts,
+  collectionMatch,
   effectiveBan,
   overviewTotals,
   attentionList,
@@ -485,7 +503,8 @@ function getFilteredSorted() {
         a.username.toLowerCase().includes(q) ||
         (a.riotId || "").toLowerCase().includes(q) ||
         (a.region || "").toLowerCase().includes(q) ||
-        (a.tags || "").toLowerCase().includes(q),
+        (a.tags || "").toLowerCase().includes(q) ||
+        !!collectionMatch(a, q),
     );
   }
   switch (currentSort) {
@@ -1138,6 +1157,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   initTagFilters();
   initTagSuggestions();
   initGamesDialog();
+  initCollectionDialog();
+  initValorant();
   initOverview();
   initBulkActions();
   initSeasonReview();
@@ -1215,6 +1236,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // Initialize Auto-Accept Toggle (header)
+    initGameSwitch(config);
+    initHenrikKey(config);
     const autoAcceptToggle = document.getElementById("autoAcceptToggle");
     if (autoAcceptToggle) {
       autoAcceptToggle.checked = config.autoAccept || false;
@@ -2376,7 +2399,7 @@ function applyStatsToCard(cardEl, stats) {
   if (statusEl && acc) statusEl.innerHTML = statusWarnings(acc.status, stats?.tier, Date.now()).map(warningBadge).join("");
 
   const rankEl = cardEl.querySelector(".rank");
-  if (rankEl && !acc?.customRank) {
+  if (rankEl && !acc?.customRank && currentGame() !== "valorant") {
     const tierName = (stats.tier || "unranked").split(" ")[0].toLowerCase();
     const cls = TIERS.includes(tierName) ? `rank-${tierName}` : "rank-unranked";
     rankEl.className = `rank card-rank ${cls}`;
@@ -2773,6 +2796,151 @@ function renderWallet(acc) {
   wrap.hidden = false;
 }
 
+// Champions, skins and shards from the last sign-in, and the dialog with all of them.
+function renderCollection(acc) {
+  const wrap = document.getElementById("profileCollectionWrap");
+  const c = acc.collection;
+  if (!wrap) return;
+  wrap.hidden = !c || (!c.champions && !c.skins);
+  if (wrap.hidden) return;
+  const text = document.getElementById("profileCollectionText");
+  text.replaceChildren();
+  const part = (n, word) => {
+    const b = document.createElement("b");
+    b.textContent = Number(n).toLocaleString();
+    text.append(b, ` ${word}`);
+  };
+  part(c.champions, c.champions === 1 ? "champion" : "champions");
+  text.append(", ");
+  part(c.skins, c.skins === 1 ? "skin" : "skins");
+  const shards = (c.loot?.championShards || 0) + (c.loot?.skinShards || 0);
+  if (shards) {
+    text.append(", ");
+    part(shards, shards === 1 ? "shard" : "shards");
+  }
+}
+
+let _collection = null;
+
+function collectionTileImage(item, tab, version) {
+  if (item.icon) return item.icon;
+  // Skin tiles: the champion's key and the skin's number (its id less the champion's).
+  if (tab === "skins") {
+    return item.key ? `https://ddragon.leagueoflegends.com/cdn/img/champion/tiles/${encodeURIComponent(item.key)}_${Number(item.id) % 1000}.jpg` : "";
+  }
+  return item.key && version ? `https://ddragon.leagueoflegends.com/cdn/${encodeURIComponent(version)}/img/champion/${encodeURIComponent(item.key)}.png` : "";
+}
+
+function renderCollectionGrid() {
+  if (!_collection) return;
+  const { data, tab } = _collection;
+  const q = document.getElementById("collectionFilter").value.trim().toLowerCase();
+  const all = (tab === "skins" ? data.skins : data.champions) || [];
+  const list = q ? all.filter((i) => i.name.toLowerCase().includes(q)) : all;
+  const grid = document.getElementById("collectionGrid");
+  grid.replaceChildren();
+  for (const item of list) {
+    const tile = document.createElement("div");
+    tile.className = `collection-tile is-${tab}`;
+    const src = collectionTileImage(item, tab, data.version);
+    if (src) {
+      const img = document.createElement("img");
+      img.loading = "lazy";
+      img.alt = "";
+      img.src = src;
+      img.addEventListener("error", () => img.remove(), { once: true });
+      tile.appendChild(img);
+    }
+    const name = document.createElement("span");
+    name.className = "collection-name";
+    name.textContent = item.name;
+    tile.appendChild(name);
+    grid.appendChild(tile);
+  }
+  const note = document.getElementById("collectionNote");
+  if (!all.length) note.textContent = tab === "skins" ? "No skins on this account." : "No champions saved yet.";
+  else if (!list.length) note.textContent = `Nothing matches "${q}".`;
+  else {
+    const when = data.checkedAt ? `As the client showed it ${timeAgo(data.checkedAt)}.` : "";
+    const loot = data.loot;
+    const shards = loot && (loot.championShards || loot.skinShards)
+      ? ` Loot: ${loot.championShards} champion shards (${Number(loot.shardBe || 0).toLocaleString()} Blue Essence when disenchanted), ${loot.skinShards} skin shards.`
+      : "";
+    note.textContent = when + shards;
+  }
+}
+
+function showCollectionTab(tab) {
+  if (!_collection) return;
+  _collection.tab = tab;
+  document.querySelectorAll("[data-collection-tab]").forEach((b) => {
+    const on = b.dataset.collectionTab === tab;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-selected", String(on));
+  });
+  renderCollectionGrid();
+}
+
+async function openCollectionDialog(acc, query = "") {
+  const data = await window.electronAPI.getCollection(acc.username);
+  if (data) openCollectionList(acc, data, query);
+}
+
+// Also used for Valorant skins (champions: null hides that tab).
+function openCollectionList(acc, data, query = "") {
+  _collection = { data, tab: "skins" };
+  document.querySelector('[data-collection-tab="champions"]').hidden = data.champions === null;
+  document.getElementById("collectionAccount").textContent = acc.label || acc.riotId || acc.username;
+  document.getElementById("collectionSkinCount").textContent = (data.skins || []).length;
+  document.getElementById("collectionChampCount").textContent = (data.champions || []).length;
+  // Opened from a search: start on the list that has the match, filtered to it.
+  const q = String(query || "").trim().toLowerCase();
+  const inSkins = q.length >= 3 && (data.skins || []).some((s) => s.name.toLowerCase().includes(q));
+  const inChamps = q.length >= 3 && (data.champions || []).some((c) => c.name.toLowerCase().includes(q));
+  document.getElementById("collectionFilter").value = inSkins || inChamps ? query.trim() : "";
+  showCollectionTab(!inSkins && inChamps ? "champions" : "skins");
+  openLayer(document.getElementById("collectionModal"), { onEscape: closeCollectionDialog });
+}
+
+function closeCollectionDialog() {
+  closeLayer(document.getElementById("collectionModal"));
+  _collection = null;
+}
+
+function initCollectionDialog() {
+  document.getElementById("profileCollectionBtn")?.addEventListener("click", () => {
+    const acc = selectedAccount();
+    if (acc) openCollectionDialog(acc, currentQuery);
+  });
+  document.getElementById("closeCollectionBtn")?.addEventListener("click", closeCollectionDialog);
+  document.getElementById("collectionModal")?.addEventListener("click", (e) => {
+    if (e.target.id === "collectionModal") closeCollectionDialog();
+  });
+  document.querySelectorAll("[data-collection-tab]").forEach((b) =>
+    b.addEventListener("click", () => showCollectionTab(b.dataset.collectionTab)),
+  );
+  document.getElementById("collectionFilter")?.addEventListener("input", renderCollectionGrid);
+}
+
+// The HenrikDev key: saved encrypted in the main process, never read back.
+function initHenrikKey(config) {
+  const input = document.getElementById("henrikKeyInput");
+  if (!input) return;
+  input.placeholder = config.henrikKeySet ? "Key saved. Paste a new one to replace it." : "HDEV-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx";
+  const save = async (value) => {
+    const res = await window.electronAPI.setHenrikKey(value);
+    if (!res?.success) {
+      showToast(res?.message || "Could not save the key", "error");
+      return;
+    }
+    input.value = "";
+    input.placeholder = value ? "Key saved. Paste a new one to replace it." : "HDEV-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx";
+    showToast(value ? "HenrikDev key saved" : "HenrikDev key removed", "success");
+  };
+  document.getElementById("saveHenrikKeyBtn").addEventListener("click", () => save(input.value.trim()));
+  document.getElementById("clearHenrikKeyBtn").addEventListener("click", () => save(""));
+}
+
 function renderToday(history) {
   const wrap = document.getElementById("profileTodayWrap");
   const day = dailySummary(history);
@@ -3150,6 +3318,8 @@ async function selectAccount(username) {
   renderGoal(acc, []);
   renderStatus(acc);
   renderWallet(acc);
+  renderCollection(acc);
+  renderValorantPanel(acc);
   if (acc.riotId) {
     window.electronAPI.getRankHistory(acc.riotId).then((history) => {
       if (_profileUsername !== username) return;
@@ -3288,7 +3458,7 @@ function createAccountCard(account) {
   }
   // Last played and Blue Essence, from the account's last sign-in.
   const factsEl = card.querySelector(".card-facts");
-  for (const f of cardFacts(account, Date.now())) {
+  for (const f of cardFacts(account, Date.now(), currentQuery)) {
     const span = document.createElement("span");
     span.className = `card-fact card-fact-${f.kind}`;
     if (f.kind === "be") {
@@ -3337,6 +3507,7 @@ function createAccountCard(account) {
     launchAccount(account.username);
   });
 
+  decorateValorantCard(card, account);
   return card;
 }
 
@@ -3679,7 +3850,8 @@ function setLpBar(stats) {
 
 function updateDetailActions(acc) {
   const label = acc.label || acc.username;
-  document.getElementById("profileLaunchLabel").textContent = `Play as ${label}`;
+  document.getElementById("profileLaunchLabel").textContent =
+    currentGame() === "valorant" ? `Play Valorant as ${label}` : `Play as ${label}`;
   document.getElementById("profileOpggBtn").hidden = !acc.riotId;
   const fav = document.getElementById("profileFavBtn");
   const isFav = !!acc.isFavourite;
