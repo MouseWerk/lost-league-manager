@@ -15,6 +15,7 @@ const { registerAll: registerIpc }     = require('./ipc/index');
 const { executeAccountLaunch } = require('./ipc/launch');
 const windows = require('./windows');
 const { initOverwolf } = require('./overwolf');
+const buildReminder = require('./services/build-reminder');
 const { registerOverlayHotkey } = require('./overlay-hotkey');
 const discordRpc = require('./services/discord-rpc');
 
@@ -80,6 +81,7 @@ app.whenReady().then(async () => {
         registerLcuEvents();
         initAutoUpdater();
         initOverwolf();
+        buildReminder.init();
         registerOverlayHotkey(state.config.overlayHotkey);
         discordRpc.init();
     } catch (e) {
@@ -103,6 +105,7 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
     lcu.stop();
+    require('./services/live-client').stop();
     globalShortcut.unregisterAll();
     if (app.isQuiting && process.platform !== 'darwin') app.quit();
 });

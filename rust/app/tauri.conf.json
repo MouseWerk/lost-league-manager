@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Lost League Manager",
+  "version": "2.0.0",
+  "identifier": "com.lostgames.leaguelogin",
+  "build": {
+    "frontendDist": "../../src/renderer"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/icon.ico"],
+    "resources": {
+      "../../resources/scripts/login.ps1": "resources/scripts/login.ps1"
+    }
+  }
+}

@@ -6,6 +6,7 @@ let idToImageMap = {};   // DDragon key    → champion icon URL
 let champList    = [];   // { id, name, key, iconUrl } sorted by name — for the UI picker
 let champFullData = {};  // DDragon key    → { title, tags, partype, info, stats }
 let latestVersion = '14.1.1';
+let nameToKeyCache = null;   // built lazily from championMap, dropped on refetch
 
 async function fetchChampionData(attempt = 0) {
     const MAX_ATTEMPTS = 3;
@@ -20,6 +21,7 @@ async function fetchChampionData(attempt = 0) {
 
         champList = [];
         champFullData = {};
+        nameToKeyCache = null;
         for (const key in data) {
             const champ   = data[key];
             const id      = parseInt(champ.key);
@@ -59,11 +61,27 @@ function getChampionIdByKey(champKey) {
 // "cho'gath" → "Chogath". Needed because several champion keys don't follow the
 // naive "strip spaces/punctuation from the display name" pattern.
 function getNameToKeyMap() {
+    if (nameToKeyCache) return nameToKeyCache;
     const map = {};
     for (const nameLower in championMap) {
         map[nameLower] = idToNameMap[championMap[nameLower]];
     }
+    nameToKeyCache = map;
     return map;
+}
+
+// GEP player payload → DDragon key. `rawChampionName` is the localisation key
+// ("game_character_displayname_Ahri") when GEP provides it, which needs no
+// guessing; otherwise fall back to the display name via getNameToKeyMap().
+// Mirrors champDDKey() in the overlay renderer, which can't require this module.
+function resolveChampionKey(rawChampionName, championName) {
+    const PREFIX = 'game_character_displayname_';
+    if (rawChampionName && rawChampionName.startsWith(PREFIX)) {
+        return rawChampionName.slice(PREFIX.length);
+    }
+    const displayName = championName || rawChampionName;
+    if (!displayName) return null;
+    return getNameToKeyMap()[displayName.toLowerCase()] || displayName.replace(/[\s'.&]/g, '');
 }
 
 module.exports = {
@@ -75,5 +93,6 @@ module.exports = {
     getLatestVersion:  () => latestVersion,
     getChampionIdByKey,
     getNameToKeyMap,
+    resolveChampionKey,
     getChampionFullData: (champKey) => champFullData[champKey] || null,
 };

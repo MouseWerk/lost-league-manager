@@ -37,3 +37,5 @@ notes.md
 claude.md
 .claude
 demo.js
+# Rust build artifacts
+rust/target/

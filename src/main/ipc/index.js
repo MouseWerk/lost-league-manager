@@ -6,6 +6,7 @@ const clientControls = require('./client-controls');
 const config         = require('./config');
 const updater        = require('./updater');
 const lolData        = require('./lol-data');
+const buildPathsIpc  = require('./build-paths');
 
 function registerAll() {
     accounts.register();
@@ -16,6 +17,7 @@ function registerAll() {
     config.register();
     updater.register();
     lolData.register();
+    buildPathsIpc.register();
 }
 
 module.exports = { registerAll };

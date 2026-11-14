@@ -5,7 +5,9 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "ow-electron .",
-    "build": "ow-electron-builder"
+    "build": "ow-electron-builder",
+    "test:e2e": "node test/e2e.js",
+    "test:e2e:rust": "node test/run-rust-e2e.js"
   },
   "author": "Lostgames",
   "license": "ISC",
