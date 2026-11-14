@@ -46,6 +46,14 @@
             <button class="ov-toggle" id="ovSettingsBtn" data-tooltip="Overlay settings" data-tooltip-pos="bottom">⚙</button>
         </div>
 
+        <!-- Build path reminder (fires when a plan step becomes affordable) -->
+        <div class="ov-buy-toast" id="ovBuyToast" style="display:none">
+            <span class="ov-buy-gold" id="ovBuyGold">0g</span>
+            <div class="ov-buy-items" id="ovBuyItems"></div>
+            <span class="ov-buy-step" id="ovBuyStep"></span>
+            <button class="ov-buy-skip" id="ovBuySkip" data-tooltip="Skip this step for this game" data-tooltip-pos="bottom">&times;</button>
+        </div>
+
         <!-- Ranked panel -->
         <div class="ov-ranked" id="ovRanked" style="display:none">
             <div id="ovRankedContent">
@@ -83,6 +91,10 @@
             <div class="ov-setting-row">
                 <span class="ov-setting-label">Build guide</span>
                 <label class="ov-switch"><input type="checkbox" id="ovShowBuildsToggle" checked><span class="ov-switch-track"></span></label>
+            </div>
+            <div class="ov-setting-row">
+                <span class="ov-setting-label">Buy reminders</span>
+                <label class="ov-switch"><input type="checkbox" id="ovBuildRemindersToggle" checked><span class="ov-switch-track"></span></label>
             </div>
         </div>
 

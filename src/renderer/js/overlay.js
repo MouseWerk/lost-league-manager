@@ -31,6 +31,12 @@ let myChampKey = null;  // Data Dragon key of my champion
 let myGameMode = 'CLASSIC';
 let myPosition = null;
 
+// Build path buy reminders (fired by the main process, see build-reminder.js)
+let buildRemindersOn = true;
+let buyToastVisible  = false;
+let buyToastTimer    = null;
+let buyToastIndex    = null;   // step index the visible toast belongs to
+
 // Death tracking
 let isDead = false;
 let deathTick = null;
@@ -72,8 +78,42 @@ const ovHotkeySelect     = document.getElementById('ovHotkeySelect');
 const ovLockToggle       = document.getElementById('ovLockToggle');
 const ovShowRankedToggle = document.getElementById('ovShowRankedToggle');
 const ovShowBuildsToggle = document.getElementById('ovShowBuildsToggle');
+const ovBuildRemindersToggle = document.getElementById('ovBuildRemindersToggle');
+// Buy reminder toast
+const ovBuyToast = document.getElementById('ovBuyToast');
+const ovBuyGold  = document.getElementById('ovBuyGold');
+const ovBuyItems = document.getElementById('ovBuyItems');
+const ovBuyStep  = document.getElementById('ovBuyStep');
+const ovBuySkip  = document.getElementById('ovBuySkip');
 
 const COMPACT_H = 52;
+const TOAST_H   = 46;
+
+// ── Window sizing ─────────────────────────────────────────────────────────────
+// One place decides the overlay window's height: the compact bar, whichever
+// panel is open (they're mutually exclusive — each toggle closes the others),
+// plus the buy-reminder toast while it's showing. Every toggle calls this
+// instead of doing its own resize() arithmetic, which is what kept the toast
+// from being clipped by a window sized for the bar alone.
+function calcRankedPanelHeight() {
+    const rowH = 28;
+    const rows = Math.max(allPlayers.length / 2, 5);
+    return Math.round(6 + 18 + rows * rowH + 8);  // top pad + header + rows + bottom pad
+}
+
+function calcSettingsPanelHeight() {
+    const rows = document.querySelectorAll('#ovSettingsPanel .ov-setting-row').length;
+    return rows * 40 + 16;
+}
+
+function applyOverlaySize() {
+    let h = COMPACT_H;
+    if (buyToastVisible)        h += TOAST_H;
+    if (panelOpen)              h += calcRankedPanelHeight();
+    else if (buildPanelOpen)    h += calcBuildPanelHeight();
+    else if (settingsPanelOpen) h += calcSettingsPanelHeight();
+    window.overlayAPI.resize(480, h);
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function escHtml(s) {
@@ -241,6 +281,7 @@ function resetAll() {
     myPosition = null;
     if (deathTick) { clearInterval(deathTick); deathTick = null; }
     stopTimer();
+    hideBuyToast();
 
     ovLive.style.display = 'flex';
     ovDeadB.style.display = 'none';
@@ -273,7 +314,7 @@ function triggerBuildFetch() {
             if (buildPanelOpen) {
                 renderBuildPanel();
                 // Resize to fit actual data now that it has loaded
-                window.overlayAPI.resize(480, COMPACT_H + calcBuildPanelHeight());
+                applyOverlaySize();
             }
         })
         .catch(() => {
@@ -337,8 +378,48 @@ function toggleBuildPanel(force) {
         renderBuildPanel();
     }
 
-    window.overlayAPI.resize(480, COMPACT_H + (buildPanelOpen ? calcBuildPanelHeight() : 0));
+    applyOverlaySize();
 }
+
+// ── Buy reminder toast ────────────────────────────────────────────────────────
+function showBuyToast(r) {
+    if (!buildRemindersOn || !r?.items?.length) return;
+
+    buyToastIndex = r.index;
+    ovBuyGold.textContent = `${r.gold}g`;
+    ovBuyItems.innerHTML = r.items.map(it => `
+        <span class="ov-buy-item">
+            <img src="${itemIconUrl(it.id)}" onerror="this.style.display='none'">
+            <span>${escHtml(it.name)}</span>
+        </span>`).join('');
+    ovBuyStep.textContent = `${r.index + 1}/${r.totalSteps}`;
+
+    ovBuyToast.style.display = 'flex';
+    buyToastVisible = true;
+    applyOverlaySize();
+
+    clearTimeout(buyToastTimer);
+    buyToastTimer = setTimeout(hideBuyToast, 9000);
+}
+
+function hideBuyToast() {
+    clearTimeout(buyToastTimer);
+    buyToastTimer = null;
+    if (!buyToastVisible) return;
+    buyToastVisible = false;
+    buyToastIndex = null;
+    ovBuyToast.style.display = 'none';
+    applyOverlaySize();
+}
+
+// ✕ means "I'm not buying that this game" — the main process stops re-arming
+// the step, rather than pinging again on the next trip to the shop.
+ovBuySkip.addEventListener('click', () => {
+    if (buyToastIndex !== null) window.overlayAPI.skipBuildStep(buyToastIndex);
+    hideBuyToast();
+});
+
+window.overlayAPI.onBuildReminder(showBuyToast);
 
 // ── Ranked panel ──────────────────────────────────────────────────────────────
 function renderRankedPanel() {
@@ -395,10 +476,7 @@ function togglePanel(force) {
         renderRankedPanel();
     }
 
-    const rowH = 28;
-    const rows = Math.max(allPlayers.length / 2, 5);
-    const panelH = 6 + 18 + rows * rowH + 8; // top pad + header + rows + bottom pad
-    window.overlayAPI.resize(480, COMPACT_H + (panelOpen ? Math.round(panelH) : 0));
+    applyOverlaySize();
 }
 
 function triggerRankedFetch(retryPlayers) {
@@ -472,8 +550,7 @@ function toggleSettingsPanel(force) {
         if (buildPanelOpen) toggleBuildPanel(false);
     }
 
-    const panelH = settingsPanelOpen ? 5 * 40 + 16 : 0; // 5 rows × 40px + padding
-    window.overlayAPI.resize(480, COMPACT_H + panelH);
+    applyOverlaySize();
 }
 
 // Opacity slider — instant CSS preview on input, save to config on release
@@ -518,6 +595,13 @@ ovShowBuildsToggle.addEventListener('change', () => {
     window.overlayAPI.saveSettings({ showBuilds: on });
 });
 
+// Buy reminders toggle
+ovBuildRemindersToggle.addEventListener('change', () => {
+    buildRemindersOn = ovBuildRemindersToggle.checked;
+    if (!buildRemindersOn) hideBuyToast();
+    window.overlayAPI.saveSettings({ buildReminders: buildRemindersOn });
+});
+
 // Settings pushed from main (when another window changes a config value)
 window.overlayAPI.onSettingsUpdate((s) => {
     if (s.showRanked !== undefined) {
@@ -531,6 +615,11 @@ window.overlayAPI.onSettingsUpdate((s) => {
     if (s.locked !== undefined) {
         overlayLocked = s.locked;
         ovLockToggle.checked = s.locked;
+    }
+    if (s.buildReminders !== undefined) {
+        buildRemindersOn = s.buildReminders;
+        ovBuildRemindersToggle.checked = s.buildReminders;
+        if (!buildRemindersOn) hideBuyToast();
     }
 });
 
@@ -656,6 +745,9 @@ window.overlayAPI.onInit((initData) => {
 
     overlayLocked = initData?.locked || false;
     ovLockToggle.checked = overlayLocked;
+
+    buildRemindersOn = initData?.buildReminders !== false;
+    ovBuildRemindersToggle.checked = buildRemindersOn;
 
     const showRanked = initData?.showRanked !== false;
     const showBuilds = initData?.showBuilds !== false;

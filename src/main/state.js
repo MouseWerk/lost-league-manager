@@ -17,6 +17,7 @@ if (app.isPackaged) {
 const state = {
     mainWindow: null,
     overlayWindow: null,
+    reminderWindow: null,
     tray: null,
     currentAccount: null,
     owOverlayPackage: null,
@@ -35,6 +36,9 @@ const state = {
         overlayOpacity: 1.0,
         overlayHotkey: 'Ctrl+Shift+H',
         overlayLocked: false,
+        buildRemindersEnabled: true,
+        buildReminderPopup: true,
+        buildReminderToast: true,
         uiScale: 1.0,
         startWithWindows: false,
         startMinimized: false,
@@ -52,6 +56,7 @@ const state = {
         config:      path.join(APP_DATA_PATH, 'config.json'),
         rankHistory: path.join(APP_DATA_PATH, 'rank-history.json'),
         honorWatch:  path.join(APP_DATA_PATH, 'honor-watch.json'),
+        buildPaths:  path.join(APP_DATA_PATH, 'build-paths.json'),
     },
 
     RESOURCES_PATH,

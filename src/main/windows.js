@@ -46,6 +46,7 @@ function createMainWindow() {
             state.overlayWindow.destroy();
             state.overlayWindow = null;
         }
+        destroyReminderWindow();
     });
 }
 
@@ -98,6 +99,7 @@ function createOverlayWindow(owOverlay) {
                 opacity,
                 hotkey:  state.config.overlayHotkey  || 'Ctrl+Shift+H',
                 locked:  state.config.overlayLocked  || false,
+                buildReminders: state.config.buildRemindersEnabled !== false,
             });
         });
     };
@@ -116,6 +118,84 @@ function createOverlayWindow(owOverlay) {
         fb.setAlwaysOnTop(true, 'screen-saver');
         finish(fb);
     }
+}
+
+// ── Buy reminder popup ───────────────────────────────────────────────────────
+// Our own always-on-top window rather than an injected overlay: no Overwolf, no
+// game hooking. It sits above a borderless-fullscreen client the same way any
+// topmost window does. (Exclusive fullscreen is the one case nothing but a real
+// injected overlay can draw over — the Windows toast has the same limit.)
+const REMINDER_W = 430;
+const REMINDER_H = 104;
+const REMINDER_MS = 7000;
+let reminderHideTimer = null;
+
+function createReminderWindow() {
+    if (state.reminderWindow && !state.reminderWindow.isDestroyed()) return state.reminderWindow;
+
+    // Screen bounds, not work area — the game covers the taskbar.
+    const { width: sw, height: sh } = screen.getPrimaryDisplay().bounds;
+    const win = new BrowserWindow({
+        width: REMINDER_W,
+        height: REMINDER_H,
+        x: Math.round((sw - REMINDER_W) / 2),
+        y: Math.round(sh * 0.09),
+        frame: false,
+        transparent: true,
+        resizable: false,
+        movable: false,
+        minimizable: false,
+        skipTaskbar: true,
+        focusable: false,   // never pulls focus out of the game
+        show: false,
+        webPreferences: {
+            preload: path.join(__dirname, '../preload/reminder-preload.js'),
+            nodeIntegration: false,
+            contextIsolation: true,
+        },
+    });
+
+    win.setAlwaysOnTop(true, 'screen-saver');
+    win.setIgnoreMouseEvents(true);   // clicks pass straight through to the game
+    win.loadFile(path.join(__dirname, '../renderer/reminder.html'));
+
+    win.webContents.on('did-finish-load', () => {
+        if (win.isDestroyed()) return;
+        const championData = require('./services/champion-data');
+        win.webContents.send('reminder-init', { ddragonVersion: championData.getLatestVersion() });
+    });
+
+    state.reminderWindow = win;
+    return win;
+}
+
+function showBuyReminder(payload) {
+    const win = createReminderWindow();
+    const deliver = () => {
+        if (win.isDestroyed()) return;
+        win.webContents.send('buy-reminder', { ...payload, durationMs: REMINDER_MS });
+        // showInactive, not show: focus stays in the game.
+        win.setAlwaysOnTop(true, 'screen-saver');
+        win.showInactive();
+        clearTimeout(reminderHideTimer);
+        reminderHideTimer = setTimeout(() => {
+            if (!win.isDestroyed()) win.hide();
+        }, REMINDER_MS);
+    };
+
+    if (win.webContents.isLoading()) {
+        win.webContents.once('did-finish-load', deliver);
+    } else {
+        deliver();
+    }
+}
+
+function destroyReminderWindow() {
+    clearTimeout(reminderHideTimer);
+    if (state.reminderWindow && !state.reminderWindow.isDestroyed()) {
+        state.reminderWindow.destroy();
+    }
+    state.reminderWindow = null;
 }
 
 function updateTrayMenu() {
@@ -190,6 +270,8 @@ function broadcastAccountsUpdate() {
 module.exports = {
     createMainWindow,
     createOverlayWindow,
+    showBuyReminder,
+    destroyReminderWindow,
     createTray,
     updateTrayMenu,
     updateJumpList,

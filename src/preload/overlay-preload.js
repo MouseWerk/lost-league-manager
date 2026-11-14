@@ -13,5 +13,8 @@ contextBridge.exposeInMainWorld('overlayAPI', {
     fetchBuilds:     (champKey, gameMode, position) => ipcRenderer.invoke('overlay-get-builds', { champKey, gameMode, position }),
     setOpacity:      (v)       => ipcRenderer.invoke('overlay-set-opacity', v),
     saveSettings:    (s)       => ipcRenderer.invoke('overlay-save-settings', s),
-    onSettingsUpdate: (cb)      => ipcRenderer.on('overlay-settings-update', (_, d) => cb(d))
+    onSettingsUpdate: (cb)      => ipcRenderer.on('overlay-settings-update', (_, d) => cb(d)),
+    onBuildReminder:  (cb)      => ipcRenderer.on('build-reminder', (_, d) => cb(d)),
+    skipBuildStep:    (index)   => ipcRenderer.send('build-reminder-skip', index),
+    resolveBuildPath: (champKey) => ipcRenderer.invoke('resolve-build-path', champKey)
 });

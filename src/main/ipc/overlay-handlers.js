@@ -95,16 +95,18 @@ function register() {
                 console.error('[Overlay] Hotkey re-register failed:', e.message);
             }
         }
-        if (settings.locked      !== undefined) state.config.overlayLocked      = settings.locked;
-        if (settings.showRanked  !== undefined) state.config.overlayShowRanked  = settings.showRanked;
-        if (settings.showBuilds  !== undefined) state.config.overlayShowBuilds  = settings.showBuilds;
+        if (settings.locked         !== undefined) state.config.overlayLocked         = settings.locked;
+        if (settings.showRanked     !== undefined) state.config.overlayShowRanked     = settings.showRanked;
+        if (settings.showBuilds     !== undefined) state.config.overlayShowBuilds     = settings.showBuilds;
+        if (settings.buildReminders !== undefined) state.config.buildRemindersEnabled = settings.buildReminders;
         saveConfig();
         // Push UI updates back to the overlay
         if (state.overlayWindow && !state.overlayWindow.isDestroyed()) {
             state.overlayWindow.webContents.send('overlay-settings-update', {
-                showRanked: state.config.overlayShowRanked !== false,
-                showBuilds: state.config.overlayShowBuilds !== false,
-                locked:     state.config.overlayLocked     || false,
+                showRanked:     state.config.overlayShowRanked     !== false,
+                showBuilds:     state.config.overlayShowBuilds     !== false,
+                locked:         state.config.overlayLocked         || false,
+                buildReminders: state.config.buildRemindersEnabled !== false,
             });
         }
     });

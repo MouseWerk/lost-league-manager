@@ -10,6 +10,9 @@ const discordRpc = require('../services/discord-rpc');
 // the wrong shape.
 const ALLOWED_CONFIG_KEYS = {
     autoAccept:            v => typeof v === 'boolean',
+    buildRemindersEnabled: v => typeof v === 'boolean',
+    buildReminderPopup:    v => typeof v === 'boolean',
+    buildReminderToast:    v => typeof v === 'boolean',
     checkUpdatesOnStartup: v => typeof v === 'boolean',
     discordRpcEnabled:     v => typeof v === 'boolean',
     lastSeenPatchNotesVersion: v => typeof v === 'string',
@@ -33,9 +36,10 @@ function pushOverlaySettings() {
     const ow = state.overlayWindow;
     if (!ow || ow.isDestroyed()) return;
     ow.webContents.send('overlay-settings-update', {
-        showRanked: state.config.overlayShowRanked !== false,
-        showBuilds: state.config.overlayShowBuilds !== false,
-        locked:     state.config.overlayLocked     || false,
+        showRanked:     state.config.overlayShowRanked      !== false,
+        showBuilds:     state.config.overlayShowBuilds      !== false,
+        locked:         state.config.overlayLocked          || false,
+        buildReminders: state.config.buildRemindersEnabled  !== false,
     });
 }
 
@@ -71,7 +75,7 @@ function register() {
             }
 
             // Push panel visibility / lock changes live
-            const panelKeys = ['overlayShowRanked', 'overlayShowBuilds', 'overlayLocked'];
+            const panelKeys = ['overlayShowRanked', 'overlayShowBuilds', 'overlayLocked', 'buildRemindersEnabled'];
             if (panelKeys.some(k => state.config[k] !== prev[k])) {
                 pushOverlaySettings();
             }

@@ -34,30 +34,7 @@ const OPGG_ICON_SVG = `<svg viewBox="0 0 16 16" width="1em" height="1em" aria-hi
 // config.lastSeenPatchNotesVersion so it doesn't show again for this version.
 // Keyed by exact package.json version string; a version with no entry here
 // (or one the user has already seen) shows nothing.
-const PATCH_NOTES = {
-  "1.6.0": [
-    {
-      icon: "fas fa-layer-group",
-      title: "Tooltips never get clipped",
-      body: "Tooltips now always render on top, even for cards at the edge of a scrolling list — they used to get sliced off by the list's own edge.",
-    },
-    {
-      icon: "fas fa-arrow-up-right-from-square",
-      title: "OP.GG button on every account",
-      body: "One click opens that account's OP.GG page.",
-    },
-    {
-      icon: "fas fa-chart-line",
-      title: "Match history glance",
-      body: "The profile view now shows your last 5 games as a quick win/loss strip.",
-    },
-    {
-      icon: "fas fa-star",
-      title: "Mastery badges",
-      body: "Account cards now show your top 3 mastery champions at a glance.",
-    },
-  ],
-};
+const PATCH_NOTES = {};
 
 // Rank tier → numeric for sorting
 const TIER_ORDER = {
@@ -452,6 +429,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       true,
     );
     bindSettingToggle("toastOnQueuePopToggle", "toastOnQueuePop", true);
+    bindSettingToggle("buildRemindersEnabledToggle", "buildRemindersEnabled", true);
+    bindSettingToggle("buildReminderPopupToggle", "buildReminderPopup", true);
+    document
+      .getElementById("previewReminderBtn")
+      ?.addEventListener("click", async () => {
+        const res = await window.electronAPI.previewBuildReminder();
+        if (res?.success) showToast("Sample reminder shown", "success");
+        else showToast(res?.message || "Could not show the popup", "error");
+      });
+    bindSettingToggle("buildReminderToastToggle", "buildReminderToast", true);
     bindSettingToggle("discordRpcEnabledToggle", "discordRpcEnabled", true);
 
     // UI Scale — only apply if non-default; let ow-electron manage native DPI at 1.0
@@ -759,6 +746,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log("[GEP] Info update:", data);
   });
 
+  // Build path step reached — mirrored in-app so the reminder is visible when
+  // the game is windowed or the player is alt-tabbed (the Windows toast and,
+  // when it's up, the overlay toast are fired from the main process).
+  window.electronAPI.onBuildReminder((r) => {
+    const names = r.items.map((i) => i.name).join(" + ");
+    showToast(`${r.gold}g reached — buy ${names}`, "info");
+  });
+
   // Cancel Launch
   document
     .getElementById("cancelLaunchBtn")
@@ -954,6 +949,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       showView(btn.dataset.view);
       if (btn.dataset.view === "liveView") loadLiveView();
       if (btn.dataset.view === "statsView") initStatsView();
+      if (btn.dataset.view === "buildsView") initBuildsView();
     });
   });
 
@@ -2608,8 +2604,16 @@ function initStatsView() {
     renderStatsChampGrid(e.target.value);
   });
   document.getElementById("statsItemSearch").addEventListener("input", (e) => {
-    renderStatsItemGrid(e.target.value);
+    shopFilters.query = e.target.value.trim().toLowerCase();
+    renderStatsItemGrid();
   });
+  document.getElementById("shopSortSelect").addEventListener("change", (e) => {
+    shopFilters.sort = e.target.value;
+    renderStatsItemGrid();
+  });
+  document
+    .getElementById("shopClearBtn")
+    .addEventListener("click", shopClearFilters);
 
   loadStatsChamps();
   loadStatsItems();
@@ -2878,38 +2882,210 @@ function renderStatsChampDetail() {
 
 // ── Items ────────────────────────────────────────────────────────────────────
 
+// ── Items — laid out like the in-game shop ───────────────────────────────────
+// A filter rail (tier + stat categories), a dense icon grid, and the detail
+// panel. Scanning 289 items by name in a narrow list was the old way; here you
+// narrow by what the item does first, the way you would in the shop.
+
+const SHOP_TIERS = [
+  { value: "all", label: "All items" },
+  { value: "basic", label: "Basic" },
+  { value: "epic", label: "Epic" },
+  { value: "legendary", label: "Legendary" },
+  { value: "consumable", label: "Consumable" },
+];
+
+// Shop-style category labels → the Data Dragon tags behind them. An item
+// matches a category if it carries any of that category's tags.
+const SHOP_CATEGORIES = [
+  {
+    group: "Attack",
+    items: [
+      { label: "Attack Damage", tags: ["Damage"] },
+      { label: "Attack Speed", tags: ["AttackSpeed"] },
+      { label: "Critical Strike", tags: ["CriticalStrike"] },
+      { label: "On-Hit", tags: ["OnHit"] },
+      { label: "Armor Pen", tags: ["ArmorPenetration"] },
+      { label: "Life Steal", tags: ["LifeSteal", "SpellVamp"] },
+    ],
+  },
+  {
+    group: "Magic",
+    items: [
+      { label: "Ability Power", tags: ["SpellDamage"] },
+      { label: "Mana & Regen", tags: ["Mana", "ManaRegen"] },
+      { label: "Magic Pen", tags: ["MagicPenetration"] },
+      { label: "Ability Haste", tags: ["AbilityHaste", "CooldownReduction"] },
+    ],
+  },
+  {
+    group: "Defense",
+    items: [
+      { label: "Health", tags: ["Health"] },
+      { label: "Health Regen", tags: ["HealthRegen"] },
+      { label: "Armor", tags: ["Armor"] },
+      { label: "Magic Resist", tags: ["SpellBlock", "MagicResist"] },
+      { label: "Tenacity", tags: ["Tenacity"] },
+    ],
+  },
+  {
+    group: "Other",
+    items: [
+      { label: "Movement", tags: ["Boots", "NonbootsMovement"] },
+      { label: "Vision", tags: ["Vision"] },
+      { label: "Jungle", tags: ["Jungle"] },
+      { label: "Lane", tags: ["Lane"] },
+      { label: "Gold Income", tags: ["GoldPer"] },
+      { label: "Active", tags: ["Active"] },
+    ],
+  },
+];
+
+const shopFilters = {
+  tier: "all",
+  cats: new Set(), // category labels, ANDed like the shop's checkboxes
+  sort: "cost-asc",
+  query: "",
+};
+
 async function loadStatsItems() {
   statsItemList = await window.electronAPI.getItemList();
   if (!statsItemList || statsItemList.length === 0) {
     setTimeout(async () => {
       statsItemList = await window.electronAPI.getItemList();
-      renderStatsItemGrid(document.getElementById("statsItemSearch").value);
+      renderStatsItemGrid();
     }, 3000);
   }
-  renderStatsItemGrid("");
+  renderShopRail();
+  renderStatsItemGrid();
 }
 
-function renderStatsItemGrid(query) {
+function renderShopRail() {
+  const rail = document.getElementById("shopRail");
+  if (!rail || rail.dataset.built === "1") return;
+
+  const tierChips = SHOP_TIERS.map(
+    (t) =>
+      `<button class="shop-chip shop-tier-chip${t.value === shopFilters.tier ? " selected" : ""}" data-tier="${t.value}">${t.label}</button>`,
+  ).join("");
+
+  const groups = SHOP_CATEGORIES.map(
+    (g) => `
+        <div class="shop-rail-section">
+            <div class="shop-rail-title">${g.group}</div>
+            <div class="shop-chips">
+                ${g.items
+                  .map(
+                    (c) =>
+                      `<button class="shop-chip shop-cat-chip" data-cat="${bpEsc(c.label)}">${bpEsc(c.label)}</button>`,
+                  )
+                  .join("")}
+            </div>
+        </div>`,
+  ).join("");
+
+  rail.innerHTML = `
+        <div class="shop-rail-section">
+            <div class="shop-rail-title">Tier</div>
+            <div class="shop-chips">${tierChips}</div>
+        </div>
+        ${groups}`;
+  rail.dataset.built = "1";
+
+  rail.querySelectorAll(".shop-tier-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      shopFilters.tier = chip.dataset.tier;
+      rail
+        .querySelectorAll(".shop-tier-chip")
+        .forEach((c) => c.classList.toggle("selected", c === chip));
+      renderStatsItemGrid();
+    });
+  });
+  rail.querySelectorAll(".shop-cat-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const label = chip.dataset.cat;
+      if (shopFilters.cats.has(label)) shopFilters.cats.delete(label);
+      else shopFilters.cats.add(label);
+      chip.classList.toggle("selected", shopFilters.cats.has(label));
+      renderStatsItemGrid();
+    });
+  });
+}
+
+function shopClearFilters() {
+  shopFilters.tier = "all";
+  shopFilters.cats.clear();
+  shopFilters.query = "";
+  const search = document.getElementById("statsItemSearch");
+  if (search) search.value = "";
+  document.querySelectorAll(".shop-cat-chip").forEach((c) => c.classList.remove("selected"));
+  document
+    .querySelectorAll(".shop-tier-chip")
+    .forEach((c) => c.classList.toggle("selected", c.dataset.tier === "all"));
+  renderStatsItemGrid();
+}
+
+function shopMatches(item) {
+  if (shopFilters.tier !== "all" && item.tier !== shopFilters.tier) return false;
+  if (shopFilters.query && !item.name.toLowerCase().includes(shopFilters.query)) return false;
+
+  // Every selected category must match — narrowing, like ticking two boxes in
+  // the shop, rather than widening.
+  for (const label of shopFilters.cats) {
+    const cat = SHOP_CATEGORIES.flatMap((g) => g.items).find((c) => c.label === label);
+    if (!cat) continue;
+    if (!cat.tags.some((tag) => item.tags.includes(tag))) return false;
+  }
+  return true;
+}
+
+function shopSort(list) {
+  const sorted = [...list];
+  switch (shopFilters.sort) {
+    case "cost-desc":
+      return sorted.sort((a, b) => b.gold.total - a.gold.total || a.name.localeCompare(b.name));
+    case "eff-desc":
+      return sorted.sort((a, b) => b.efficiency - a.efficiency || a.name.localeCompare(b.name));
+    case "name":
+      return sorted.sort((a, b) => a.name.localeCompare(b.name));
+    default:
+      return sorted.sort((a, b) => a.gold.total - b.gold.total || a.name.localeCompare(b.name));
+  }
+}
+
+function renderStatsItemGrid() {
   const grid = document.getElementById("statsItemGrid");
   const count = document.getElementById("statsItemCount");
-  if (!statsItemList) return;
+  const clearBtn = document.getElementById("shopClearBtn");
+  if (!grid || !statsItemList) return;
+
   if (statsItemList.length === 0) {
-    if (count) count.textContent = "";
+    if (count) count.textContent = "0";
     grid.innerHTML = `<div class="stats-empty" style="padding:30px 0"><p>Loading items…</p></div>`;
     return;
   }
-  const q = (query || "").trim().toLowerCase();
-  const list = q
-    ? statsItemList.filter((i) => i.name.toLowerCase().includes(q))
-    : statsItemList;
 
+  const list = shopSort(statsItemList.filter(shopMatches));
   if (count) count.textContent = list.length;
+
+  const filtered =
+    shopFilters.tier !== "all" || shopFilters.cats.size > 0 || !!shopFilters.query;
+  if (clearBtn) clearBtn.style.display = filtered ? "" : "none";
+
+  if (list.length === 0) {
+    grid.innerHTML = `<div class="shop-empty">No item matches these filters.</div>`;
+    return;
+  }
 
   grid.innerHTML = "";
   list.forEach((item) => {
-    const el = document.createElement("div");
-    el.className =
-      "stats-grid-item" + (currentStatsItemId === item.id ? " selected" : "");
+    const el = document.createElement("button");
+    el.className = "shop-item" + (currentStatsItemId === item.id ? " selected" : "");
+    el.dataset.id = item.id;
+    // Name lives in the tooltip so the grid stays a dense wall of icons — the
+    // shop's own trick for making a few hundred items scannable.
+    el.setAttribute("data-tooltip", `${item.name} — ${item.gold.total}g`);
+
     const img = document.createElement("img");
     img.src = item.icon;
     img.alt = item.name;
@@ -2918,10 +3094,13 @@ function renderStatsItemGrid(query) {
     img.onerror = () => {
       img.style.display = "none";
     };
-    const span = document.createElement("span");
-    span.textContent = item.name;
+
+    const cost = document.createElement("span");
+    cost.className = "shop-item-cost";
+    cost.textContent = item.gold.total;
+
     el.appendChild(img);
-    el.appendChild(span);
+    el.appendChild(cost);
     el.addEventListener("click", () => selectStatsItem(item));
     grid.appendChild(el);
   });
@@ -2935,7 +3114,7 @@ function effClass(pct) {
 
 function selectStatsItem(item) {
   currentStatsItemId = item.id;
-  renderStatsItemGrid(document.getElementById("statsItemSearch").value);
+  renderStatsItemGrid();
 
   const detail = document.getElementById("statsItemDetail");
   const pct = item.efficiency;
@@ -3020,6 +3199,496 @@ function selectStatsItem(item) {
       lines[i].textContent = isHeader ? line.slice(2, -2) : line;
     });
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Build Paths — per-champion gold-threshold buy plans
+//
+// A plan is an ordered list of steps ("at 650g, buy Boots + Dark Seal"). The
+// main process reads live gold from the game's own Live Client Data API and
+// fires one reminder per step (see services/build-reminder.js). Plans can be
+// seeded from OP.GG's recommended build and then edited by hand.
+// ═══════════════════════════════════════════════════════════════════════════
+let buildsViewInitialized = false;
+let bpPaths = {}; // champKey → { key, steps }
+let bpLimits = { maxSteps: 12, maxItemsPerStep: 6 };
+let bpItems = null; // item list cache for the picker
+let bpTarget = null; // { key, name, iconUrl, tags }
+let bpSteps = []; // working copy of bpTarget's steps
+let bpPickerStep = null; // index of the step whose item picker is open
+let bpSaveTimer = null;
+let bpRole = ""; // OP.GG import role, remembered across champions
+
+const BP_ROLES = [
+  { value: "", label: "Any role" },
+  { value: "TOP", label: "Top" },
+  { value: "JUNGLE", label: "Jungle" },
+  { value: "MIDDLE", label: "Mid" },
+  { value: "BOTTOM", label: "ADC" },
+  { value: "UTILITY", label: "Support" },
+  { value: "ARAM", label: "ARAM" },
+];
+
+function bpEsc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function bpHasPlan(champKey) {
+  return !!bpPaths[champKey]?.steps?.length;
+}
+function bpItemById(id) {
+  return bpItems?.find((i) => i.id === id) || null;
+}
+function bpStepSum(step) {
+  return step.items.reduce(
+    (sum, id) => sum + (bpItemById(id)?.gold?.total || 0),
+    0,
+  );
+}
+
+async function initBuildsView() {
+  if (buildsViewInitialized) return;
+  buildsViewInitialized = true;
+
+  document.getElementById("bpChampSearch").addEventListener("input", (e) => {
+    renderBpChampGrid(e.target.value);
+  });
+
+  await loadBpData();
+  renderBpChampGrid("");
+}
+
+async function loadBpData() {
+  const [res, champs, items] = await Promise.all([
+    window.electronAPI.getBuildPaths(),
+    champListCache
+      ? Promise.resolve(champListCache)
+      : window.electronAPI.getChampionList(),
+    window.electronAPI.getItemList(),
+  ]);
+  bpPaths = res?.paths || {};
+  if (res?.limits) bpLimits = res.limits;
+  champListCache = champs;
+  bpItems = items || [];
+}
+
+// ── Champion picker ──────────────────────────────────────────────────────────
+
+function renderBpChampGrid(query) {
+  const grid = document.getElementById("bpChampGrid");
+  if (!champListCache) return;
+  grid.innerHTML = "";
+  const q = (query || "").trim().toLowerCase();
+  const list = q
+    ? champListCache.filter((c) => c.name.toLowerCase().includes(q))
+    : champListCache;
+
+  const count = document.getElementById("bpChampCount");
+  if (count) count.textContent = list.length;
+
+  list.forEach((champ) => {
+    const item = document.createElement("div");
+    item.className =
+      "stats-grid-item" +
+      (bpTarget?.key === champ.key ? " selected" : "") +
+      (bpHasPlan(champ.key) ? " bp-has-plan" : "");
+    const img = document.createElement("img");
+    img.src = champ.iconUrl;
+    img.alt = champ.name;
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.onerror = () => {
+      img.style.display = "none";
+    };
+    const span = document.createElement("span");
+    span.textContent = champ.name;
+    item.appendChild(img);
+    item.appendChild(span);
+    item.addEventListener("click", () => selectBpChampion(champ.key));
+    grid.appendChild(item);
+  });
+}
+
+async function selectBpChampion(champKey) {
+  bpPickerStep = null;
+  const champ = champListCache?.find((c) => c.key === champKey);
+  const full = await window.electronAPI.getChampionFullData(champKey);
+  bpTarget = {
+    key: champKey,
+    name: champ?.name || champKey,
+    iconUrl: champ?.iconUrl || null,
+    tags: full?.tags || [],
+  };
+
+  // Work on a copy — nothing is written back until an edit triggers a save.
+  bpSteps = (bpPaths[champKey]?.steps || []).map((s) => ({
+    ...s,
+    items: [...s.items],
+  }));
+
+  renderBpChampGrid(document.getElementById("bpChampSearch").value);
+  renderBpDetail();
+}
+
+// ── Editor ───────────────────────────────────────────────────────────────────
+
+function renderBpDetail() {
+  const detail = document.getElementById("bpDetail");
+  if (!bpTarget) return;
+
+  const roleOpts = BP_ROLES.map(
+    (r) =>
+      `<option value="${r.value}"${r.value === bpRole ? " selected" : ""}>${r.label}</option>`,
+  ).join("");
+
+  detail.innerHTML = `
+        <div class="bp-editor">
+            <div class="bp-editor-header">
+                <img class="bp-target-icon" src="${bpEsc(bpTarget.iconUrl || "")}" alt="">
+                <div class="bp-target-text">
+                    <div class="bp-target-name">${bpEsc(bpTarget.name)}</div>
+                    <div class="bp-target-sub">${bpEsc(bpTarget.tags.join(" · "))}</div>
+                </div>
+                <div class="bp-header-actions">
+                    <span class="bp-save-state" id="bpSaveState"></span>
+                    ${
+                      bpSteps.length
+                        ? '<button class="action-btn bp-delete-btn" id="bpDeleteBtn"><i class="fas fa-trash"></i> Delete plan</button>'
+                        : ""
+                    }
+                </div>
+            </div>
+
+            <div class="bp-import-bar">
+                <span class="bp-import-label"><i class="fas fa-download"></i> Recommended build</span>
+                <select class="sort-select bp-role-select" id="bpRoleSelect">${roleOpts}</select>
+                <button class="action-btn bp-import-btn" id="bpImportBtn">Import from OP.GG</button>
+                <span class="bp-import-hint">Replaces the steps below — edit them afterwards.</span>
+            </div>
+
+            <div class="bp-steps" id="bpStepsList"></div>
+            <button class="bp-add-step" id="bpAddStepBtn">
+                <i class="fas fa-plus"></i> Add step
+            </button>
+        </div>`;
+
+  document.getElementById("bpAddStepBtn").addEventListener("click", bpAddStep);
+  document
+    .getElementById("bpDeleteBtn")
+    ?.addEventListener("click", bpDeletePlan);
+  document.getElementById("bpImportBtn").addEventListener("click", bpImport);
+  document.getElementById("bpRoleSelect").addEventListener("change", (e) => {
+    bpRole = e.target.value;
+  });
+
+  renderBpSteps();
+}
+
+function renderBpSteps() {
+  const list = document.getElementById("bpStepsList");
+  if (!list) return;
+
+  if (bpSteps.length === 0) {
+    list.innerHTML =
+      '<div class="bp-steps-empty">No steps yet — import a build above, or add one by hand.</div>';
+    return;
+  }
+
+  list.innerHTML = bpSteps
+    .map((step, i) => {
+      const sum = bpStepSum(step);
+      const chips = step.items
+        .map((id, itemIdx) => {
+          const meta = bpItemById(id);
+          const name = meta?.name || `Item ${id}`;
+          const cost = meta?.gold?.total ?? 0;
+          return `
+                <span class="bp-item-chip" data-tooltip="${bpEsc(name)} — ${cost}g">
+                    <img src="${bpEsc(meta?.icon || "")}" alt="" onerror="this.style.display='none'">
+                    <span class="bp-item-name">${bpEsc(name)}</span>
+                    <button class="bp-item-del" data-step="${i}" data-item="${itemIdx}">&times;</button>
+                </span>`;
+        })
+        .join("");
+
+      const addItemBtn =
+        step.items.length < bpLimits.maxItemsPerStep
+          ? `<button class="bp-add-item" data-step="${i}"><i class="fas fa-plus"></i> Item</button>`
+          : "";
+
+      return `
+        <div class="bp-step" data-step="${i}">
+            <div class="bp-step-num">${i + 1}</div>
+            <div class="bp-gold-field">
+                <input type="number" class="bp-gold-input" data-step="${i}"
+                       value="${step.gold}" min="0" max="30000" step="25">
+                <span class="bp-gold-unit">g</span>
+            </div>
+            <button class="bp-auto-btn${step.gold === sum ? " is-auto" : ""}"
+                    data-step="${i}" data-tooltip="Use the summed item cost (${sum}g)">&Sigma;</button>
+            <div class="bp-step-items">${chips}${addItemBtn}</div>
+            <button class="bp-step-del" data-step="${i}" data-tooltip="Remove step">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>`;
+    })
+    .join("");
+
+  list.querySelectorAll(".bp-gold-input").forEach((input) => {
+    input.addEventListener("input", (e) => {
+      const i = Number(e.target.dataset.step);
+      const val = Math.max(
+        0,
+        Math.min(30000, Math.round(Number(e.target.value) || 0)),
+      );
+      bpSteps[i].gold = val;
+      // Typing a threshold by hand pins it; it stops tracking the item total.
+      bpSteps[i].autoGold = val === bpStepSum(bpSteps[i]);
+      const auto = list.querySelector(`.bp-auto-btn[data-step="${i}"]`);
+      if (auto) auto.classList.toggle("is-auto", bpSteps[i].autoGold);
+      bpQueueSave();
+    });
+  });
+  list.querySelectorAll(".bp-auto-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.step);
+      bpSteps[i].gold = bpStepSum(bpSteps[i]);
+      bpSteps[i].autoGold = true;
+      renderBpSteps();
+      bpQueueSave();
+    });
+  });
+  list.querySelectorAll(".bp-item-del").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const i = Number(btn.dataset.step);
+      bpSteps[i].items.splice(Number(btn.dataset.item), 1);
+      if (bpSteps[i].autoGold) bpSteps[i].gold = bpStepSum(bpSteps[i]);
+      renderBpSteps();
+      bpQueueSave();
+    });
+  });
+  list.querySelectorAll(".bp-step-del").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      bpSteps.splice(Number(btn.dataset.step), 1);
+      bpPickerStep = null;
+      renderBpDetail();
+      bpQueueSave();
+    });
+  });
+  list.querySelectorAll(".bp-add-item").forEach((btn) => {
+    btn.addEventListener("click", () => openBpPicker(Number(btn.dataset.step)));
+  });
+
+  if (bpPickerStep !== null && bpSteps[bpPickerStep]) mountBpPicker(bpPickerStep);
+}
+
+function bpAddStep() {
+  if (bpSteps.length >= bpLimits.maxSteps) {
+    showToast(`A plan can hold at most ${bpLimits.maxSteps} steps`, "info");
+    return;
+  }
+  bpSteps.push({ items: [], gold: 0, autoGold: true });
+  renderBpDetail();
+  openBpPicker(bpSteps.length - 1);
+}
+
+async function bpDeletePlan() {
+  const { key, name } = bpTarget;
+  const res = await window.electronAPI.deleteBuildPath(key);
+  if (!res?.success) {
+    showToast(res?.message || "Could not delete plan", "error");
+    return;
+  }
+  delete bpPaths[key];
+  bpSteps = [];
+  bpPickerStep = null;
+  renderBpChampGrid(document.getElementById("bpChampSearch").value);
+  renderBpDetail();
+  showToast(`Plan for ${name} deleted`, "success");
+}
+
+// ── OP.GG import ─────────────────────────────────────────────────────────────
+
+async function bpImport() {
+  const { key, name } = bpTarget;
+
+  if (bpSteps.length > 0) {
+    const ok = await showConfirm(
+      "Replace plan?",
+      `This replaces the ${bpSteps.length} step(s) you have for ${name} with OP.GG's recommended build.`,
+      "danger",
+    );
+    if (!ok) return;
+  }
+
+  const btn = document.getElementById("bpImportBtn");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Importing…';
+  }
+
+  const res = await window.electronAPI.importBuildPath(key, bpRole);
+
+  // The user may have clicked another champion while OP.GG was answering; the
+  // plan is saved either way, only the open editor needs to stay put.
+  const stillHere = bpTarget?.key === key;
+  if (!res?.success) {
+    showToast(res?.message || "Import failed", "error");
+    if (stillHere) renderBpDetail();
+    return;
+  }
+
+  bpPaths[key] = { key, steps: res.steps };
+  if (stillHere) {
+    bpSteps = res.steps.map((s) => ({ ...s, items: [...s.items] }));
+    bpPickerStep = null;
+    renderBpDetail();
+    bpSetSaveState("Saved", "is-saved");
+  }
+  renderBpChampGrid(document.getElementById("bpChampSearch").value);
+  showToast(`Imported ${res.steps.length} steps for ${name}`, "success");
+}
+
+// ── Item picker ──────────────────────────────────────────────────────────────
+
+function openBpPicker(stepIndex) {
+  bpPickerStep = bpPickerStep === stepIndex ? null : stepIndex;
+  renderBpSteps();
+}
+
+function mountBpPicker(stepIndex) {
+  const step = document.querySelector(`.bp-step[data-step="${stepIndex}"]`);
+  if (!step) return;
+
+  const picker = document.createElement("div");
+  picker.className = "bp-picker";
+  picker.innerHTML = `
+        <div class="search-box bp-picker-search">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" class="search-input" id="bpItemSearch" placeholder="Search item...">
+        </div>
+        <div class="bp-picker-list" id="bpPickerList"></div>`;
+  step.insertAdjacentElement("afterend", picker);
+
+  // Only the result list is re-rendered as the user types, so the input keeps
+  // focus and the caret position.
+  const input = picker.querySelector("#bpItemSearch");
+  input.addEventListener("input", () =>
+    renderBpPickerList(stepIndex, input.value),
+  );
+  input.focus();
+  renderBpPickerList(stepIndex, "");
+}
+
+function renderBpPickerList(stepIndex, query) {
+  const list = document.getElementById("bpPickerList");
+  if (!list) return;
+
+  if (!bpItems || bpItems.length === 0) {
+    list.innerHTML =
+      '<div class="bp-picker-msg">Item data still loading…</div>';
+    // Data Dragon may not have answered yet if the app only just started.
+    window.electronAPI.getItemList().then((items) => {
+      if (items?.length && bpPickerStep === stepIndex) {
+        bpItems = items;
+        renderBpPickerList(stepIndex, query);
+      }
+    });
+    return;
+  }
+
+  const q = (query || "").trim().toLowerCase();
+  const matches = (
+    q ? bpItems.filter((i) => i.name.toLowerCase().includes(q)) : bpItems
+  ).slice(0, 60);
+
+  if (matches.length === 0) {
+    list.innerHTML = `<div class="bp-picker-msg">No item matches "${bpEsc(query)}".</div>`;
+    return;
+  }
+
+  list.innerHTML = matches
+    .map(
+      (item) => `
+        <button class="bp-picker-item" data-id="${item.id}">
+            <img src="${bpEsc(item.icon)}" alt="" onerror="this.style.display='none'">
+            <span class="bp-picker-name">${bpEsc(item.name)}</span>
+            <span class="bp-picker-cost">${item.gold.total}g</span>
+        </button>`,
+    )
+    .join("");
+
+  list.querySelectorAll(".bp-picker-item").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.id);
+      const step = bpSteps[stepIndex];
+      if (!step) return;
+      if (step.items.includes(id)) {
+        showToast("That item is already in this step", "info");
+        return;
+      }
+      if (step.items.length >= bpLimits.maxItemsPerStep) {
+        showToast(
+          `A step can hold at most ${bpLimits.maxItemsPerStep} items`,
+          "info",
+        );
+        return;
+      }
+      step.items.push(id);
+      if (step.autoGold) step.gold = bpStepSum(step);
+      bpPickerStep = null;
+      renderBpDetail();
+      bpQueueSave();
+    });
+  });
+}
+
+// ── Saving ───────────────────────────────────────────────────────────────────
+
+function bpSetSaveState(text, cls) {
+  const el = document.getElementById("bpSaveState");
+  if (!el) return;
+  el.textContent = text;
+  el.className = `bp-save-state${cls ? " " + cls : ""}`;
+}
+
+// Debounced so holding the arrow keys on a gold input doesn't hit the disk on
+// every tick. Steps with no items are dropped by the main process, so a
+// half-finished step never blocks a save.
+function bpQueueSave() {
+  bpSetSaveState("Saving…");
+  clearTimeout(bpSaveTimer);
+  bpSaveTimer = setTimeout(bpSaveNow, 400);
+}
+
+async function bpSaveNow() {
+  if (!bpTarget) return;
+  const champKey = bpTarget.key;
+  const res = await window.electronAPI.saveBuildPath(champKey, bpSteps);
+  if (!res?.success) {
+    bpSetSaveState("Not saved", "is-error");
+    showToast(res?.message || "Could not save plan", "error");
+    return;
+  }
+
+  if (res.steps?.length) {
+    bpPaths[champKey] = { key: champKey, steps: res.steps };
+  } else {
+    delete bpPaths[champKey];
+  }
+  renderBpChampGrid(document.getElementById("bpChampSearch").value);
+
+  // The user may have switched champion while the save was in flight — the
+  // store is up to date either way, but the editor chrome below belongs to the
+  // champion that was saved.
+  if (bpTarget.key !== champKey) return;
+  bpSetSaveState("Saved", "is-saved");
+  const hasDeleteBtn = !!document.getElementById("bpDeleteBtn");
+  if (!!res.steps?.length !== hasDeleteBtn) renderBpDetail();
 }
 
 // Expose

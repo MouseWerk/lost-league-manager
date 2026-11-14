@@ -76,6 +76,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getItemList: () => ipcRenderer.invoke('get-item-list'),
     setZoomFactor: (factor) => ipcRenderer.invoke('set-zoom-factor', factor),
 
+    // Build paths (gold-threshold buy reminders)
+    getBuildPaths:    () => ipcRenderer.invoke('get-build-paths'),
+    saveBuildPath:    (champKey, steps) => ipcRenderer.invoke('save-build-path', { champKey, steps }),
+    deleteBuildPath:  (champKey) => ipcRenderer.invoke('delete-build-path', champKey),
+    importBuildPath:  (champKey, position) => ipcRenderer.invoke('import-build-path', { champKey, position }),
+    resolveBuildPath: (champKey) => ipcRenderer.invoke('resolve-build-path', champKey),
+    onBuildReminder:  (cb) => ipcRenderer.on('build-reminder', (_, data) => cb(data)),
+    previewBuildReminder: () => ipcRenderer.invoke('preview-build-reminder'),
+
     // Fired when LCU connect reveals which account is logged in externally
     onActiveAccountDetected: (cb) => ipcRenderer.on('active-account-detected', (_, username) => cb(username)),
 });

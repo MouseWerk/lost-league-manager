@@ -578,3 +578,84 @@ body {
 .tier-master      { background: rgba(120,50,220,.2);  color: #A78BFA; }
 .tier-grandmaster { background: rgba(220,40,40,.2);   color: #FCA5A5; }
 .tier-challenger  { background: rgba(220,170,40,.2);  color: #FDE68A; border: 1px solid rgba(220,170,40,.3); }
+
+/* ── Buy reminder toast ──
+   Slides in under the compact bar when a build path step becomes affordable.
+   The window itself is resized to make room (applyOverlaySize in overlay.js) —
+   .ov-root clips overflow, so an un-resized window would cut this off. */
+.ov-buy-toast {
+    height: 46px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 8px 0 10px;
+    border-top: 1px solid var(--ov-sep);
+    background: linear-gradient(90deg, rgba(255, 215, 0, 0.12), rgba(255, 215, 0, 0.02));
+    animation: ovBuyIn 0.22s ease-out;
+}
+
+@keyframes ovBuyIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.ov-buy-gold {
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 800;
+    color: #FFD700;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
+}
+
+.ov-buy-items {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ov-buy-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+}
+.ov-buy-item img {
+    width: 26px;
+    height: 26px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    flex-shrink: 0;
+}
+.ov-buy-item span {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ov-buy-step {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.42);
+}
+
+.ov-buy-skip {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: color 0.15s, background 0.15s;
+}
+.ov-buy-skip:hover { color: var(--ov-red); background: rgba(214, 75, 75, 0.14); }
