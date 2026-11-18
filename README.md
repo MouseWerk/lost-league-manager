@@ -34,7 +34,8 @@
 
 ### Accounts
 - **One-click login.** Pick an account and press Play: the app closes the client, starts the Riot
-  Client and signs in for you.
+  Client and signs in for you. It ticks "Stay signed in", so later launches of that account sign in
+  without typing (Settings > League client).
 - **Quick add.** Type a Riot ID or paste an OP.GG link; rank, icon, server and label fill in. Or take
   the account that is signed into the client.
 - **Ranks at a glance.** Every account shows its solo rank with the ranked emblem from the League

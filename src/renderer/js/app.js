@@ -62,6 +62,13 @@ const PATCH_INTROS = {
 };
 
 const PATCH_NOTES = {
+  "1.13.1": [
+    {
+      icon: "fas fa-user-check",
+      title: "Stay signed in",
+      body: 'When Play types the password, it now ticks "Stay signed in" in the Riot Client, so the next launch of that account signs in without typing. Turn it off in Settings > League client.',
+    },
+  ],
   "1.13.0": [
     {
       icon: "fas fa-crosshairs",
