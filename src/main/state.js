@@ -43,6 +43,7 @@ const state = {
         autoImportBuild: false, // OP.GG runes and item set once a champion is locked
         startWithWindows: false,
         startMinimized: false,
+        staySignedIn: true, // tick "Stay signed in" when the password is typed
         minimizeOnGameStart: false,
         checkUpdatesOnStartup: true,
         toastOnQueuePop: true,

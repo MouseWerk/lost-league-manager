@@ -40,6 +40,7 @@ const ALLOWED_CONFIG_KEYS = {
     overlayShowBuilds:     v => typeof v === 'boolean',
     overlayShowRanked:     v => typeof v === 'boolean',
     startMinimized:        v => typeof v === 'boolean',
+    staySignedIn:          v => typeof v === 'boolean',
     startWithWindows:      v => typeof v === 'boolean',
     toastOnQueuePop:       v => typeof v === 'boolean',
     theme:                 v => THEMES.includes(v),

@@ -1279,6 +1279,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
     bindSettingToggle("startWithWindowsToggle", "startWithWindows", false);
     bindSettingToggle("startMinimizedToggle", "startMinimized", false);
+    bindSettingToggle("staySignedInToggle", "staySignedIn", true);
     bindSettingToggle(
       "checkUpdatesOnStartupToggle",
       "checkUpdatesOnStartup",

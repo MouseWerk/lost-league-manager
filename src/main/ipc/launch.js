@@ -610,6 +610,9 @@ function startLoginScript(launch, account, password, riotClientPath, notBefore) 
         '-NotBefore', String(notBefore),
         '-Product', gameOf(launch).product,
         '-GameProcess', gameOf(launch).process,
+        // Ticked, the sign-in is kept (riotSessions.captureSignIn) and the
+        // next launch of this account skips typing.
+        ...(state.config.staySignedIn !== false ? ['-StaySignedIn'] : []),
     ], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
     launch.child = child;
 

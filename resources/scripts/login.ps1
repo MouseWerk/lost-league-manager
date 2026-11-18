@@ -9,7 +9,10 @@ param (
     [ValidateSet("league_of_legends", "valorant")]
     [string]$Product = "league_of_legends",
     [ValidateSet("LeagueClient", "VALORANT-Win64-Shipping")]
-    [string]$GameProcess = "LeagueClient"
+    [string]$GameProcess = "LeagueClient",
+    # Tick "Stay signed in" before typing, so the app can keep the sign-in
+    # and skip typing the password next time.
+    [switch]$StaySignedIn
 )
 
 $ErrorActionPreference = "Stop"
@@ -161,6 +164,63 @@ function Get-ForegroundProcessName {
     catch { return "unknown" }
 }
 
+# Ticks the Riot Client's "Stay signed in" checkbox through UI Automation
+# instead of keystrokes: its place in the tab order is not stable between
+# Riot Client versions, and counting TABs blind could type into the wrong
+# control. Chromium builds its accessibility tree on the first UIA query, so
+# the lookup is retried for a few seconds. Returns a short status; nothing
+# here is fatal, the login goes on without the tick.
+function Set-StaySignedIn {
+    param ($hwnd)
+    try {
+        Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+        $AE   = [System.Windows.Automation.AutomationElement]
+        $root = $AE::FromHandle($hwnd)
+        $isCheckBox = New-Object System.Windows.Automation.PropertyCondition(
+            $AE::ControlTypeProperty, [System.Windows.Automation.ControlType]::CheckBox)
+        $isEdit = New-Object System.Windows.Automation.PropertyCondition(
+            $AE::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
+
+        $boxes = $null
+        for ($i = 0; $i -lt 8; $i++) {
+            $boxes = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $isCheckBox)
+            if ($boxes.Count -gt 0) { break }
+            Start-Sleep -Milliseconds 500
+        }
+        if (-not $boxes -or $boxes.Count -eq 0) { return "checkbox not found" }
+
+        # The login form has one checkbox: match its label first (English,
+        # German), else take the only one for other client languages.
+        $box = $null
+        foreach ($b in $boxes) {
+            if ($b.Current.Name -match 'stay signed in|signed in|angemeldet') { $box = $b; break }
+        }
+        if (-not $box -and $boxes.Count -eq 1) { $box = $boxes[0] }
+        if (-not $box) { return "checkbox ambiguous ($($boxes.Count) found)" }
+
+        $pattern = $null
+        if ($box.TryGetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern, [ref]$pattern)) {
+            if ($pattern.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::On) {
+                return "already ticked"
+            }
+            $pattern.Toggle()
+        }
+        elseif ($box.TryGetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern, [ref]$pattern)) {
+            $pattern.Invoke()
+        }
+        else { return "checkbox not clickable" }
+
+        # The typing below starts blind in the username field: put focus back.
+        $edit = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $isEdit)
+        if ($edit) {
+            try { $edit.SetFocus() } catch { }
+            Start-Sleep -Milliseconds 200
+        }
+        return "ticked"
+    }
+    catch { return "failed: $($_.Exception.Message)" }
+}
+
 function Wait-ForFocus {
     param ($procId, $hwnd, [int]$maxAttempts = 6, [int]$delayMs = 400)
     for ($i = 0; $i -lt $maxAttempts; $i++) {
@@ -222,6 +282,15 @@ if (-not (Wait-ForFocus -procId $proc.Id -hwnd $hwnd)) {
     Exit-Script 2
 }
 Log "Riot Client window focused"
+
+if ($StaySignedIn) {
+    Log "Stay signed in: $(Set-StaySignedIn -hwnd $hwnd)"
+    # Ticking the box can move the focus: get it back before typing anything.
+    if (-not (Wait-ForFocus -procId $proc.Id -hwnd $hwnd -maxAttempts 3 -delayMs 300)) {
+        Log "ERROR: Lost focus on the Riot Client window after ticking Stay signed in - aborting"
+        Exit-Script 2
+    }
+}
 
 # Enter credentials
 $canBlock = ("Win32.InputBlocker" -as [type])
