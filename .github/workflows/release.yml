@@ -13,16 +13,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0   # full history so generate-notes covers all commits
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # 22+: node --test expands the test/**/*.test.js glob itself
           node-version: 22
-          cache: 'npm'
+          # No npm cache: this job publishes the installer, so it installs fresh
+          # instead of restoring a cache another workflow run could have written.
 
       - name: Install dependencies
         run: npm ci
@@ -82,7 +83,7 @@ jobs:
           gh release edit $VERSION --title $TITLE --notes $BODY --draft=false
 
       - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: installer-${{ github.ref_name }}

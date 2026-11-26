@@ -1,0 +1,60 @@
+name: Bug report
+description: Something in the app does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Never paste passwords, login names or other account details here.
+        Found a security problem? Please report it privately instead, see SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown in Settings.
+      placeholder: "1.13.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: game
+    attributes:
+      label: Game
+      options:
+        - League of Legends
+        - Valorant
+        - Both / not game related
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where in the app?
+      options:
+        - Login / Play
+        - Accounts and ranks
+        - Live view or overlay
+        - Stat viewer or tools
+        - Settings or updates
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Click …
+        3. …
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or error messages
+      description: Remove names and Riot IDs you don't want to share.

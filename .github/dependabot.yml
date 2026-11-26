@@ -1,0 +1,26 @@
+version: 2
+updates:
+  # App and build dependencies: one weekly pull request with all updates that
+  # keep the major version. Security fixes still come right away, on their own.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      # Electron majors change the overlay and game events; upgrade them by hand.
+      - dependency-name: "@overwolf/ow-electron"
+        update-types: ["version-update:semver-major"]
+
+  # The actions the workflows use.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]

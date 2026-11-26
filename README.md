@@ -127,6 +127,9 @@
 Questions, bug reports or ideas: join the **[official Discord server](https://discord.gg/ZyfUMWTPFe)**
 or open an issue here on GitHub. The website is **[lostleague.com](https://www.lostleague.com/)**.
 
+Found a security problem? Please report it privately, see **[SECURITY.md](SECURITY.md)**. Want to
+help with the code? Start with **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
 ---
 
 ## Build from source

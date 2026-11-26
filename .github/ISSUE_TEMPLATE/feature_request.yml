@@ -1,0 +1,24 @@
+name: Feature request
+description: An idea that would make the app better.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like to do?
+      description: The situation and what is missing or annoying today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could the app help?
+      description: Your idea of how it could work. Rough is fine.
+  - type: dropdown
+    id: game
+    attributes:
+      label: Game
+      options:
+        - League of Legends
+        - Valorant
+        - Both / not game related
