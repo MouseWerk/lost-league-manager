@@ -18,7 +18,7 @@
     "@xhayper/discord-rpc": "^1.5.1",
     "axios": "^1.21.1",
     "electron-updater": "^6.8.11",
-    "js-yaml": "^4.3.2",
+    "js-yaml": "^5.5.0",
     "ws": "^8.23.0"
   },
   "devDependencies": {
