@@ -62,6 +62,13 @@ const PATCH_INTROS = {
 };
 
 const PATCH_NOTES = {
+  "1.13.2": [
+    {
+      icon: "fas fa-shield-halved",
+      title: "Security updates",
+      body: "Updated libraries (Discord Rich Presence, updater, network and build tools) to close known security issues. Nothing changes in how the app works.",
+    },
+  ],
   "1.13.1": [
     {
       icon: "fas fa-user-check",
