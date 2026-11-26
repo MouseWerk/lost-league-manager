@@ -37,6 +37,20 @@ jobs:
           $VERSION = "${{ github.ref_name }}" -replace "^v", ""
           npm version $VERSION --no-git-tag-version --allow-same-version
 
+      # One draft release up front: ow-electron-builder 26.18 uploads its files in
+      # parallel and, with no release for the tag yet, each upload creates its own
+      # release (v1.13.2 ended up with two). With the draft in place they all land in it.
+      - name: Create draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "${{ github.ref_name }}" 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create "${{ github.ref_name }}" --draft --verify-tag --title "${{ github.ref_name }}" --notes ""
+          }
+          exit 0
+
       - name: Build and publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
